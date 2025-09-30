@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.StntLesnMapper">
+
+    <select id="checkLesnProgStd" parameterType="map" resultType="camelHashMap" >
+        /* StntLesnMapper.checkLesnProgStd */
+        select IFNULL(
+        (
+             # 제출 문항 수
+            select IFNULL(count(*), 0) as sbm_exm_num           /* 제출분항수 */
+            from aidt_lms.evl_result_detail
+            where evl_result_id in (select id
+                                    from aidt_lms.evl_result_info
+                                    where evl_id in
+                                          (select id from aidt_lms.evl_info where cla_id = #{claId} and textbook_id = #{textbkId}
+                                            and evl_stts_cd = 3 and DATE_FORMAT(evl_cp_dt, "%Y-%m-%d") = CURDATE() )
+                                    and mamoym_id = #{userId})
+            and eak_at = 'Y'        /* 응시여부 */
+            and eak_stts_cd = 3     /* 응시상태 - 3: 응시완료 */
+            and DATE_FORMAT(eak_ed_dt, "%Y-%m-%d") = CURDATE()       /* 응시종료일시 - 해당일 종료 */
+        )
+        /
+        (
+            # 전체 문항 수
+            select IFNULL(SUM(eam_exm_num), 0) as eam_exm_num    /* 출제문항수 */
+            from aidt_lms.evl_info
+            where cla_id = #{claId}            /* 학급ID */
+            and textbook_id = #{textbkId}     	/* 교과서ID */
+            and evl_stts_cd = 3     			/* 응시상태 - 3: 응시완료 */
+            and DATE_FORMAT(evl_cp_dt, "%Y-%m-%d") = CURDATE()        /* 응시종료일시 - 해당일 종료 */
+        )
+        * 100, 0) as percent
+    </select>
+
+    <select id="findLesnProgStdRate" parameterType="map" resultType="camelHashMap" >
+        /* StntLesnMapper.findLesnProgStdRate */
+        select IFNULL(
+             (
+                           # 제출 문항 점수
+             select sum(case when errata = 1 then 1
+                   when errata = 3 then 0.5
+                   else 0 end) as exm_score          /* 제출문항 점수 */
+             from aidt_lms.evl_result_detail
+             where evl_result_id in (select id
+                                    from aidt_lms.evl_result_info
+                                    where evl_id in
+                                          (select id from aidt_lms.evl_info where cla_id = #{claId} and textbook_id = #{textbkId}
+                                            and evl_stts_cd = 3 and DATE_FORMAT(evl_cp_dt, "%Y-%m-%d") = CURDATE() )
+                                    and mamoym_id = #{userId})
+             and eak_at = 'Y'        /* 응시여부 */
+             and eak_stts_cd = 3     /* 응시상태 - 3: 응시완료 */
+             and DATE_FORMAT(eak_ed_dt, "%Y-%m-%d") = CURDATE()       /* 응시종료일시 - 해당일 종료 */
+             )
+             /
+            (
+                           # 전체 문항 수
+            select IFNULL(SUM(eam_exm_num), 0) as eam_exm_num    /* 출제문항수 */
+            from aidt_lms.evl_info
+            where cla_id = #{claId}            /* 학급ID */
+               and textbook_id = #{textbkId}     	/* 교과서ID */
+               and evl_stts_cd = 3     			/* 응시상태 - 3: 응시완료 */
+               and DATE_FORMAT(evl_cp_dt, "%Y-%m-%d") = CURDATE()        /* 응시종료일시 - 해당일 종료 */
+            )
+             * 100, 0) as score
+    </select>
+
+    <select id="getStntLesnProgRate" parameterType="map" resultType="map">
+        SELECT IFNULL((h.sbm_exm_num/e.eam_exm_num)*100, 0) as percent
+        FROM
+            ( /* h */
+                SELECT IFNULL(sum(g.sbm_exm_num), 0) as sbm_exm_num
+                FROM
+                ( /* g */
+                    select count(*) as sbm_exm_num                    /* 제출문항수 */
+                    from aidt_lms.evl_info z
+                        ,aidt_lms.evl_result_info x
+                        ,aidt_lms.evl_result_detail y
+                    WHERE
+                        z.id = x.evl_id
+                        and x.id = y.evl_result_id
+                        and z.cla_id = #{claId}             /* 학급ID */
+                        and z.textbook_id = #{textbkId}     /* 교과서ID */
+                        and z.evl_stts_cd in ('3', '4', '5')      /* 응시상태 - 3: 응시완료 */
+                        /*                and DATE_FORMAT(z.evl_cp_dt, '%Y-%m-%d') = CURDATE()         평가완료일시 - 해당일 종료  */
+                        and  x.mamoym_id = #{userId}       /* 피평가자ID (학생 user_id) */
+                        and x.id = y.evl_result_id
+                        and y.eak_at = 'Y'
+                        and z.evl_stts_cd in ('3', '4', '5')         /* 응시상태 - 3: 응시완료 */
+                    /*                 and DATE_FORMAT(y.eak_ed_dt, '%Y-%m-%d') = CURDATE()          응시종료일시 - 해당일 종료 */
+
+                    UNION ALL
+
+                    select count(*) as sbm_exm_num                    /* 제출문항수 */
+                    from
+                    aidt_lms.task_result_info x
+                        , aidt_lms.task_result_detail y
+                        , aidt_lms.task_info z
+                    WHERE z.id = x.task_id
+                        and x.id = y.task_result_id
+                        and z.cla_id = #{claId}             /* 학급ID */
+                        and z.textbk_id = #{textbkId}    /* 교과서ID */
+                        and z.task_stts_cd in ('3', '4', '5')      /* 응시상태 - 3: 응시완료 */
+                        /*                 and DATE_FORMAT(z.task_cp_dt, '%Y-%m-%d') = CURDATE()          응시종료일시 - 해당일 종료  */
+                        and x.mamoym_id = #{userId}       /* 피평가자ID (학생 user_id) */
+                        and y.eak_at = 'Y'
+                        and z.task_stts_cd in ('3', '4', '5')         /* 응시상태 - 3: 응시완료 */
+                    /*                and DATE_FORMAT(x.eak_ed_dt, '%Y-%m-%d') = CURDATE()   응시종료일시 - 해당일 종료 */
+        /*                 and DATE_FORMAT(y.eak_ed_dt, '%Y-%m-%d') = CURDATE() */
+
+                     UNION ALL
+
+                     select count(*) as sbm_exm_num     /* 제출문항수 */
+                     from aidt_lms.slf_std_result_info
+                     where
+                         std_id in
+                            ( SELECT id
+                             FROM aidt_lms.slf_std_info
+                             WHERE textbk_id = #{textbkId}
+                             and cla_id = #{claId}
+                             and stdt_id = #{userId}
+                            )
+                        /*                 and DATE_FORMAT(std_ed_dt, '%Y-%m-%d') = CURDATE()         응시종료일시 - 해당일 종료 */
+                         and std_at = 'Y' /* 학습여부 */
+
+                    UNION ALL
+
+                     select count(*) as sbm_exm_num     /* 제출문항수 */
+                     from aidt_lms.std_dta_info a
+                         join aidt_lms.std_dta_result_info b
+                         on a.id = b.dta_id
+                         and a.cla_id = #{claId}
+                         and a.textbk_id = #{textbkId}
+                     where
+                         b.mamoym_id = #{userId}
+                         and	b.eak_at = 'Y'
+                         and b.eak_stts_cd in ('3', '4', '5')
+                    /*                DATE_FORMAT(b.eak_ed_dt, '%Y-%m-%d') = CURDATE()         응시종료일시 - 해당일 종료 */
+                 ) g
+             ) h
+                 ,
+             ( /* e */
+                 SELECT sum(f.eam_exm_num) as eam_exm_num
+                 FROM
+                 ( /* f */
+                     select IFNULL(sum(eam_exm_num),0) as eam_exm_num     /* 출제문항수 */
+                     from aidt_lms.evl_info
+                     where cla_id = #{claId}             /* 학급ID */
+                        and textbook_id = #{textbkId}     /* 교과서ID */
+                        and evl_stts_cd in ('3', '4', '5')      /* 응시상태 - 3: 응시완료 */
+                     /*               and DATE_FORMAT(evl_cp_dt, '%Y-%m-%d') = CURDATE()         응시종료일시 - 해당일 종료 */
+
+                     UNION ALL
+
+                     select IFNULL(sum(eam_exm_num),0) as eam_exm_num     /* 출제문항수 */
+                     from aidt_lms.task_info
+                     where cla_id = #{claId}            /* 학급ID */
+                         and textbk_id = #{textbkId}    /* 교과서ID */
+                         and task_stts_cd in ('3', '4', '5')      /* 응시상태 - 3: 응시완료 */
+                     /*                 and DATE_FORMAT(task_cp_dt, '%Y-%m-%d') = CURDATE()        응시종료일시 - 해당일 종료 */
+
+                     UNION ALL
+
+                     select IFNULL(count(*),0) as eam_exm_num     /* 출제문항수 */
+                     from aidt_lms.slf_std_result_info
+                     where
+                     std_id in
+                     (
+                         SELECT id
+                         FROM aidt_lms.slf_std_info
+                         WHERE textbk_id = #{textbkId}
+                           and cla_id = #{claId}
+                     )
+                     /*            and DATE_FORMAT(std_ed_dt, '%Y-%m-%d') = CURDATE()         응시종료일시 - 해당일 종료 */
+
+                     UNION ALL
+
+                     select IFNULL(count(*),0) as eam_exm_num     /* 출제문항수 */
+                     from aidt_lms.slf_ai_std_result_info
+                     where
+                     std_ai_id in
+                     (
+                         SELECT id
+                         FROM aidt_lms.slf_ai_std_info
+                         WHERE textbk_id = #{textbkId}
+                           and cla_id = #{claId}
+                     )
+                     /*            and DATE_FORMAT(std_ed_dt, '%Y-%m-%d') = CURDATE()         응시종료일시 - 해당일 종료 */
+
+                     UNION ALL
+
+                     select IFNULL(sum(a.eam_exm_num),0) as num     /* 출제문항수 */
+                     from aidt_lms.std_dta_info a
+                         join aidt_lms.std_dta_result_info b
+                          on a.id = b.dta_id
+                            and	a.cla_id  = #{claId}             /* 학급ID */
+                     where
+                            b.eak_stts_cd  in ('3', '4', '5')      /* 응시상태 - 3: 응시완료 */
+                         /*                and DATE_FORMAT(b.eak_ed_dt, '%Y-%m-%d') = CURDATE()         응시종료일시 - 해당일 종료 */
+                         and a.textbk_tab_id IN
+                           (
+                             select id
+                               from aidt_lms.tab_info
+                               where cla_id = #{claId}
+                               and textbk_id = #{textbkId}     /* 교과서ID */
+                         )
+                 ) f
+             ) e
+</select>
+
+</mapper>

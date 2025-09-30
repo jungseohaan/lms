@@ -1,0 +1,123 @@
+# Local Settings
+# Spring
+spring:
+  datasource:
+    #    driver-class-name: org.mariadb.jdbc.Driver
+    #    username: como
+    #    password: RhahdkfmEp20!
+    #    url: jdbc:mariadb://codebplat.co.kr:53306/aidt_lms?useSSL=false&serverTimezone=UTC&useLegacyDatetimeCode=false
+    #    jdbc:log4jdbc:mysql://localhost:5006/aidt_master?characterEncoding=UTF-8&serverTimezone=UTC
+    hikari:
+      master:
+        driver-class-name: net.sf.log4jdbc.sql.jdbcapi.DriverSpy
+        #        jdbc-url: jdbc:log4jdbc:mysql://1.215.96.58:53306/aidt_lms?useSSL=false&serverTimezone=Asia/Seoul&useLegacyDatetimeCode=false
+        #        username: como
+        #        password: RhahdkfmEp20!
+        jdbc-url: jdbc:log4jdbc:mysql://localhost:5046/aidt_lms?useSSL=false&serverTimezone=Asia/Seoul&useLegacyDatetimeCode=false
+        username: vsncp2dev #vsncp2codebplat
+        password: Qltkdelql!12
+      slave:
+        driver-class-name: net.sf.log4jdbc.sql.jdbcapi.DriverSpy
+        #        jdbc-url: jdbc:log4jdbc:mysql://1.215.96.58:53306/aidt_lms?useSSL=false&serverTimezone=Asia/Seoul&useLegacyDatetimeCode=false
+        #        username: como
+        #        password: RhahdkfmEp20!
+        jdbc-url: jdbc:log4jdbc:mysql://localhost:5046/aidt_lms?useSSL=false&serverTimezone=Asia/Seoul&useLegacyDatetimeCode=false
+        username: vsncp2dev #vsncp2codebplat
+        password: Qltkdelql!12
+  nats:
+    server: nats://127.0.0.1:4222
+  topic:
+    realtime-send-name: AIDT_REALTIME_DATA_DEV
+    bulk-send-name: AIDT_BULK_DATA_DEV
+    mngraction-log-send-name: AIDT_MNGR_ACTION_LOG_DEV
+    loki-log-send-name: AIDT_LOKI_LOG_DEV
+
+  # TODO : liverload는 dev일 때만 사용할 것
+  devtools:
+    livereload:
+      enabled: true
+
+# NCP Object Storage (S3)
+cloud:
+  aws:
+    nas:
+      path: /files/nas/engl/
+    s3:
+      bucket: vsaidt-public-contents
+      endpoint: https://kr.object.ncloudstorage.com
+      url: https://con.aidtclass.com
+      path: /files/dev-math/
+    region:
+      static: ap-northeast-2
+    stack:
+      auto: false
+    credentials:
+      accessKey: 22D6932799AB26FE0A7E
+      secretKey: EAF5E084632E965916F43277E89B236325F8B9C4
+
+# Swagger UI
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    use-root-path: true
+    #groups-order: ASC		# group 정렬 오름차순
+    tags-sorter: alpha		# tag 정렬 알파벳순
+    operations-sorter: alpha	# api 정렬 알파벳순
+    doc-expansion: none		# swagger tag 리스트 모두 접기
+  packages-to-scan: "com.visang.aidt.lms.api, com.cmsapi.digitaltextbookcms.api"
+
+# 배치 스케쥴 설정
+batch-job:
+  schedule:
+    EvalStatusChangeBatchJob:
+      executeTasksInProgress: "-"
+      executeTasksToComplete: ""
+    TaskStatusChangeBatchJob:
+      executeTasksInProgress: "-"
+      executeTasksToComplete: ""
+    AiLearningBatchJob:
+      executeCreateAiLearningSets: ""
+    AiLearningEngBatchJob:
+      executeCreateAiLearningEngSets: ""
+    StdUsdCalculateBatchJob:
+      executeStdUsdCalculate: "-"
+      textbkIdList: ""
+      testMode: local
+    EngStdUsdCalculateBatchJob:
+      executeEngStdUsdCalculate: "-"
+      engTextbkIdList: ""
+      engTestMode: local
+    EvalNtcnSendBatchJob:
+      executeTchEvalUnsubListSend: "-"
+      executeStntEvalUnsubListSend: "-"
+      excuteSendTchEvalCreateReportList: "-"
+    TaskNtcnSendBatchJob:
+      executeTchTaskUnsubListSend: "-"
+      executeStntTaskUnsubListSend: "-"
+      executeSendTchTaskCreateReportList: "-"
+    ShopPrchsHistBatchJob:
+      executeMakePrchsHistBatch: "-"
+    MessageQueueBatchJob:
+      sendBulkMessageQueue: "-" # "0 0 23 * * ?"
+
+# 외부 서비스 정의
+app:
+    lcmsapi:
+      url: https://t-lcmsapi.aidtclass.com
+      deployServerCode: T
+    lms:
+      errorPageUrl: https://t-class.aidtclass.com/launcher/error/index.html
+    shop:
+      filePathRoot: https://local-shop-media.aidtclass.com/
+
+service:
+  name: dev-vcloudapi
+
+# 성능 모니터링 설정
+performance:
+  monitoring:
+    enabled: true
+    api:
+      threshold: 3000  # API 실행시간 임계값 (ms)
+    sql:
+      threshold: 3000  # SQL 실행시간 임계값 (ms)

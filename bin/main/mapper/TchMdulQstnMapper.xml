@@ -1,0 +1,935 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchMdulQstnMapper">
+    <select id="findTchMdulQstnSDRI" parameterType="map" resultType="camelHashMap">
+       /* TchMdulQstnMapper.findTchMdulQstnSDRI */
+       select * from
+       aidt_lms.std_dta_result_info where id = #{dtaResultId}
+   </select>
+
+    <select id="findTchMdulQstnAnswResultDetailInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswResultDetailInfo */
+        select sdrd.dta_iem_id, sdrd.sub_id
+                /*, COALESCE(sum(if(eak_stts_cd = 3 and errata = 1, 1, 0)), 0) as crrtStntCnt*/
+                , COALESCE(sum(if(sdrd.sm_exm_at = 'N' and tcmi.id is not null and sdrd.eak_stts_cd = 3, 1, 0)), 0) as submStntCnt
+                /*, count(*) as totalStntCnt*/
+                /*, COALESCE(ROUND(sum(if(eak_stts_cd = 3 and errata = 1, 1, 0)) / sum(if(eak_stts_cd = 3, 1, 0)) * 100, 2), 0) as rating*/
+                , if((select count(1) from aidt_lms.bkmk_info where tab_id = #{param.tabId} and module_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id) > 0,'Y', 'N') AS bmkYn
+                , (select id from aidt_lms.bkmk_info where tab_id = #{param.tabId} and module_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id limit 1) AS bmkId
+                , sdrd.mrk_ty
+                , COUNT(*) OVER () AS fullCount
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        left join aidt_lms.tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and tcmi.cla_id = #{param.claId} and tcmi.actvtn_at = 'Y'
+         where 1=1
+         and sdri.textbk_tab_id = #{param.tabId}
+            and sdri.sets_id = #{param.setsId}
+         and sdrd.src_detail_id =0
+        group by dta_iem_id, sub_id
+        order by sdrd.id
+        <if test='"Y".equals(param.pageYn)'>
+            LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+        </if>
+    </select>
+
+    <select id="findTchMdulQstnAnswStntRate" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswStntRate */
+        select tcmi.stdt_id as userId
+            , IFNULL(ROUND((sum(if (sdrd.mrk_ty in (1,2) and sdrd.errata in (1),1,0))
+            / sum(if (sdrd.mrk_ty in (1,2) and sdrd.errata in (1,2),1,0))) * 100,0),0) as crrRate
+            , IFNULL(ROUND((sum(if (sdrd.mrk_ty in (1,2) and sdrd.errata is not null,1,0))
+            / sum(if (sdrd.mrk_ty in (1,2),1,0))) * 100,0),0) as submRate
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join aidt_lms.std_dta_result_info sdri on tcmi.stdt_id = sdri.mamoym_id
+                                                   and sdri.sets_id = #{setsId}
+                                                   and sdri.textbk_tab_id = #{tabId}
+        left join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where tcmi.cla_id = #{claId}
+          and tcmi.actvtn_at = 'Y'
+        group by tcmi.stdt_id
+    </select>
+
+    <select id="findTchMdulQstnAnswResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswResultInfo */
+        select u.id as userIdx
+             , u.user_id
+             , u.flnm
+             , sdrd.sub_mit_anw
+             , sdrd.errata
+             , sdrd.dta_iem_id
+             , sdrd.sub_id
+          from aidt_lms.std_dta_result_info sdri
+          join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+          join aidt_lms.tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and tcmi.cla_id = #{paramMap.claId} and tcmi.actvtn_at = 'Y'
+          left outer join aidt_lms.user u on tcmi.stdt_id = u.user_id
+         where 1=1
+           and sdri.textbk_tab_id = #{paramMap.tabId}
+               and sdri.sets_id = #{paramMap.setsId}
+        <if test="paramMap.aiCstmzdStdMthdSeCd &lt;= 0">
+                and sdrd.sub_mit_anw is not null
+        </if>
+           and sdrd.sm_exm_at = 'N'
+           and (
+               <foreach collection="paramData" item="map" separator="or">
+                   (sdrd.dta_iem_id = #{map.dtaIemId} and sdrd.sub_id = #{map.subId})
+               </foreach>
+           )
+           order by sdrd.sub_mit_anw
+    </select>
+
+    <select id="findTchMdulQstnAnswSelfStd" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswSelfStd */
+        select DISTINCT u.id as user_idx
+            , u.user_id
+            , u.flnm
+            , sdrd.dta_iem_id
+            , sdrd.sub_id
+         from aidt_lms.std_dta_result_info sdri
+         join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+         join aidt_lms.tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and tcmi.cla_id = #{paramMap.claId} and tcmi.actvtn_at = 'Y'
+         join aidt_lms.std_dta_result_detail sdrd2 on sdrd2.src_detail_id = sdrd.id and sdrd2.sm_exm_at = 'Y' and sdrd2.eak_stts_cd != 1
+         left outer join aidt_lms.user u on tcmi.stdt_id = u.user_id
+        where 1=1
+        and sdri.textbk_tab_id = #{paramMap.tabId}
+            and sdri.sets_id = #{paramMap.setsId}
+        and sdrd.sm_exm_at = 'N'
+        and (
+            <foreach collection="paramData" item="map" separator="or">
+                (sdrd.dta_iem_id = #{map.dtaIemId} and sdrd.sub_id = #{map.subId})
+            </foreach>
+        )
+    </select>
+
+    <update id="modifyTchMdulQstnExclnt" parameterType="map" >
+        /* TchMdulQstnMapper.modifyTchMdulQstnExclnt */
+        update aidt_lms.std_dta_result_detail
+        set exlt_anw_at = 'Y'
+        , fdb_Exp_At = #{fdbExpAt}
+        , mdfy_dt = now()
+        where id in
+        <foreach collection="detailId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </update>
+
+    <update id="modifyTchMdulQstnExclntCancel" parameterType="map" >
+        /* TchMdulQstnMapper.modifyTchMdulQstnExclntCancle */
+        update aidt_lms.std_dta_result_detail
+        set exlt_anw_at = 'N'
+        , fdb_Exp_At = #{fdbExpAt}
+        , mdfy_dt = now()
+        where id in
+        <foreach collection="detailId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </update>
+
+    <update id="modifyTchMdulQstnFdb" parameterType="map" >
+        /* TchMdulQstnMapper.modifyTchMdulQstnFdb */
+        update aidt_lms.std_dta_result_detail
+        set std_fdb_dc = #{stdFdbDc}
+        , std_fdb_url = #{stdFdbUrl}
+        , mdfy_dt = now()
+        where
+        id = #{detailId}
+    </update>
+
+    <update id="modifyTchMdulQstnFdbShare" parameterType="map" >
+        /* TchMdulQstnMapper.modifyTchMdulQstnFdbShare */
+        update aidt_lms.std_dta_result_detail
+        set fdb_exp_at = #{fdbExpAt}
+          , mdfy_dt = now()
+        where
+            id = #{detailId}
+    </update>
+
+    <insert id="createTchMdulQstnResetSDRHist" parameterType="map" useGeneratedKeys="true">
+        /* TchMdulQstnMapper.createTchMdulQstnResetSDRHist */
+        INSERT INTO aidt_lms.std_dta_result_hist (
+                    dta_result_detail_id
+					,dta_result_id
+					,dta_iem_id
+					,sub_id
+					,mrk_ty
+					,eak_stts_cd
+					,eak_at
+					,mrk_cp_at
+					,eak_st_dt
+					,eak_ed_dt
+					,sub_mit_anw
+					,sub_mit_anw_url
+					,errata
+					,re_idf_cnt
+					,anw_chg_cnt
+					,textbk_dta_iem_id
+					,re_exm_cnt
+                    ,std_fdb_dc
+                    ,std_fdb_url
+					,fdb_dc
+					,fdb_url
+					,exlt_anw_at
+					,fdb_exp_at
+					,hdwrt_cn
+					,sm_exm_at
+					,hnt_use_at
+					,src_detail_id
+                    ,tch_errata_chg_at
+					,rgtr
+					,reg_dt
+					,mdfr
+					,mdfy_dt)
+        select
+                     sdrd.id
+					,sdrd.dta_result_id
+					,sdrd.dta_iem_id
+					,sdrd.sub_id
+					,sdrd.mrk_ty
+					,sdrd.eak_stts_cd
+					,sdrd.eak_at
+					,sdrd.mrk_cp_at
+					,sdrd.eak_st_dt
+					,sdrd.eak_ed_dt
+					,sdrd.sub_mit_anw
+					,sdrd.sub_mit_anw_url
+					,sdrd.errata
+					,sdrd.re_idf_cnt
+					,sdrd.anw_chg_cnt
+					,sdrd.textbk_dta_iem_id
+					,sdrd.re_exm_cnt
+                    ,sdrd.std_fdb_dc
+                    ,sdrd.std_fdb_url
+					,sdrd.fdb_dc
+					,sdrd.fdb_url
+					,sdrd.exlt_anw_at
+					,sdrd.fdb_exp_at
+					,sdrd.hdwrt_cn
+					,sdrd.sm_exm_at
+					,sdrd.hnt_use_at
+                    ,sdrd.src_detail_id
+                    ,sdrd.tch_errata_chg_at
+                    ,'system'
+					,now()
+                    ,'system'
+					,now()
+        from aidt_lms.std_dta_result_detail sdrd
+        join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+        join aidt_lms.tc_cla_mb_info tcmi on tcmi.stdt_id = sdri.mamoym_id and tcmi.actvtn_at = 'Y'
+       where sdrd.dta_iem_id = #{articleId}
+         and sdrd.sub_id = #{subId}
+         and sdri.sets_id = #{setsId}
+         and tcmi.cla_id = #{claId}
+        <if test="stdtId != null and stdtId.size() > 0">
+            and sdri.mamoym_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </insert>
+
+    <update id="modifyTchMdulQstnResetSDRD" parameterType="map" >
+        /* TchMdulQstnMapper.modifyTchMdulQstnResetSDRD */
+        update aidt_lms.std_dta_result_detail sdrd
+        join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+        join aidt_lms.tc_cla_mb_info tcmi on tcmi.stdt_id = sdri.mamoym_id and tcmi.actvtn_at = 'Y'
+        set sdrd.eak_stts_cd = 1
+        ,sdrd.re_exm_cnt = re_exm_cnt +1
+        ,sdrd.eak_at ='N'
+        ,sdrd.mrk_cp_at = 'N'
+        ,sdrd.eak_st_dt = null
+        ,sdrd.eak_ed_dt = null
+        ,sdrd.module_req_sec = 0
+        ,sdrd.sub_mit_anw = null
+        ,sdrd.sub_mit_anw_url = null
+        ,sdrd.errata = null
+        ,sdrd.re_idf_cnt = null
+        ,sdrd.anw_chg_cnt = null
+        ,sdrd.sm_exm_at = 'N'
+        ,sdrd.textbk_dta_iem_id = null
+        ,sdrd.fdb_dc = null
+        ,sdrd.fdb_url = null
+        ,sdrd.exlt_anw_at = 'N'
+        ,sdrd.fdb_exp_at = 'N'
+        ,sdrd.hdwrt_cn = null
+        ,sdrd.hnt_use_at = 'N'
+        ,sdrd.std_fdb_dc = null
+        ,sdrd.std_fdb_url = null
+        /* ,sdrd.dft_ques_beffat_chk_at = 'N' */ /* 초기화 시 기존 값 유지 */
+        /*, sdrd.mdfr */
+        , sdrd.mdfy_dt = now()
+        , sdrd.tch_errata_chg_at = 'N'
+        , sdrd.tch_rpt_chk_at = 'N'
+       where sdrd.dta_iem_id = #{articleId}
+         and sdrd.sub_id = #{subId}
+         and sdri.sets_id = #{setsId}
+         and tcmi.cla_id = #{claId}
+        <if test="stdtId != null and stdtId.size() > 0">
+            and tcmi.stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </update>
+
+    <update id="modifyTchMdulQstnResetSDRI" parameterType="map" >
+        /* TchMdulQstnMapper.modifyTchMdulQstnResetSDRI */
+        update std_dta_result_info sdri
+        join aidt_lms.tc_cla_mb_info tcmi on tcmi.stdt_id = sdri.mamoym_id and tcmi.actvtn_at = 'Y'
+        set sdri.eak_stts_cd = 1
+        ,sdri.eak_at ='N'
+        ,sdri.subm_at = 'N'
+        ,sdri.mrk_cp_at = 'N'
+        /*, sdri.mdfr */
+        , sdri.mdfy_dt = now()
+        where sdri.sets_id = #{setsId}
+          and tcmi.cla_id = #{claId}
+    </update>
+
+    <select id="findTchMdulQstnStatusResultInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnStatusResultInfoList */
+        select
+        sdri.id
+        , sdrd.id as detailId
+        , sdri.mamoym_id
+        , u.flnm
+        , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+        , sdrd.std_fdb_dc
+        , sdrd.std_fdb_url
+        , sdrd.exlt_anw_at
+        , sdrd.fdb_exp_at
+        , IFNULL((select exlt_anw_at from aidt_lms.std_dta_result_detail where dta_result_id <![CDATA[<>]]> sdrd.dta_result_id limit 1),'N') as oldExltAnwAt
+        , sdrd.sub_mit_anw
+        , sdrd.sub_mit_anw_url
+        , sdrd.hdwrt_cn
+        , sdrd.errata
+        ,(
+            SELECT pf_ui_img
+            FROM aidt_lms.sp_pf_info
+            WHERE
+            id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info WHERE user_id = sdri.mamoym_id AND cla_id = #{claId} AND prchs_gds_se_cd = 'P'), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+        ) as profileImg
+        , 'N' as delYn
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        left outer join aidt_lms.user u on sdri.mamoym_id = u.user_id
+        left outer join aidt_lcms.setsummary s on s.set_id = sdri.sets_id and s.article_id = sdrd.dta_iem_id and s.sub_id = sdrd.sub_id
+        left outer join aidt_lcms.article a on sdrd.dta_iem_id = a.id
+        where sdrd.dta_iem_id = #{dtaIemId}
+          and sdrd.sub_id = #{subId}
+          and sdri.textbk_tab_id = #{tabId}
+          /* and sdrd.eak_at = 'Y' */
+          <if test='selfEvlYn != "Y" '>
+          and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+          </if>
+          <if test="setsId != null and setsId != '' ">
+          and sdri.sets_id = #{setsId}
+          </if>
+          <if test="claId != null and claId != '' ">
+          and sdri.mamoym_id in (
+                select stdt_id from aidt_lms.tc_cla_mb_info where cla_id = #{claId} and actvtn_at = 'Y'
+          )
+          </if>
+        order by sdrd.eak_ed_dt asc
+    </select>
+
+    <select id="findTchMdulQstnStatusStntInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnStatusStntInfoList */
+        select
+            u.id as userIdx
+            , u.user_id
+            , u.flnm
+            , '' as thumbnail
+            ,(
+            SELECT pf_ui_img
+            FROM aidt_lms.sp_pf_info
+            WHERE
+            id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info WHERE user_id = tcmi.stdt_id AND cla_id = #{claId} AND prchs_gds_se_cd = 'P' limit 1), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+            ) as profileImg
+            , (select num from aidt_lms.stdt_reg_info a where a.user_id = tcmi.stdt_id) as num
+            from aidt_lms.tc_cla_mb_info tcmi
+                left outer join aidt_lms.user u on tcmi.stdt_id = u.user_id
+            where tcmi.cla_id = #{claId}
+              and tcmi.actvtn_at = 'Y'
+              and tcmi.stdt_id not in (
+                select
+                    sdri.mamoym_id
+                from aidt_lms.std_dta_result_info sdri
+                    join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+                    left outer join aidt_lms.user u on sdri.mamoym_id = u.user_id
+                where sdrd.dta_iem_id = #{dtaIemId}
+                  and sdrd.sub_id = #{subId}
+                /*and sdrd.eak_at = 'N'*/
+            <if test="setsId != null and setsId != '' ">
+                and sdri.sets_id = #{setsId}
+            </if>
+            <if test='selfEvlYn != "Y" '>
+            and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+            </if>
+            and sdri.mamoym_id in (
+                select stdt_id from aidt_lms.tc_cla_mb_info where cla_id = #{claId} and actvtn_at = 'Y'
+            )
+        )
+        order by num
+    </select>
+
+    <select id="findTchMdulQstnStatusStntErrataList" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnStatusStntErrataList */
+        select *
+        from (
+            SELECT
+                sdri.mamoym_id as userId,
+                sdri.id as dtaResultId,
+                sdrd.dta_iem_id,
+                sdrd.sub_id,
+                sdrd.id as detailId,
+                sdrd.sub_mit_anw,
+                sdrd.sub_mit_anw_url,
+                sdrd.errata,
+                sdrd.eak_st_dt,
+                sdrd.eak_ed_dt,
+                sdrd.eak_stts_cd,
+                sdrd.re_exm_cnt,
+                'FINAL' as attemptType,
+                sdrd.mdfy_dt as attemptDt,
+                ROW_NUMBER() OVER (
+                PARTITION BY sdri.mamoym_id, sdrd.dta_iem_id, sdrd.sub_id
+                ORDER BY sdrd.mdfy_dt
+                ) as attemptNumber
+            FROM aidt_lms.std_dta_result_info sdri
+            JOIN aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+            WHERE sdri.textbk_tab_id = #{tabId}
+                AND sdri.sets_id = #{setsId}
+                AND sdrd.dta_iem_id = #{dtaIemId}
+                AND sdrd.sub_id = #{subId}
+                AND sdrd.src_detail_id = 0
+                <if test="claId != null and claId != '' ">
+                    AND sdri.mamoym_id IN (
+                    SELECT stdt_id FROM aidt_lms.tc_cla_mb_info
+                    WHERE cla_id = #{claId} AND actvtn_at = 'Y'
+                    )
+                </if>
+
+            UNION ALL
+
+            SELECT
+                sdri.mamoym_id as userId,
+                sdri.id as dtaResultId,
+                sdrh.dta_iem_id,
+                sdrh.sub_id,
+                sdrh.dta_result_detail_id as detailId,
+                sdrh.sub_mit_anw,
+                sdrh.sub_mit_anw_url,
+                sdrh.errata,
+                sdrh.eak_st_dt,
+                sdrh.eak_ed_dt,
+                sdrh.eak_stts_cd,
+                sdrh.re_exm_cnt,
+                'HISTORY' as attemptType,
+                sdrh.mdfy_dt as attemptDt,
+                ROW_NUMBER() OVER (
+                PARTITION BY sdri.mamoym_id, sdrh.dta_iem_id, sdrh.sub_id
+                ORDER BY sdrh.mdfy_dt
+                ) as attemptNumber
+            FROM aidt_lms.std_dta_result_info sdri
+            JOIN aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+            JOIN aidt_lms.std_dta_result_hist sdrh ON sdrd.id = sdrh.dta_result_detail_id
+            WHERE sdri.textbk_tab_id = #{tabId}
+                AND sdri.sets_id = #{setsId}
+                AND sdrh.dta_iem_id = #{dtaIemId}
+                AND sdrh.sub_id = #{subId}
+                AND sdrd.src_detail_id = 0
+                <if test="claId != null and claId != '' ">
+                    AND sdri.mamoym_id IN (
+                    SELECT stdt_id FROM aidt_lms.tc_cla_mb_info
+                    WHERE cla_id = #{claId} AND actvtn_at = 'Y'
+                    )
+                </if>
+        ) final_result
+        where attemptType = 'HISTORY'
+        ORDER BY userId, attemptDt
+    </select>
+
+    <select id="findTchMdulQstnIndi" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnIndi */
+        select
+        sdrd.dta_result_id
+        , sdrd.id as detailId
+        ,sdri.mamoym_id
+        ,u.flnm
+        ,(
+            SELECT pf_ui_img
+            FROM aidt_lms.sp_pf_info
+            WHERE
+            id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info WHERE user_id = sdri.mamoym_id AND cla_id = #{claId} AND prchs_gds_se_cd = 'P'), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+        ) as pf_ui_img
+        ,sdrd.sub_mit_anw
+        ,sdrd.sub_mit_anw_url
+        ,sdrd.errata
+        ,sdrd.std_fdb_dc
+        ,sdrd.std_fdb_url
+        ,sdrd.exlt_anw_at
+        ,sdrd.fdb_exp_at
+        ,sdrd.hdwrt_cn
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        left outer join aidt_lms.user u on u.user_id =sdri.mamoym_id
+        where sdrd.dta_iem_id = #{dtaIemId}
+          and sdrd.sub_id = #{subId}
+          and sdrd.eak_at = 'Y'
+          <if test="setsId != null and setsId != '' ">
+          and sdri.sets_id = #{setsId}
+          </if>
+          <if test="claId != null and claId != '' ">
+          and sdri.mamoym_id in (
+                select stdt_id from aidt_lms.tc_cla_mb_info where cla_id = #{claId} and actvtn_at = 'Y'
+          )
+          </if>
+    </select>
+
+    <select id="findLectureAutoQstnExtr" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findLectureAutoQstnExtr */
+        select
+            /* 랜덤한 문제 출제로 수정 */
+            RANK() over (partition by studyMap_1 order by studyMap_2, id) as rankInfo,
+            A.*
+        from (
+            select
+                a.id,
+                a.name,
+                a.thumbnail, /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'studyMap1' and x.meta_id = y.id and x.sub_id = 0) as studyMap1, /* 학습맵(대단원) */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'studyMap_1' and x.meta_id = y.id and x.sub_id = 0) as studyMap_1, /* 학습맵(지식요인) */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'studyMap_2' and x.meta_id = y.id and x.sub_id = 0) as studyMap_2, /* 학습맵(유형) */
+                (select m.val from aidt_lcms.meta m where m.id = b.meta_id) as questionTypeNm,
+                (select m.val from aidt_lcms.meta m where m.id = d.meta_id) as difyNm
+            from aidt_lcms.article a
+                inner join aidt_lcms.article_meta_map b
+                    on  b.article_id = a.id
+                            and b.meta_name = 'questionType'
+                            and b.meta_id not in
+                                (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+                inner join aidt_lcms.article_meta_map c
+                    on  c.article_id = a.id
+                            and c.meta_name = 'articleCategory'
+                            and c.meta_id in
+                                (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+                inner join aidt_lcms.article_meta_map d
+                    on  d.article_id = a.id
+                            and d.meta_name = 'difficulty'
+                            and d.meta_id in
+                                (select id from aidt_lcms.meta where name = 'difficulty' and code in (#{difyCode})) /* 난이도 */
+            where 1 = 1
+              and a.is_active = 1
+              and a.is_publicOpen = 1
+              and a.creator_ty = 1      /* AIDT에서 교사가 제작한 모듈(아티클)은 제외 */
+              and a.articleType in
+                  (select id from aidt_lcms.meta where name = 'articleType' and code = 'question')  /* 유형(문항) */
+              and exists (
+                    select 1
+                    from aidt_lcms.article_meta_map amm
+                    where a.id = amm.article_id
+                    and amm.meta_id in (<foreach item="item" collection="eamScp" separator=",">#{item}</foreach>) /* 요청파라미터 : 출제범위(eamScp) 값 */
+                  )
+              /* 다른 난이도에서 이미 출제 된 모듈(아티클)은 제외 */
+              <if test="excludeIds != null and excludeIds.size() > 0">
+              and a.id not in
+                  <foreach item="article" collection="excludeIds" open="(" separator="," close=")">
+                    #{article}
+                  </foreach>
+              </if>
+
+        ) A
+        where 1=1
+        and	studyMap1  is not null
+        and	studyMap_1 is not null
+        and	studyMap_2 is not null
+        /* 다른 난이도에서 이미 출제 된 지식요인은 제외 */
+        <if test="excludeStudyMaps != null and excludeStudyMaps.size() > 0">
+            and A.studyMap_1 not in
+            <foreach item="studyMap_1" collection="excludeStudyMaps" open="(" separator="," close=")">
+                #{studyMap_1}
+            </foreach>
+        </if>
+        order by
+            rand(),
+            studyMap_2
+        limit #{difyLimit}
+    </select>
+
+    <select id="findRwdInParam" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findRwdInParam */
+        select sdri.mamoym_id, ti.cla_id, sdrd.id, ti.textbk_id
+        from aidt_lms.tab_info ti
+        join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+        join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id  = sdri.id
+        where sdrd.id in
+        <foreach collection="detailId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </select>
+
+
+
+
+    <update id="modifyTchMdulQstnResetSrcDetailId" parameterType="map">
+        /* TchMdulQstnMapper.modifyTchMdulQstnResetSrcDetailId */
+        update
+            /*+ INDEX(sdrd ix_std_dta_result_detail_04) NO_BNL(sdrd) BKA(sdrd) */
+            aidt_lms.std_dta_result_detail sdrd
+        set sdrd.eak_stts_cd = 1
+          ,sdrd.re_exm_cnt = re_exm_cnt +1
+          ,sdrd.eak_at ='N'
+          ,sdrd.mrk_cp_at = 'N'
+          ,sdrd.eak_st_dt = null
+          ,sdrd.eak_ed_dt = null
+          ,sdrd.module_req_sec = 0
+          ,sdrd.sub_mit_anw = null
+          ,sdrd.sub_mit_anw_url = null
+          ,sdrd.errata = null
+          ,sdrd.re_idf_cnt = null
+          ,sdrd.anw_chg_cnt = null
+          ,sdrd.sm_exm_at = 'Y'
+          ,sdrd.textbk_dta_iem_id = null
+          ,sdrd.fdb_dc = null
+          ,sdrd.fdb_url = null
+          ,sdrd.exlt_anw_at = 'N'
+          ,sdrd.fdb_exp_at = 'N'
+          ,sdrd.hdwrt_cn = null
+          ,sdrd.hnt_use_at = 'N'
+          ,sdrd.std_fdb_dc = null
+          ,sdrd.std_fdb_url = null
+          ,sdrd.mdfy_dt = now()
+        where sdrd.src_detail_id in (
+            select id from (
+                               select sdrd_sub.id as id
+                               from aidt_lms.std_dta_result_detail sdrd_sub
+                                        join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd_sub.dta_result_id
+                                        join aidt_lms.tc_cla_mb_info tcmi on tcmi.stdt_id = sdri.mamoym_id and tcmi.actvtn_at = 'Y'
+                               where sdrd_sub.dta_iem_id = #{articleId}
+                                 and sdrd_sub.sub_id = #{subId}
+                                 and sdri.sets_id = #{setsId}
+                                 and tcmi.cla_id = #{claId}
+                            <if test="stdtId != null and stdtId.size() > 0">
+                                and tcmi.stdt_id in
+                                <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                                    #{id}
+                                </foreach>
+                            </if>
+                           ) as t
+        )
+    </update>
+
+    <delete id="removeTchMdulQstnResetSrcDetailId" parameterType="map">
+        /* TchMdulQstnMapper.removeTchMdulQstnResetSrcDetailId */
+        delete from
+        aidt_lms.std_dta_result_detail
+        where src_detail_id in
+        	(
+        	select id from (
+        		select sdrd.id as id
+        		from aidt_lms.std_dta_result_detail sdrd
+        		join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+        		join aidt_lms.tc_cla_mb_info tcmi on tcmi.stdt_id = sdri.mamoym_id and tcmi.actvtn_at = 'Y'
+                where sdrd.dta_iem_id = #{articleId}
+                and sdrd.sub_id = #{subId}
+                and sdri.sets_id = #{setsId}
+                and tcmi.cla_id = #{claId}
+        		) as t
+        	)
+    </delete>
+
+    <update id="modifyTchMvResetSDRIINFO" parameterType="map" >
+
+        UPDATE aidt_lms.mv_lms_usd_ach_src2_info
+        set errata = NULL
+          , exists_yn = 'N'
+        where trgt_id = (
+            select
+                distinct
+                c.crcul_id
+            from std_dta_result_detail a
+                     inner join std_dta_result_info b on a.dta_result_id = b.id
+                     inner join tab_info c on b.textbk_tab_id = c.id
+            where a.dta_iem_id = #{articleId} and c.cla_id = #{claId} and a.eak_stts_cd = 5 and a.sub_mit_anw is not null
+        )
+          and article_id = #{articleId}
+          and sub_id = #{subId}
+          and cla_id = #{claId}
+          and trgt_se_cd = 1
+
+    </update>
+
+    <update id="modifyTchMvResetSDRIKWG" parameterType="map" >
+
+        UPDATE aidt_lms.mv_lms_usd_ach_src2_kwg
+        set errata = NULL
+          , exists_yn = 'N'
+        where trgt_id = (
+            select
+                distinct
+                c.crcul_id
+            from std_dta_result_detail a
+                     inner join std_dta_result_info b on a.dta_result_id = b.id
+                     inner join tab_info c on b.textbk_tab_id = c.id
+            where a.dta_iem_id = #{articleId} and c.cla_id = #{claId} and a.eak_stts_cd = 5 and a.sub_mit_anw is not null
+        )
+          and article_id = #{articleId}
+          and sub_id = #{subId}
+          and cla_id = #{claId}
+          and trgt_se_cd = 1
+
+    </update>
+
+    <update id="modifyTchMvResetSDRIDEATIL" parameterType="map" >
+
+        UPDATE aidt_lms.mv_lms_usd_ach_src2_detail
+        set errata = NULL
+          , exists_yn = 'N'
+        where trgt_id = (
+            select
+                distinct
+                c.crcul_id
+            from std_dta_result_detail a
+                     inner join std_dta_result_info b on a.dta_result_id = b.id
+                     inner join tab_info c on b.textbk_tab_id = c.id
+            where a.dta_iem_id = #{articleId} and c.cla_id = #{claId} and a.eak_stts_cd = 5 and a.sub_mit_anw is not null
+        )
+          and article_id = #{articleId}
+          and sub_id = #{subId}
+          and cla_id = #{claId}
+          and trgt_se_cd = 1
+
+    </update>
+
+    <update id="modifyTchMvResetSDRISRCINFO" parameterType="map" >
+
+        UPDATE aidt_lms.mv_lms_ach_cac_src_info
+        set errata = NULL
+          , exists_yn = 'N'
+        where trgt_id = (
+            select
+                distinct
+                c.crcul_id
+            from std_dta_result_detail a
+                     inner join std_dta_result_info b on a.dta_result_id = b.id
+                     inner join tab_info c on b.textbk_tab_id = c.id
+            where a.dta_iem_id = #{articleId} and c.cla_id = #{claId} and a.eak_stts_cd = 5 and a.sub_mit_anw is not null
+        )
+          and article_id = #{articleId}
+          and sub_id = #{subId}
+          and cla_id = #{claId}
+          and trgt_se_cd = 1
+
+    </update>
+
+    <select id="getBrandId" parameterType="map" resultType="string">
+        select
+            brand_id
+        from aidt_lcms.textbook
+        where id = (
+            select a.textbk_id from tab_info a
+                                        inner join std_dta_result_info b on a.id = b.textbk_tab_id
+                                        inner join std_dta_result_detail c on c.dta_result_id = b.id
+            where a.cla_id = #{claId}
+              and c.dta_iem_id = #{articleId}
+            limit 1
+            )
+    </select>
+
+    <update id="modifyTchMvResetSDRISRCINFOMath" parameterType="map" >
+
+        update aidt_lms.mv_lms_usd_cac_src_info
+        set errata = NULL
+        , exists_yn = 'N'
+        where trgt_id = (
+            select
+                distinct
+                c.crcul_id
+            from std_dta_result_detail a
+                     inner join std_dta_result_info b on a.dta_result_id = b.id
+                     inner join tab_info c on b.textbk_tab_id = c.id
+            where a.dta_iem_id = #{articleId}
+              and c.cla_id = #{claId}
+              and a.eak_stts_cd = 5
+              and a.sub_mit_anw is not null
+        )
+          and article_id = #{articleId}
+          and sub_id = #{subId}
+          and cla_id = #{claId}
+          and trgt_se_cd = 1
+
+    </update>
+
+
+    <update id="initWanCnt" parameterType="map" >
+        /* tchMdulQstnMapper.initWanCnt*/
+        delete wan
+        from aidt_lms.won_asw_note as wan
+        join (
+            select
+                1 as wonanwclsfcd,
+                dri.mamoym_id as wrterid,
+                date_format(now(), '%Y%m%d') as wrtymd,
+                ti.id as trgtid,
+                drd.id as wonanwtgid
+            from aidt_lms.std_dta_result_detail as drd
+            join aidt_lms.std_dta_result_info as dri on drd.dta_result_id = dri.id
+            join aidt_lms.tab_info as ti on dri.textbk_tab_id = ti.id
+            where drd.dta_iem_id = #{articleId}
+              and drd.sub_id =#{subId}
+              and dri.sets_id = #{setsId}
+              and ti.cla_id = #{claId}
+              and drd.mrk_ty = 1
+        ) as stdinfo
+        on wan.won_anw_clsf_cd = stdinfo.wonanwclsfcd
+           and wan.trgt_id = stdinfo.trgtid
+           and wan.won_anw_tg_id = stdinfo.wonanwtgid
+           and wan.wrt_ymd = stdinfo.wrtymd
+           and wan.wrter_id = stdinfo.wrterid
+    </update>
+
+    <!-- 개인별 맞춤 학습 문제 목록 조회 (문제 번호 기준 페이징) -->
+    <select id="findCustomLearningProblemsWithCount" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findCustomLearningProblemsWithCount */
+        SELECT
+        problem_with_number.*,
+        (
+        SELECT MAX(max_problem_count)
+        FROM (
+        <foreach collection="param.dtaResultInfoList" item="student" separator=" UNION ALL ">
+            SELECT COUNT(*) as max_problem_count
+            FROM aidt_lms.std_dta_result_info sdri_count
+            JOIN aidt_lms.std_dta_result_detail sdrd_count ON sdri_count.id = sdrd_count.dta_result_id
+            WHERE sdri_count.textbk_tab_id = #{param.tabId}
+            AND sdrd_count.src_detail_id = 0
+            AND sdri_count.sets_id = #{student.setsId}
+            AND sdri_count.mamoym_id = #{student.mamoymId}
+        </foreach>
+        ) as student_counts
+        ) AS fullCount
+        FROM (
+        SELECT
+        sdrd.dta_iem_id,
+        sdrd.sub_id,
+        COALESCE(sum(if(sdrd.sm_exm_at = 'N' and tcmi.id is not null and sdrd.eak_stts_cd = 3, 1, 0)), 0) as submStntCnt,
+        if((select count(1) from aidt_lms.bkmk_info where tab_id = #{param.tabId} and module_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id) > 0,'Y', 'N') AS bmkYn,
+        (select id from aidt_lms.bkmk_info where tab_id = #{param.tabId} and module_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id limit 1) AS bmkId,
+        sdrd.mrk_ty,
+        sdri.mamoym_id,
+        u.user_id,
+        u.flnm as userFlnm,
+        sdri.sets_id,
+        ROW_NUMBER() OVER (
+        PARTITION BY sdri.mamoym_id
+        ORDER BY sdrd.id
+        ) as problemNumber
+        FROM aidt_lms.std_dta_result_info sdri
+        JOIN aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON sdri.mamoym_id = tcmi.stdt_id AND tcmi.cla_id = #{param.claId} AND tcmi.actvtn_at = 'Y'
+        LEFT JOIN aidt_lms.user u ON tcmi.stdt_id = u.user_id
+        WHERE 1=1
+        AND sdri.textbk_tab_id = #{param.tabId}
+        AND sdrd.src_detail_id = 0
+        AND (
+        <foreach collection="param.dtaResultInfoList" item="student" separator="OR">
+            (sdri.sets_id = #{student.setsId} AND sdri.mamoym_id = #{student.mamoymId})
+        </foreach>
+        )
+        GROUP BY sdrd.dta_iem_id, sdrd.sub_id, sdri.mamoym_id, sdri.sets_id, sdrd.id
+        ) as problem_with_number
+        WHERE problem_with_number.problemNumber BETWEEN #{pageable.offset} + 1 AND #{pageable.offset} + #{pageable.pageSize}
+        ORDER BY
+        problem_with_number.problemNumber,
+        FIELD(problem_with_number.mamoym_id,
+        <foreach collection="param.dtaResultInfoList" item="student" separator=",">
+            #{student.mamoymId}
+        </foreach>
+        )
+    </select>
+
+    <!-- 개인별 맞춤 학습 답안 정보 조회 -->
+    <select id="findCustomLearningAnswerInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findCustomLearningAnswerInfo */
+        SELECT
+        u.id as userIdx,
+        u.user_id,
+        u.flnm,
+        sdrd.sub_mit_anw,
+        sdrd.errata,
+        sdrd.dta_iem_id,
+        sdrd.sub_id,
+        sdri.mamoym_id
+        FROM aidt_lms.std_dta_result_info sdri
+        JOIN aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+        JOIN aidt_lms.tc_cla_mb_info tcmi ON sdri.mamoym_id = tcmi.stdt_id AND tcmi.cla_id = #{paramMap.claId} AND tcmi.actvtn_at = 'Y'
+        LEFT OUTER JOIN aidt_lms.user u ON tcmi.stdt_id = u.user_id
+        WHERE 1=1
+        AND sdri.textbk_tab_id = #{paramMap.tabId}
+        AND sdrd.sm_exm_at = 'N'
+        AND (
+        <foreach collection="paramData" item="problem" separator="OR">
+            (sdrd.dta_iem_id = #{problem.dtaIemId}
+            AND sdrd.sub_id = #{problem.subId}
+            AND sdri.mamoym_id = #{problem.mamoymId})
+        </foreach>
+        )
+        AND (
+        <foreach collection="paramMap.dtaResultInfoList" item="student" separator="OR">
+            (sdri.sets_id = #{student.setsId} AND sdri.mamoym_id = #{student.mamoymId})
+        </foreach>
+        )
+        ORDER BY sdrd.sub_mit_anw
+    </select>
+
+    <!-- 개인별 맞춤 학습 자습 정보 조회 -->
+    <select id="findCustomLearningSelfStd" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findCustomLearningSelfStd */
+        SELECT DISTINCT
+        u.id as user_idx,
+        u.user_id,
+        u.flnm,
+        sdrd.dta_iem_id,
+        sdrd.sub_id,
+        sdri.mamoym_id
+        FROM aidt_lms.std_dta_result_info sdri
+        JOIN aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+        JOIN aidt_lms.tc_cla_mb_info tcmi ON sdri.mamoym_id = tcmi.stdt_id AND tcmi.cla_id = #{paramMap.claId} AND tcmi.actvtn_at = 'Y'
+        JOIN aidt_lms.std_dta_result_detail sdrd2 ON sdrd2.src_detail_id = sdrd.id AND sdrd2.sm_exm_at = 'Y' AND sdrd2.eak_stts_cd != 1
+        LEFT OUTER JOIN aidt_lms.user u ON tcmi.stdt_id = u.user_id
+        WHERE 1=1
+        AND sdri.textbk_tab_id = #{paramMap.tabId}
+        AND sdrd.sm_exm_at = 'N'
+        AND (
+        <foreach collection="paramData" item="problem" separator="OR">
+            (sdrd.dta_iem_id = #{problem.dtaIemId}
+            AND sdrd.sub_id = #{problem.subId}
+            AND sdri.mamoym_id = #{problem.mamoymId})
+        </foreach>
+        )
+        AND (
+        <foreach collection="paramMap.dtaResultInfoList" item="student" separator="OR">
+            (sdri.sets_id = #{student.setsId} AND sdri.mamoym_id = #{student.mamoymId})
+        </foreach>
+        )
+    </select>
+
+    <!-- 개인별 맞춤 학습 학생별 정답률/제출률 조회 -->
+    <select id="findCustomLearningStudentRate" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findCustomLearningStudentRate */
+        select tcmi.stdt_id as userId
+             , IFNULL(ROUND((sum(if (sdrd.mrk_ty in (1,2) and sdrd.errata in (1),1,0))
+            / sum(if (sdrd.mrk_ty in (1,2) and sdrd.errata in (1,2),1,0))) * 100,0),0) as crrRate
+             , IFNULL(ROUND((sum(if (sdrd.mrk_ty in (1,2) and sdrd.errata is not null,1,0))
+            / sum(if (sdrd.mrk_ty in (1,2),1,0))) * 100,0),0) as submRate
+        from aidt_lms.tc_cla_mb_info tcmi
+                 left join aidt_lms.std_dta_result_info sdri on tcmi.stdt_id = sdri.mamoym_id
+            and sdri.sets_id = #{setsId}
+            and sdri.textbk_tab_id = #{tabId}
+                 left join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where tcmi.cla_id = #{claId}
+          and tcmi.actvtn_at = 'Y'
+          AND sdri.mamoym_id = #{mamoymId}
+        group by tcmi.stdt_id
+    </select>
+</mapper>

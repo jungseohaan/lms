@@ -1,0 +1,2787 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.selflrn.mapper.StntSelfLrnMapper">
+
+    <!-- 학습자료 존재유무 체크 -->
+    <select id="selectStntSelfLrnExistCheck" parameterType="map" resultType="int">
+        <![CDATA[
+        SELECT /* StntSelfLrnMapper.selectStntSelfLrnExistCheck */
+               SUM(CASE WHEN count = 0 THEN 0 ELSE count END ) AS total_count
+          FROM (
+                 SELECT COUNT(1) AS count
+                   FROM aidt_lms.tab_info a
+                   INNER JOIN aidt_lms.std_dta_result_info b
+                      ON a.id = b.textbk_tab_id
+                     AND b.mamoym_id = #{userId}
+                   INNER JOIN aidt_lms.std_dta_result_detail c
+                      ON b.id = c.dta_result_id
+                     AND (c.sub_mit_anw is not null or c.sub_mit_anw_url is not null)
+                   WHERE a.textbk_id = #{textbkId}
+                     AND a.cla_id = #{claId}
+
+                 UNION ALL
+
+                 SELECT COUNT(1) AS count
+                 FROM aidt_lms.evl_info a
+                INNER JOIN aidt_lms.evl_result_info b
+                   ON a.id = b.evl_id
+                  AND b.mamoym_id = #{userId}
+                INNER JOIN aidt_lms.evl_result_detail c
+                   ON b.id = c.evl_result_id
+                  AND (c.sub_mit_anw is not null or c.sub_mit_anw_url is not null)
+                WHERE a.textbook_id = #{textbkId}
+                  AND a.cla_id = #{claId}
+
+                UNION ALL
+
+                SELECT COUNT(1) AS count
+                  FROM aidt_lms.task_info a
+                INNER JOIN aidt_lms.task_result_info b
+                   ON a.id = b.task_id
+                  AND b.mamoym_id = #{userId}
+                INNER JOIN aidt_lms.task_result_detail c
+                   ON b.id = c.task_result_id
+                  AND (c.sub_mit_anw is not null or c.sub_mit_anw_url is not null)
+                WHERE a.textbk_id = #{textbkId}
+                  AND a.cla_id = #{claId}
+             ) AS X
+        ]]>
+    </select>
+
+    <!-- 자기주도학습 단원 목록 조회 : 마지막 수업 단원 ID -->
+    <select id="findStntSelfLrnLastLesson" parameterType="map" resultType="camelHashMap">
+    /* StntSelfLrnMapper.findStntSelfLrnLastLesson */
+    select
+        b.meta_id as lastLesnUnitId
+    from aidt_lms.tc_lastlesson a
+        inner join aidt_lcms.textbookcurriculum_meta_map b
+            on a.textbk_idx_id = b.textbookIndex_id
+            and a.crcul_id = b.`key`
+            and b.meta_name = 'studyMap1' /* 단원 */
+    where 1=1
+        and a.textbk_id = #{textbkId}
+        and a.cla_id    = #{claId}
+        and a.wrter_id  = (select user_id from aidt_lms.tc_cla_mb_info
+                            where cla_id = #{claId} and stdt_id = #{userId} and actvtn_at = 'Y' limit 1)
+    </select>
+    <!-- 자기주도학습 단원 목록 조회 : 마지막 수업 단원 ID -->
+    <select id="findStntSelfLrnLastLesson_bak" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.findStntSelfLrnLastLesson_bak */
+        select meta_id as lastLesnUnitId
+            from aidt_lcms.v_curri_tree a
+        where a.textbk_id = #{textbkId}
+        and a.id = (
+            /* 마지막 수업한 위치 커리큘럼에 대한 학습맵 조회 */
+            select
+                d.id
+            from
+                aidt_lms.tc_cla_mb_info a
+                inner join aidt_lms.tc_lastlesson b
+                    on a.user_id = b.wrter_id
+                        and a.cla_id = b.cla_id
+                        and b.textbk_id = #{textbkId}
+                inner join aidt_lcms.textbookcurriculum_meta_map c
+                    on b.textbk_idx_id = c.textbookIndex_id
+                        and b.crcul_id = c.`key`
+                        and c.meta_name = 'studyMap_1'
+                inner join aidt_lcms.meta d
+                    on c.meta_id = d.id
+            where
+                1=1
+                and a.cla_id = #{claId}
+                and a.stdt_id = #{userId}
+                and a.actvtn_at = 'Y'
+            order by d.parent_id, d.code
+            limit 1
+        )
+    </select>
+    <!-- 자기주도학습 단원 목록 조회 -->
+    <select id="findStntSelfLrnChapterList" parameterType="map" resultType="camelHashMap">
+        <![CDATA[
+            /* StntSelfLrnMapper.findStntSelfLrnChapterList */
+            select
+                A.unit_num,
+                meta_id,
+                case when sum(val) > 0 then 'Y' else 'N' end as std_at,
+                SUM(usd_scr) AS usd_scr,
+                unit_nm,
+                IFNULL(ed_at_info.ed_at, 'N') AS all_ed_at
+            from
+            (
+                    select
+                        row_number() over () as unit_num,
+                        b.id as meta_id,
+                        0 as val,
+                        0 AS usd_scr,
+                        b.val AS unit_nm
+                    from aidt_lcms.meta a
+                        inner join aidt_lcms.meta b
+                            on a.`code` = b.description
+                                and b.is_active = 1
+                                and b.name = 'studyMap1'
+						inner join aidt_lcms.meta c
+							on c.id = b.parent_id
+								and c.is_active = 1
+						left join aidt_lcms.meta_extension d
+							on b.meta_extension_id = d.meta_extension_id
+                    where 1=1
+                        and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                        and a.is_active = 1
+                        and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+                 union all
+                    select
+                        b.unit_num,
+                        meta_id,
+                        IF(std_at = 'Y', 1, 0) as val,
+                        usd_scr,
+                        '' AS unit_nm
+                    from
+                        aidt_lms.std_usd_unit_info b
+                    where
+                        1=1
+                        and textbk_id = #{textbkId}
+                        and cla_id = #{claId}
+                        and stdt_id = #{userId}
+                order by unit_num
+            ) A
+            LEFT JOIN (
+                SELECT
+                    unit_num,
+                    CASE WHEN SUM(ed_at_val) > 0 THEN 'Y' ELSE 'N' END AS ed_at
+                FROM (SELECT
+                          ssi.unit_num,
+                          IF(ssi.ed_at = 'Y', 1, 0) AS ed_at_val
+                      FROM aidt_lms.slf_std_info ssi
+                      WHERE ssi.stdt_id = #{userId}
+                        AND ssi.cla_id = #{claId}
+                        AND ssi.textbk_id = #{textbkId}
+                        AND ssi.lvl_nm = '모아 풀기') ed_at_val
+                GROUP BY unit_num) ed_at_info
+                          ON A.unit_num  = ed_at_info.unit_num
+            group by
+                unit_num, meta_id
+        ]]>
+    </select>
+
+    <!-- 자기주도학습 단원 개념 목록 조회 -->
+    <select id="findStntSelfLrnChapterConceptList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.findStntSelfLrnChapterConceptList */
+        SELECT
+            COUNT(*) OVER () AS fullCount,
+            B.meta_id,
+            B.kwg_main_id,
+            LTRIM(SUBSTRING(B.kwg_nm, LOCATE('.', B.kwg_nm) + 1)) AS kwg_nm ,
+            B.id,
+            round(B.usd_scr,2) as usd_scr,
+            CASE
+                WHEN MAX(CASE WHEN std_at = 'Y' THEN 1 ELSE 0 END) OVER (PARTITION BY meta_id) = 1
+                THEN 'Y'
+                ELSE 'N'
+             END as std_at
+          FROM (
+                SELECT
+                    meta_id,
+                    kwg_main_id,
+                    kwg_nm,
+                    sum(id) as id,
+                    sum(usd_scr) as usd_scr,
+                    case when sum(val) > 0 then 'Y' else 'N' end as std_at,
+                    MAX(factor_main) AS factor_main,
+                    MAX(factor_sub) AS factor_sub,
+                    MAX(parent_id) AS parent_id,
+                    MAX(code) AS code
+                    FROM (
+                        SELECT
+                            0 as id,
+                            0 as val,
+                            X.meta_id,
+                            Y.id as kwg_main_id,
+                            Y.val as kwg_nm,
+                            0 as usd_scr,
+                            CAST(SUBSTRING(SUBSTRING_INDEX(Y.code, 'factor', -1), 1, 2) AS UNSIGNED) AS factor_main,
+                            CASE
+                                WHEN LENGTH(SUBSTRING_INDEX(Y.code, 'factor', -1)) > 2
+                                THEN CAST(SUBSTRING(SUBSTRING_INDEX(Y.code, 'factor', -1), 3) AS UNSIGNED)
+                                ELSE 0
+                             END AS factor_sub,
+                            Y.parent_id,
+                            Y.code
+                        FROM (
+                                SELECT
+                                    b.id as meta_id,
+                                    b.parent_id,
+                                    b.`code`
+                                  FROM aidt_lcms.meta a
+                                INNER JOIN aidt_lcms.meta b
+                                        ON a.`code` = b.description
+                                       AND b.is_active = 1
+                                       AND b.name = 'studyMap1'
+                                INNER JOIN aidt_lcms.meta c
+                                        ON c.id = b.parent_id
+                                       AND c.is_active = 1
+                                WHERE 1=1
+                                  AND a.parent_id = (SELECT curriBook FROM aidt_lcms.textbook WHERE id = #{param.textbkId})
+                                  AND a.is_active = 1
+                                ) X
+                    INNER JOIN aidt_lcms.meta Y
+                            ON X.meta_id = #{param.metaId}
+                           AND Y.`code` like concat(X.`code`,'-%')
+                           AND Y.name = 'studyMap_1'
+                           AND Y.is_active = 1
+                    UNION ALL
+                    SELECT
+                        a.id,
+                        IF(a.std_at = 'Y', 1, 0) as val,
+                        a.meta_id,
+                        a.kwg_main_id,
+                        (select val from aidt_lcms.meta where name = 'studyMap_1' and id = a.kwg_main_id) as kwg_nm,
+                        a.usd_scr,
+                        NULL AS factor_main,
+                        NULL AS factor_sub,
+                        NULL AS parent_id,
+                        NULL AS code
+                      FROM aidt_lms.std_usd_info a
+                     WHERE 1=1
+                       and a.stdt_id = #{param.userId}
+                       and a.textbk_id = #{param.textbkId}
+                       and a.cla_id = #{param.claId}
+                       and a.meta_id = #{param.metaId}
+            ) A
+            group by
+                meta_id,
+                kwg_main_id,
+                kwg_nm
+            order by
+                meta_id,
+                kwg_main_id
+        ) B
+        where 1=1
+        <if test="param.textbkId == 6993">
+            /* 중등수학2 "정당화" 들어가는 학습맵은 제외 */
+            and kwg_main_id not in (
+                45845, 45850, 45861, 45871, 45879, 45885, 45894, 45900, 45908, 45983
+            )
+        </if>
+        <if test="param.textbkId == 1342">
+            /* 공통수학2 도형의 방정식 - 평행이동을 이용한 활용, 대칭이동을 이용한 활용 학습맵 제외 */
+            and kwg_main_id not in (
+                25908, 25914
+            )
+        </if>
+        <if test="param.textbkId == 1152">
+            /* 중등수학1 ( 문자와 식 - 일차식의 덧셈의 원리, 일차식의 뺄셈의 원리 ) ( 좌표평면과 그래프 - 다양한 상황에 대한 그래프의 표현 ) ( 기본도형 - 작도 ) ( 통계 - 통계적 탐구 문제 설정, 공학 도구를 이용한 자료의 정리 및 해석 ) 학습맵 제외 */
+            and kwg_main_id not in (
+            945, 41914, 959, 983, 41932, 1026
+            )
+        </if>
+        order by
+        /*   usd_scr desc, */
+         meta_id,
+         B.parent_id,
+         B.code
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset};
+    </select>
+
+    <!-- 자기주도학습 답안 제출 -->
+    <update id="saveStntSelfLrnSubmitAnswer" parameterType="map">
+          UPDATE aidt_lms.slf_std_result_info  /* StntSelfLrnMapper.saveStntSelfLrnSubmitAnswer */
+             SET std_at = 'Y'
+                ,mrk_cp_at = 'Y'
+                ,std_ed_dt = NOW()
+                ,sub_mit_anw = #{subMitAnw}
+                ,errata = #{errata}
+                ,ai_tut_use_at = #{aiTutUseAt}
+                <if test="hdwrtCn != null and hdwrtCn != '' ">
+                    ,hdwrt_cn = #{hdwrtCn}
+                </if>
+                <if test="hdwrtCn == null or hdwrtCn == '' ">
+                    ,hdwrt_cn = NULL
+                </if>
+                <if test="subMitAnwUrl != null and subMitAnwUrl != '' ">
+                    ,sub_mit_anw_url = #{subMitAnwUrl}
+                </if>
+                <if test="subMitAnwUrl == null or subMitAnwUrl == '' ">
+                    ,sub_mit_anw_url = NULL
+                </if>
+                <if test="hntUseAt != null and hntUseAt != '' ">
+                    ,hnt_use_at = #{hntUseAt}
+                </if>
+                ,mdfy_dt = NOW()
+           WHERE id = #{slfResultId}
+             and ((#{errata} = 4 and std_ed_dt is null) or #{errata} in (1,2,3))
+    </update>
+
+    <!-- 자기주도학습 종료 하기 -->
+    <update id="saveStntSelfLrnEnd" parameterType="map"  keyProperty="slfId">
+        UPDATE aidt_lms.slf_std_info   /* StntSelfLrnMapper.saveStntSelfLrnEnd */
+           SET ed_at = 'Y'
+              ,mdfy_dt = NOW()
+         WHERE id = #{slfId}
+    </update>
+
+    <!-- 자기주도학습 종료 하기 -->
+    <update id="saveStntSelfLrnStdEnd" parameterType="map"  keyProperty="slfId">
+        UPDATE aidt_lms.slf_std_result_info  /* StntSelfLrnMapper.saveStntSelfLrnStdEnd */
+           SET std_at = 'Y'
+              ,std_st_dt  = NOW()
+              ,std_ed_dt  = NOW()
+              ,errata     = 2
+              ,mrk_cp_at  = 'Y'
+              ,mdfy_dt = NOW()
+         WHERE std_id = #{slfId}
+           AND std_at = 'N'
+    </update>
+
+    <!-- 자기주도학습 결과 보기 -->
+    <select id="findStntSelfLrnResultSummaryInfo" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnResultSummaryInfo */  A.id
+            ,std_cd
+            ,aidt_lms.F_CODE_NM('std_cd', A.std_cd) AS stdCdNm
+            ,std_nm
+            ,lvl_id
+            ,lvl_nm
+            ,usd_scr AS beforeUsdScr
+            ,(SELECT usd_scr FROM aidt_lms.std_usd_info where id = A.std_usd_id) AS afterUsdScr
+            ,(SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = #{slfId} ) AS totMdulCnt
+            ,(SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = #{slfId} AND std_at = 'Y') AS stdMdulCnt
+            ,(SELECT SUM(1) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND errata = 1) AS anwNum
+            ,(SELECT SUM(1) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND errata = 2) AS wrngNum
+            ,(SELECT SUM(rwd_amt)
+                FROM aidt_lms.rwd_earn_hist
+               WHERE user_id = A.stdt_id
+                 AND cla_id  = A.cla_id
+                 AND se_cd   = 1
+                 AND menu_se_cd = '4'
+                 AND sve_se_cd IN ( CASE WHEN A.std_cd = '1' THEN '5'
+                                         WHEN A.std_cd = '2' THEN '6'
+                                         ELSE '' END )
+                 AND rwd_se_cd = 1) AS totalReward
+        FROM aidt_lms.slf_std_info A
+       WHERE A.id = #{slfId}
+    </select>
+
+
+    <!-- 자기주도학습 결과 보기 -->
+    <select id="findStntSelfLrnResultSummary" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnResultSummary */  A.id
+                ,module_id
+                ,module_num
+                ,B.thumbnail /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+                ,B.questionStr
+                ,B.hashTags
+                ,B.url
+                ,B.image
+                ,DATE_FORMAT(std_st_dt, "%Y.%m.%d %H:%i:%s") AS std_st_dt
+                ,DATE_FORMAT(std_ed_dt, "%Y.%m.%d %H:%i:%s") AS std_ed_dt
+                ,sub_mit_anw
+                ,errata
+                ,sm_exm_at
+                ,src_result_info_id AS srcModuleId
+                ,(SELECT id FROM slf_std_result_info WHERE module_id = A.src_result_info_id AND std_id = #{slfId} LIMIT 1 ) AS srcSlfResultId
+                ,ai_tut_use_at
+                ,hdwrt_cn
+                ,sub_mit_anw_url
+            FROM aidt_lms.slf_std_result_info A LEFT OUTER JOIN  aidt_lcms.article B
+              ON A.module_id = B.id
+           WHERE std_id = #{slfId}
+    </select>
+
+
+    <insert id="insertStntSelfLrnCreate" parameterType="map" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO aidt_lms.slf_std_info  /* StntSelfLrnMapper.insertStntSelfLrnCreate */
+        (
+            id
+            ,std_cd
+            ,std_nm
+            ,stdt_id
+            ,cla_id
+            ,textbk_id
+            ,std_usd_id
+            ,unit_num
+            ,lvl_id
+            ,lvl_nm
+            ,usd_scr
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+        null
+            ,#{stdCd}
+            ,#{stdNm}
+            ,#{userId}
+            ,#{claId}
+            ,#{textbkId}
+            ,#{stdUsdId}
+            ,#{unitNum}
+            ,#{lvlId}
+            ,#{lvlNm}
+            ,(SELECT SUM(usd_scr)  FROM aidt_lms.std_usd_info WHERE id = #{stdUsdId})
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <!-- 자기주도학습 문항 추천 목록 조회 (생성 관련) -->
+    <select id="selectStntSelfLrnRecModuleList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStntSelfLrnRecModuleList */
+        select
+            RANK() over (partition by studyMap_2 order by frequency, id) as rankInfo,
+            #{userId} as userId,
+            A.id,
+            A.name,
+            A.studyMap_2,
+            A.frequency
+        from
+        (
+            select
+                g.id,
+                g.name,
+                (select val from aidt_lcms.meta where id = d.meta_id) as studyMap_2,
+                (
+                    select sum(cnt)
+                    from (
+                        /* 학습 자료 모듈(아티클) 정보 조회 */
+                        /* 평가 */
+                        select count(*) as cnt
+                        from aidt_lms.evl_info x
+                        inner join aidt_lms.evl_result_info y
+                            on x.id = y.evl_id and y.mamoym_id = #{userId}
+                        inner join aidt_lms.evl_result_detail z
+                            on y.id = z.evl_result_id
+                                /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */
+                                and z.evl_iem_id = g.id and z.sub_id = 0
+                        where
+                            1=1
+                            and x.textbook_id = #{textbkId}
+                            and x.cla_id = #{claId}
+                        union all
+                        /* 과제 */
+                        select count(*) as cnt
+                        from aidt_lms.task_info x
+                        inner join aidt_lms.task_result_info y
+                            on x.id = y.task_id and y.mamoym_id = #{userId}
+                        inner join aidt_lms.task_result_detail z
+                            on y.id = z.task_result_id
+                                /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */
+                                and z.task_iem_id = g.id and z.sub_id = 0
+                        where
+                            1=1
+                            and x.textbk_id = #{textbkId}
+                            and x.cla_id = #{claId}
+                        union all
+                        /* 학습자료 */
+                        select count(*) as cnt
+                        from aidt_lms.tab_info x
+                        inner join aidt_lms.std_dta_result_info y
+                            on x.id = y.textbk_tab_id and y.mamoym_id = #{userId}
+                        inner join aidt_lms.std_dta_result_detail z
+                            on y.id = z.dta_result_id
+                                /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */
+                                and z.dta_iem_id = g.id and z.sub_id = 0
+                        where
+                            1=1
+                            and x.textbk_id = #{textbkId}
+                            and x.cla_id = #{claId}
+                        union all
+                        /* 자기주도학습 */
+                        select count(*) as cnt
+                        from aidt_lms.slf_std_info x
+                        inner join aidt_lms.slf_std_result_info y
+                            on x.id = y.std_id
+                                /* and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null) */
+                                and y.module_id = g.id and y.sub_id = 0
+                        where
+                            1=1
+                            and x.textbk_id = #{textbkId}
+                            and x.cla_id = #{claId}
+                            and x.stdt_id = #{userId}
+                            and x.std_cd = 2 /* 선택학습만 대상, 1은 영어가 사용한다고 함. */
+                        union all
+                        /* 자기주도학습(AI학습) */
+                        select count(*) as cnt
+                        from aidt_lms.slf_ai_std_info x
+                        inner join aidt_lms.slf_ai_std_result_info y
+                            on x.id = y.std_ai_id
+                                /* and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null) */
+                                and y.module_id = g.id and y.sub_id = 0
+                        where
+                            1=1
+                            and x.textbk_id = #{textbkId}
+                            and x.cla_id = #{claId}
+                            and x.stdt_id = #{userId}
+                    ) s
+                ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+            from
+            aidt_lms.std_usd_info sui
+            inner join aidt_lcms.article_meta_map a
+                on a.meta_name = 'studyMap1'
+                    and a.meta_id = sui.meta_id
+                    and a.sub_id = 0
+            inner join aidt_lcms.article_meta_map b
+                on a.article_id = b.article_id
+                    and a.sub_id = b.sub_id
+                    and b.meta_name = 'studyMap_1' /* 학습맵(지식요인) */
+                    and b.meta_id = sui.kwg_main_id
+            inner join aidt_lcms.article_meta_map c
+                on a.article_id = c.article_id
+                    and a.sub_id = c.sub_id
+                    and c.meta_name = 'difficulty' /* 난이도 */
+                    and c.meta_id = (select id from aidt_lcms.meta where name = 'difficulty' and code = #{lvlId}) /* 난이도 */
+            inner join aidt_lcms.article_meta_map d
+                on a.article_id = d.article_id
+                    and a.sub_id = d.sub_id
+                    and d.meta_name = 'studyMap_2' /* 학습맵(유형) */
+            inner join aidt_lcms.article_meta_map e
+                on a.article_id = e.article_id
+                    and a.sub_id = e.sub_id
+                    and e.meta_name = 'questionType'
+                    and e.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+            inner join aidt_lcms.article_meta_map f
+                on a.article_id = f.article_id
+                    and a.sub_id = f.sub_id
+                    and f.meta_name = 'articleCategory'
+                    and f.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+            inner join aidt_lcms.article g
+                on a.article_id = g.id
+                and g.is_active = 1
+               and g.is_publicOpen = 1
+            where
+                1=1
+                and sui.id = #{stdUsdId}
+                and g.articleType in (
+                    select id from aidt_lcms.meta where name = 'articleType' and code = 'question' /* 유형(문항) */
+                )
+                /* AIDT에서 교사가 제작한 모듈(아티클)은 제외, CBS에서 제작한 것만 포함 */
+                and g.creator_ty = 1
+        ) A
+        where
+            1=1
+            and	studyMap_2 is not null
+        order by
+            rankInfo,
+            studyMap_2
+        limit 5
+    </select>
+
+    <!--자기주도학습결과정보 생성-->
+    <insert id="insertStntSelfLrnResultCreate" parameterType="map">
+        /* StntSelfLrnMapper.insertStntSelfLrnResultCreate */
+        INSERT INTO aidt_lms.slf_std_result_info
+        (
+             id
+            ,std_id
+            ,module_num
+            ,module_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES
+        <foreach collection="list" item="item" index="idx" separator=",">
+        (
+            null, #{id}, #{idx}+1, #{item.id}, #{item.userId} ,NOW() , #{item.userId} ,NOW()
+        )
+        </foreach>
+    </insert>
+
+    <!--자기 주도학습 생성 결과 리턴-->
+    <select id="findStntSelfLrnCreateSummaryInfo" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnCreateSummaryInfo */
+              id
+             ,std_cd
+             ,aidt_lms.F_CODE_NM('std_cd', A.std_cd) AS stdCdNm
+             ,std_nm
+             ,std_usd_id
+         FROM aidt_lms.slf_std_info A
+        WHERE A.id = #{id}
+    </select>
+
+    <select id="findStntSelfLrnCreateSummary" parameterType="map" resultType="camelHashMap">
+        SELECT  /* StntSelfLrnMapper.findStntSelfLrnCreateSummary */
+              A.id
+             ,max(A.module_id) as module_id
+             ,max(A.module_num) as module_num
+            , max(m.id) as difficultyMetaId
+            , max(m.code) as difficultyMetaCode
+            , max(m.val) as difficultyMetaVal
+            , x.hint
+	        , x.sbsChatting
+	        , x.sbsSolution
+            , case when ifnull(x.hint, '') = '' then 'N' else 'Y' end AS 'hintYN'/*힌트*/
+	        , case when ifnull(x.sbsChatting, '') = '' then 'N' else 'Y' end AS 'sbsChattingYN'/*단계별 질문*/
+	        , case when ifnull(x.sbsSolution, '') = '' then 'N' else 'Y' end AS 'sbsSolutionYN'/*단계별풀이*/
+        FROM aidt_lms.slf_std_result_info A
+        left join aidt_lcms.article_meta_map amm
+            on A.module_id = amm.article_id
+            and amm.meta_name = 'difficulty'
+        left join aidt_lcms.meta m
+            on amm.meta_id = m.id
+        left join aidt_lcms.aitutorcontents x
+            on x.article_id= A.module_id
+        WHERE A.std_id = #{id}
+        group by A.id
+        order by A.id
+    </select>
+
+    <select id="findStntSelfLrnCreateReceiveSummary" parameterType="map" resultType="camelHashMap">
+        SELECT  /* StntSelfLrnMapper.findStntSelfLrnCreateReceiveSummary */
+            A.id
+             ,max(A.module_id) as module_id
+             ,max(A.module_num) as module_num
+             , max(m.id) as difficultyMetaId
+             , max(m.code) as difficultyMetaCode
+             , max(m.val) as difficultyMetaVal
+             , x.hint
+             , x.sbsChatting
+             , x.sbsSolution
+             , case when ifnull(x.hint, '') = '' then 'N' else 'Y' end AS 'hintYN'/*힌트*/
+	        , case when ifnull(x.sbsChatting, '') = '' then 'N' else 'Y' end AS 'sbsChattingYN'/*단계별 질문*/
+	        , case when ifnull(x.sbsSolution, '') = '' then 'N' else 'Y' end AS 'sbsSolutionYN'/*단계별풀이*/
+        FROM aidt_lms.slf_std_result_info A
+                 left join aidt_lcms.article_meta_map amm
+                           on A.module_id = amm.article_id
+                               and amm.meta_name = 'difficulty'
+                 left join aidt_lcms.meta m
+                           on amm.meta_id = m.id
+                 left join aidt_lcms.aitutorcontents x
+                           on x.article_id= A.module_id
+        WHERE A.id = #{id}
+        group by A.id
+        order by A.id
+    </select>
+
+    <!--학습내역 목록조회-->
+    <!-- 사용하지 않음 -->
+    <select id="findStntSelfLrnList_ORI" parameterType="pagingParam" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnList */   COUNT(*) over () AS full_count
+            , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num
+            , A.id
+            , A.std_cd
+            , aidt_lms.F_CODE_NM('std_cd', A.std_cd) AS std_cd_nm
+            , A.std_nm
+            , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+            , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+            , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+            , B.stdTime
+            , B.std_st_dt
+          FROM aidt_lms.slf_std_info A INNER JOIN
+        (
+            SELECT
+                  std_id,
+                  TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(std_ed_dt, std_st_dt)))), '%H:%i:%s') AS stdTime,
+                  std_st_dt
+              FROM aidt_lms.slf_std_result_info
+             GROUP BY std_id
+        ) B
+           ON A.id = B.std_id
+        WHERE A.stdt_id = #{param.userId}
+        AND A.std_cd = #{param.stdCd}
+        <if test='param.keyword != null and param.keyword != "" '>
+            <choose>
+                <when test='param.condition == "name" '>
+                    AND UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                </when>
+                <when test='param.condition == "date" '>
+                    AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                    OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        GROUP BY A.id
+            , A.std_cd
+            , A.std_nm
+            , B.std_id
+        ORDER BY B.std_st_dt desc
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+
+    <!--학습내역 목록조회 heum-->
+    <!-- 사용하지 않음 -->
+    <select id="findStntSelfLrnListForEng" parameterType="pagingParam" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEng */
+                        COUNT(*) over () AS full_count
+                        , (count(*) over () + 1) - (row_number() over (order by aa.std_st_dt desc)) as num
+                       /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+                        , aa.id
+                        , aa.std_cd
+                        , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+                        , aa.std_nm
+                        , aa.std_dt
+                        , aa.totMdulCnt
+                        , aa.stdMdulCnt
+                        , aa.stdTime
+                        , aa.std_st_dt
+            from (
+        		select
+                  A.id
+                , A.std_cd
+                , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                , convert (A.std_nm USING 'UTF8MB4') as std_nm
+                , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                , B.stdTime
+                , B.std_st_dt
+        FROM
+            aidt_lms.slf_std_info A
+            INNER JOIN
+            (
+                SELECT
+                    y.std_id,
+                    TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                    y.std_st_dt
+
+                FROM
+                    aidt_lms.slf_std_info x
+                    inner join aidt_lms.slf_std_result_info y
+                        on x.id = y.std_id and y.std_at = 'Y' /* 학습여부 */
+                WHERE 1=1
+                    and x.textbk_id = #{param.textbkId}
+                    and x.cla_id = #{param.claId}
+                    and x.stdt_id = #{param.userId}
+                GROUP BY y.std_id
+            ) B
+                ON A.id = B.std_id
+        WHERE A.stdt_id = #{param.userId}
+        AND (select brand_id from tc_curriculum where textbk_id = A.textbk_id and brand_id is not null limit 1) = #{param.brandId}
+        <if test='param.keyword != null and param.keyword != "" '>
+            <choose>
+                <when test='param.condition == "name" '>
+                    AND UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                </when>
+                <when test='param.condition == "date" '>
+                    AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                    OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        GROUP BY A.id
+        , A.std_cd
+        , A.std_nm
+        , B.std_id
+        union all
+        select id
+            , ai_std_cd as std_cd
+            , aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd) AS std_cd_nm
+            , CONVERT( if (COUNT(1) OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d")) = 1 ,
+                aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd),
+                CONCAT(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd), '(',ROW_NUMBER() OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d") ORDER BY std_dt asc) , ')'))
+                USING 'UTF8MB4')  as std_nm
+            , DATE_FORMAT(std_dt, "%Y-%m-%d") AS std_dt
+            , null as totMdulCnt
+            , null as stdMdulCnt
+            , null as stdTime
+            , std_dt as std_st_dt
+        from aidt_lms.ai_edit_prgrm a
+        where 1=1
+            AND stdt_id = #{param.userId}
+        <if test='param.keyword != null and param.keyword != "" '>
+            <choose>
+                <when test='param.condition == "name" '>
+                    AND UPPER(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd)) collate utf8mb4_general_ci LIKE CONCAT('%',#{param.keyword},'%')
+                </when>
+                <when test='param.condition == "date" '>
+                    AND DATE_FORMAT(std_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd)) collate utf8mb4_general_ci LIKE CONCAT('%',#{param.keyword},'%')
+                    OR ( DATE_FORMAT(std_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        ) aa
+       /* ORDER BY aa.std_st_dt desc */
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <!--학습내역 목록조회 heum-->
+    <select id="findStntSelfLrnListForEngNew" parameterType="pagingParam" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEng */
+            COUNT(*) over () AS full_count
+            , (count(*) over () + 1) - (row_number() over (order by aa.std_st_dt desc)) as num
+            /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+            , aa.id
+            , aa.std_cd
+            , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+            , aa.std_nm
+            , aa.std_dt
+            , aa.totMdulCnt
+            , aa.stdMdulCnt
+            , aa.stdTime
+            , aa.std_st_dt
+            , aa.aiTutAt /* 추가 */
+        from (
+                select
+                    A.id
+                    , A.std_cd
+                    , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                    , convert (A.std_nm USING 'UTF8MB4') as std_nm
+                    , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                    , B.stdTime
+                    , B.std_st_dt
+                    , IF(LOWER(convert (A.std_nm USING 'UTF8MB4')) LIKE '%pronunciation%', '', B.ai_tut_use_at) AS aiTutAt  /* 추가 */
+                FROM
+                    aidt_lms.slf_std_info A
+                INNER JOIN
+                (
+                    SELECT
+                        y.std_id,
+                        TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                        y.std_st_dt,
+                        if(count(case when y.ai_tut_use_at = 'Y' then 1 end) > 0,'Y','N') as 'ai_tut_use_at'
+                    FROM
+                        aidt_lms.slf_std_info x
+                    inner join aidt_lms.slf_std_result_info y
+                        on x.id = y.std_id and y.std_at = 'Y' /* 학습여부 */
+                       and x.ed_at = 'Y'
+                    WHERE 1=1
+                    and x.textbk_id = #{param.textbkId}
+                    and x.cla_id = #{param.claId}
+                    and x.stdt_id = #{param.userId}
+                    GROUP BY y.std_id
+                ) B
+                ON A.id = B.std_id
+                WHERE A.stdt_id = #{param.userId}
+                AND (select brand_id from tc_curriculum where textbk_id = A.textbk_id and brand_id is not null limit 1) = #{param.brandId}
+                <if test='param.keyword != null and param.keyword != "" '>
+                    <choose>
+                        <when test='param.condition == "name" '>
+                            AND UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                        </when>
+                        <when test='param.condition == "date" '>
+                            AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                        </when>
+                        <otherwise>
+                            AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                            OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                            )
+                        </otherwise>
+                    </choose>
+                </if>
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+                union all
+                select
+                    id
+                    , ai_std_cd as std_cd
+                    , aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd) AS std_cd_nm
+                    , CONVERT( if (COUNT(1) OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d")) = 1 ,
+                    aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd),
+                    CONCAT(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd), '(',ROW_NUMBER() OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d") ORDER BY std_dt asc) , ')'))
+                    USING 'UTF8MB4')  as std_nm
+                    , DATE_FORMAT(std_dt, "%Y-%m-%d") AS std_dt
+                    , null as totMdulCnt
+                    , null as stdMdulCnt
+                    , null as stdTime
+                    , std_dt as std_st_dt
+                    , 'N' AS aiTutAt  /* 추가 */
+                from aidt_lms.ai_edit_prgrm a
+                where 1=1
+                AND stdt_id = #{param.userId}
+                <if test='param.keyword != null and param.keyword != "" '>
+                    <choose>
+                        <when test='param.condition == "name" '>
+                            AND UPPER(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd)) collate utf8mb4_general_ci LIKE CONCAT('%',#{param.keyword},'%')
+                        </when>
+                        <when test='param.condition == "date" '>
+                            AND DATE_FORMAT(std_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                        </when>
+                        <otherwise>
+                            AND ( UPPER(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd)) collate utf8mb4_general_ci LIKE CONCAT('%',#{param.keyword},'%')
+                            OR ( DATE_FORMAT(std_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                            )
+                        </otherwise>
+                    </choose>
+                </if>
+        ) aa
+        /* ORDER BY aa.std_st_dt desc */
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findStntSelfLrnListForEngNewAll" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEngNewAll */
+        COUNT(*) over () AS full_count
+        , (count(*) over () + 1) - (row_number() over (order by aa.std_st_dt desc)) as num
+        /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+        , aa.id
+        , aa.std_cd
+        , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+        , aa.std_nm
+        , aa.std_dt
+        , aa.totMdulCnt
+        , aa.stdMdulCnt
+        , aa.stdTime
+        , aa.std_st_dt
+        , aa.aiTutAt /* 추가 */
+        from (
+        select
+        A.id
+        , A.std_cd
+        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+        , convert (A.std_nm USING 'UTF8MB4') as std_nm
+        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+        , B.stdTime
+        , B.std_st_dt
+        , IF(LOWER(convert (A.std_nm USING 'UTF8MB4')) LIKE '%pronunciation%', '', B.ai_tut_use_at) AS aiTutAt  /* 추가 */
+        FROM
+        aidt_lms.slf_std_info A
+        INNER JOIN
+        (
+        SELECT
+        y.std_id,
+        TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+        y.std_st_dt,
+        if(count(case when y.ai_tut_use_at = 'Y' then 1 end) > 0,'Y','N') as 'ai_tut_use_at'
+        FROM
+        aidt_lms.slf_std_info x
+        inner join aidt_lms.slf_std_result_info y
+        on x.id = y.std_id and y.std_at = 'Y' /* 학습여부 */
+        and x.ed_at = 'Y'
+        WHERE 1=1
+        and x.textbk_id = #{textbkId}
+        and x.cla_id = #{claId}
+        and x.stdt_id = #{userId}
+        GROUP BY y.std_id
+        ) B
+        ON A.id = B.std_id
+        WHERE A.stdt_id = #{userId}
+        AND (select brand_id from tc_curriculum where textbk_id = A.textbk_id and brand_id is not null limit 1) = #{brandId}
+        <if test='keyword != null and keyword != "" '>
+            <choose>
+                <when test='condition == "name" '>
+                    AND UPPER(A.std_nm) LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <when test='condition == "date" '>
+                    AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                    OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        GROUP BY A.id
+        , A.std_cd
+        , A.std_nm
+        , B.std_id
+        union all
+        select
+        id
+        , ai_std_cd as std_cd
+        , aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd) AS std_cd_nm
+        , CONVERT( if (COUNT(1) OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d")) = 1 ,
+        aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd),
+        CONCAT(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd), '(',ROW_NUMBER() OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d") ORDER BY std_dt asc) , ')'))
+        USING 'UTF8MB4')  as std_nm
+        , DATE_FORMAT(std_dt, "%Y-%m-%d") AS std_dt
+        , null as totMdulCnt
+        , null as stdMdulCnt
+        , null as stdTime
+        , std_dt as std_st_dt
+        , 'N' AS aiTutAt  /* 추가 */
+        from aidt_lms.ai_edit_prgrm a
+        where 1=1
+        AND stdt_id = #{userId}
+        <if test='keyword != null and keyword != "" '>
+            <choose>
+                <when test='condition == "name" '>
+                    AND UPPER(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd)) collate utf8mb4_general_ci LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <when test='condition == "date" '>
+                    AND DATE_FORMAT(std_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd)) collate utf8mb4_general_ci LIKE CONCAT('%',#{keyword},'%')
+                    OR ( DATE_FORMAT(std_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d')  AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        ) aa
+        /* ORDER BY aa.std_st_dt desc */
+    </select>
+
+    <!-- [수학] 스스로 학습 그래프 데이터 조회 -->
+    <select id="stntSelfLrnDashBoardGraphListForMath" parameterType="pagingParam" resultType="camelHashMap">
+    /* StntSelfLrnMapper.stntSelfLrnDashBoardGraphListForMath */
+    SELECT *
+      FROM (
+        SELECT
+            COUNT(*) over () AS full_count,
+            std_dt,
+            SUM(stdMdulCnt) as stdMdulCnt
+        FROM (
+            select
+                id,
+                std_cd,
+                std_nm,
+                std_dt,
+                totMdulCnt,
+                stdMdulCnt,
+                stdTime,
+                std_st_dt,
+                aiTutAt
+            from (
+                SELECT
+                    A.id
+                    , A.std_cd
+                    , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                    , A.std_nm
+                    , A.textbk_id as textbkId /* 추가 */
+                    , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                    , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                    , B.stdTime
+                    , B.std_st_dt
+                    , B.ai_tut_use_at as aiTutAt
+                FROM
+                    aidt_lms.slf_std_info A
+                    INNER JOIN (
+                        SELECT
+                            y.std_id,
+                            TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                            y.std_st_dt,
+                            if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+                        FROM
+                            aidt_lms.slf_std_info x
+                            inner join aidt_lms.slf_std_result_info y
+                                on x.id = y.std_id /* and y.std_at = 'Y' */ /* 학습여부 */
+                                and x.ed_at = 'Y'
+                        WHERE 1=1
+                            and x.textbk_id = #{param.textbkId}
+                            and x.cla_id = #{param.claId}
+                            and x.stdt_id = #{param.userId}
+                        GROUP BY y.std_id
+                    ) B
+                    ON A.id = B.std_id
+                    WHERE A.stdt_id = #{param.userId}
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+
+                union all
+
+                SELECT
+                    A.id
+                    , 1 as std_cd
+                    , aidt_lms.F_CODE_NM('std_cd', 1) AS std_cd_nm
+                    , A.std_nm
+                    , A.textbk_id as textbkId /* 추가 */
+                    , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                    , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id) AS totMdulCnt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                    , B.stdTime
+                    , B.std_st_dt
+                    , B.ai_tut_use_at as aiTutAt
+                FROM
+                    aidt_lms.slf_ai_std_info A
+                    INNER JOIN (
+                        SELECT
+                            y.std_ai_id
+                            , TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime
+                            , y.std_st_dt
+                            , y.ai_tut_use_at
+                        FROM
+                            aidt_lms.slf_ai_std_info x
+                            inner join aidt_lms.slf_ai_std_result_info y
+                                on x.id = y.std_ai_id /* and y.std_at = 'Y' */ /* 학습여부 */
+                                and x.ed_at = 'Y'
+                        WHERE 1=1
+                            and x.textbk_id = #{param.textbkId}
+                            and x.cla_id = #{param.claId}
+                            and x.stdt_id = #{param.userId}
+                        GROUP BY y.std_ai_id
+                    ) B
+                        ON A.id = B.std_ai_id
+                WHERE A.stdt_id = #{param.userId}
+                GROUP BY A.id
+                , A.std_nm
+                , B.std_ai_id
+            ) aa  where aa.brandId =  #{param.brandId}
+        )z
+        where stdMdulCnt is not null
+        GROUP BY std_dt
+        ORDER BY std_dt DESC
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+     ) final_data
+    ORDER BY std_dt ASC
+    </select>
+
+
+    <!-- [영어] 스스로 학습 그래프 데이터 조회 -->
+    <select id="stntSelfLrnDashBoardGraphListForEngNew" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntSelfLrnMapper.stntSelfLrnDashBoardGraphListForEngNew */
+    SELECT *
+      FROM (
+        SELECT
+            COUNT(*) over () AS full_count,
+            std_dt,
+            SUM(stdMdulCnt) as stdMdulCnt
+        FROM (
+            SELECT
+                aa.id,
+                aa.std_cd,
+                aa.std_dt,
+                aa.stdMdulCnt,
+                aa.std_st_dt
+            from (
+                select
+                    A.id,
+                    A.std_cd,
+                    aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm,
+                    convert (A.std_nm USING 'UTF8MB4') as std_nm,
+                    DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt,
+                    (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt,
+                    (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt,
+                    B.stdTime,
+                    B.std_st_dt,
+                    IF(LOWER(convert (A.std_nm USING 'UTF8MB4')) LIKE '%pronunciation%', '', B.ai_tut_use_at) AS aiTutAt  /* 추가 */
+                FROM
+                    aidt_lms.slf_std_info A
+                INNER JOIN
+                (
+                    SELECT
+                        y.std_id,
+                        TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                        y.std_st_dt,
+                        if(count(case when y.ai_tut_use_at = 'Y' then 1 end) > 0,'Y','N') as 'ai_tut_use_at'
+                    FROM
+                        aidt_lms.slf_std_info x
+                    inner join aidt_lms.slf_std_result_info y
+                        on x.id = y.std_id and y.std_at = 'Y' /* 학습여부 */
+                    WHERE 1=1
+                    and x.textbk_id = #{param.textbkId}
+                    and x.cla_id = #{param.claId}
+                    and x.stdt_id = #{param.userId}
+                    GROUP BY y.std_id
+                ) B
+                ON A.id = B.std_id
+                WHERE A.stdt_id = #{param.userId}
+                AND (select brand_id from tc_curriculum where textbk_id = A.textbk_id and brand_id is not null limit 1) = #{param.brandId}
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+                union all
+                select
+                    id
+                    , ai_std_cd as std_cd
+                    , aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd) AS std_cd_nm
+                    , CONVERT( if (COUNT(1) OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d")) = 1 ,
+                    aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd),
+                    CONCAT(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd), '(',ROW_NUMBER() OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d") ORDER BY std_dt asc) , ')'))
+                    USING 'UTF8MB4')  as std_nm
+                    , DATE_FORMAT(std_dt, "%Y-%m-%d") AS std_dt
+                    , null as totMdulCnt
+                    , null as stdMdulCnt
+                    , null as stdTime
+                    , std_dt as std_st_dt
+                    , 'N' AS aiTutAt  /* 추가 */
+                from aidt_lms.ai_edit_prgrm a
+                where 1=1
+                AND stdt_id = #{param.userId}
+            ) aa
+        )z
+        WHERE stdMdulCnt is not null
+        GROUP BY std_dt
+        ORDER BY std_dt DESC
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+     ) final_data
+    ORDER BY std_dt ASC
+    </select>
+
+    <!--학습내역 목록조회-->
+    <!-- 사용하지 않음 -->
+    <select id="findStntSelfLrnListForMathAI" parameterType="pagingParam" resultType="camelHashMap">
+
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnListForMathAI */
+                COUNT(*) over () AS full_count
+                , ROW_NUMBER() OVER ( ORDER BY B.std_st_dt DESC) AS num
+                , A.id
+                , #{param.stdCd} as std_cd
+                , aidt_lms.F_CODE_NM('std_cd', #{param.stdCd}) AS std_cd_nm
+                , A.std_nm
+                , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id) AS totMdulCnt
+                , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                , B.stdTime
+                , B.std_st_dt
+        FROM
+            aidt_lms.slf_ai_std_info A
+            INNER JOIN (
+                SELECT
+                    y.std_ai_id
+                    , TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime
+                    , y.std_st_dt
+                FROM
+                    aidt_lms.slf_ai_std_info x
+                    inner join aidt_lms.slf_ai_std_result_info y
+                        on x.id = y.std_ai_id
+                WHERE 1=1
+                    and x.textbk_id = #{param.textbkId}
+                    and x.cla_id = #{param.claId}
+                    and x.stdt_id = #{param.userId}
+                GROUP BY y.std_ai_id
+            ) B
+                ON A.id = B.std_ai_id
+        WHERE A.stdt_id = #{param.userId}
+        <if test='param.keyword != null and param.keyword != "" '>
+            <choose>
+                <when test='param.condition == "name" '>
+                    AND UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                </when>
+                <when test='param.condition == "date" '>
+                    AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                    OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        GROUP BY A.id
+        , A.std_nm
+        , B.std_ai_id
+        ORDER BY B.std_st_dt desc
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <!--학습내역 목록조회-->
+    <select id="findStntSelfLrnListForMath" parameterType="pagingParam" resultType="camelHashMap">
+        select  /* StntSelfLrnMapper.findStntSelfLrnListForMath */
+                 full_count
+                , num
+                , id
+                , std_cd
+                , IF(std_cd_nm = '선택학습', '스스로 학습', std_cd_nm) as std_cd_nm
+                , std_nm
+                , std_dt
+                , totMdulCnt
+                , stdMdulCnt
+                , stdTime
+                , std_st_dt
+                , aiTutAt
+        from
+        (   SELECT
+                    COUNT(*) over () AS full_count
+                    , (count(*) over () + 1) - (row_number() over (order by std_st_dt desc)) as num
+/*                     , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+                    , A.id
+                    , A.std_cd
+                    , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                    , A.std_nm
+                    , A.textbk_id as textbkId /* 추가 */
+                    , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                    , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                    , B.stdTime
+                    , B.std_st_dt
+                    , B.ai_tut_use_at as aiTutAt
+            FROM
+                    aidt_lms.slf_std_info A
+                    INNER JOIN (
+                        SELECT
+                            y.std_id,
+                            TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                            y.std_st_dt,
+                            if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+                        FROM
+                            aidt_lms.slf_std_info x
+                            inner join aidt_lms.slf_std_result_info y
+                                on x.id = y.std_id /* and y.std_at = 'Y' */ /* 학습여부 */
+                               and x.ed_at = 'Y'
+                        WHERE 1=1
+                            and x.textbk_id = #{param.textbkId}
+                            and x.cla_id = #{param.claId}
+                            and x.stdt_id = #{param.userId}
+                        GROUP BY y.std_id
+                    ) B
+                ON A.id = B.std_id
+            WHERE A.stdt_id = #{param.userId}
+                /* AND A.std_cd = 2 */
+            <if test='param.keyword != null and param.keyword != "" '>
+                <choose>
+                    <when test='param.condition == "name" '>
+                        AND UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                    </when>
+                    <when test='param.condition == "date" '>
+                        AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~',1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                    </when>
+                    <otherwise>
+                        AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                            OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                        )
+                    </otherwise>
+                </choose>
+            </if>
+            GROUP BY A.id
+            , A.std_cd
+            , A.std_nm
+            , B.std_id
+
+            union all
+
+            SELECT
+                    COUNT(*) over () AS full_count
+                    , (count(*) over () + 1) - (row_number() over (order by id desc)) as num
+                    /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+                    , A.id
+                    , 1 as std_cd
+                    , aidt_lms.F_CODE_NM('std_cd', 1) AS std_cd_nm
+                    , A.std_nm
+                    , A.textbk_id as textbkId /* 추가 */
+                    , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                    , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id) AS totMdulCnt
+                    , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                    , B.stdTime
+                    , B.std_st_dt
+                    , B.ai_tut_use_at as aiTutAt
+            FROM
+                aidt_lms.slf_ai_std_info A
+                INNER JOIN (
+                    SELECT
+                        y.std_ai_id
+                        , TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime
+                        , y.std_st_dt
+                        , y.ai_tut_use_at
+                    FROM
+                        aidt_lms.slf_ai_std_info x
+                        inner join aidt_lms.slf_ai_std_result_info y
+                            on x.id = y.std_ai_id /* and  y.std_at = 'Y' */ /* 학습여부 */
+                            and x.ed_at = 'Y'
+                    WHERE 1=1
+                        and x.textbk_id = #{param.textbkId}
+                        and x.cla_id = #{param.claId}
+                        and x.stdt_id = #{param.userId}
+                    GROUP BY y.std_ai_id
+                ) B
+                    ON A.id = B.std_ai_id
+            WHERE A.stdt_id = #{param.userId}
+            <if test='param.keyword != null and param.keyword != "" '>
+                <choose>
+                    <when test='param.condition == "name" '>
+                        AND UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                    </when>
+                    <when test='param.condition == "date" '>
+                        AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d')
+                    </when>
+                    <otherwise>
+                        AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{param.keyword},'%')
+                             OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{param.keyword}, '~', -1),'-',''), '%Y%m%d') )
+                        )
+                    </otherwise>
+                </choose>
+            </if>
+            GROUP BY A.id
+            , A.std_nm
+            , B.std_ai_id
+        ) aa  where aa.brandId =  #{param.brandId} order by aa.std_st_dt desc LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findStntSelfLrnListForMathAll" parameterType="map" resultType="camelHashMap">
+        select  /* StntSelfLrnMapper.findStntSelfLrnListForMathAll */
+        full_count
+        , num
+        , id
+        , std_cd
+        , IF(std_cd_nm = '선택학습', '스스로 학습', std_cd_nm) as std_cd_nm
+        , std_nm
+        , std_dt
+        , totMdulCnt
+        , stdMdulCnt
+        , stdTime
+        , std_st_dt
+        , aiTutAt
+        from
+        (   SELECT
+        COUNT(*) over () AS full_count
+        , (count(*) over () + 1) - (row_number() over (order by std_st_dt desc)) as num
+        /*                     , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+        , A.id
+        , A.std_cd
+        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+        , A.std_nm
+        , A.textbk_id as textbkId /* 추가 */
+        , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+        , B.stdTime
+        , B.std_st_dt
+        , B.ai_tut_use_at as aiTutAt
+        FROM
+        aidt_lms.slf_std_info A
+        INNER JOIN (
+        SELECT
+        y.std_id,
+        TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+        y.std_st_dt,
+        if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+        FROM
+        aidt_lms.slf_std_info x
+        inner join aidt_lms.slf_std_result_info y
+        on x.id = y.std_id /* and y.std_at = 'Y' */ /* 학습여부 */
+        and x.ed_at = 'Y'
+        WHERE 1=1
+        and x.textbk_id = #{textbkId}
+        and x.cla_id = #{claId}
+        and x.stdt_id = #{userId}
+        GROUP BY y.std_id
+        ) B
+        ON A.id = B.std_id
+        WHERE A.stdt_id = #{userId}
+        /* AND A.std_cd = 2 */
+        <if test='keyword != null and keyword != "" '>
+            <choose>
+                <when test='condition == "name" '>
+                    AND UPPER(A.std_nm) LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <when test='condition == "date" '>
+                    AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~',1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{keyword},'%')
+                    OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        GROUP BY A.id
+        , A.std_cd
+        , A.std_nm
+        , B.std_id
+
+        union all
+
+        SELECT
+        COUNT(*) over () AS full_count
+        , (count(*) over () + 1) - (row_number() over (order by id desc)) as num
+        /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+        , A.id
+        , 1 as std_cd
+        , aidt_lms.F_CODE_NM('std_cd', 1) AS std_cd_nm
+        , A.std_nm
+        , A.textbk_id as textbkId /* 추가 */
+        , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+        , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id) AS totMdulCnt
+        , (SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = A.id AND std_at = 'Y') AS stdMdulCnt
+        , B.stdTime
+        , B.std_st_dt
+        , B.ai_tut_use_at as aiTutAt
+        FROM
+        aidt_lms.slf_ai_std_info A
+        INNER JOIN (
+        SELECT
+        y.std_ai_id
+        , TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime
+        , y.std_st_dt
+        , y.ai_tut_use_at
+        FROM
+        aidt_lms.slf_ai_std_info x
+        inner join aidt_lms.slf_ai_std_result_info y
+        on x.id = y.std_ai_id /* and  y.std_at = 'Y' */ /* 학습여부 */
+        and x.ed_at = 'Y'
+        WHERE 1=1
+        and x.textbk_id = #{textbkId}
+        and x.cla_id = #{claId}
+        and x.stdt_id = #{userId}
+        GROUP BY y.std_ai_id
+        ) B
+        ON A.id = B.std_ai_id
+        WHERE A.stdt_id = #{userId}
+        <if test='keyword != null and keyword != "" '>
+            <choose>
+                <when test='condition == "name" '>
+                    AND UPPER(A.std_nm) LIKE CONCAT('%',#{keyword},'%')
+                </when>
+                <when test='condition == "date" '>
+                    AND DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d')
+                </when>
+                <otherwise>
+                    AND ( UPPER(A.std_nm) LIKE CONCAT('%',#{keyword},'%')
+                    OR ( DATE_FORMAT(reg_dt, "%Y%m%d") BETWEEN STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', 1),'-',''), '%Y%m%d') AND STR_TO_DATE(REPLACE(SUBSTRING_INDEX(#{keyword}, '~', -1),'-',''), '%Y%m%d') )
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        GROUP BY A.id
+        , A.std_nm
+        , B.std_ai_id
+        ) aa  where aa.brandId =  #{brandId} order by aa.std_st_dt desc
+    </select>
+
+    <!-- 학습내역 결과 보기 -->
+    <!-- 사용하지 않음 -->
+    <select id="findStntSelfLrnResultInfo_BACK" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnResultInfo */   A.id
+             ,std_cd
+             ,aidt_lms.F_CODE_NM('std_cd', A.std_cd) AS stdCdNm
+             ,std_nm
+             ,DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+             ,(SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = #{slfId} ) AS totMdulCnt
+             ,(SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = #{slfId} AND std_at = 'Y' ) AS stdMdulCnt
+             ,B.stdTime
+        FROM aidt_lms.slf_std_info A INNER JOIN
+             (
+                 SELECT
+                     std_id,
+                     TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(std_ed_dt, std_st_dt)))), '%H:%i:%s') AS stdTime
+                 FROM aidt_lms.slf_std_result_info
+                 GROUP BY std_id
+             ) B
+             ON A.id = B.std_id
+        WHERE A.id = #{slfId}
+        GROUP BY
+            A.id
+               ,std_cd
+               ,std_nm
+               ,B.std_id
+            limit 1
+    </select>
+
+    <!-- 학습내역 결과 보기 HEUM -->
+    <select id="findStntSelfLrnResultInfo" parameterType="map" resultType="camelHashMap">
+        select /* StntSelfLrnMapper.findStntSelfLrnResultInfo */
+              id
+             ,std_cd
+             ,stdCdNm
+             ,std_nm
+             ,std_dt
+             ,totMdulCnt
+             ,stdMdulCnt
+             ,stdTime
+        from (SELECT /* StntSelfLrnMapper.findStntSelfLrnResultInfo */
+                     A.id
+                   , std_cd
+                   , aidt_lms.F_CODE_NM('std_cd', A.std_cd)                                                       AS stdCdNm
+                   , std_nm
+                   , DATE_FORMAT(reg_dt, "%Y-%m-%d")                                                              AS std_dt
+                   , (SELECT COUNT(*)
+                      FROM aidt_lms.slf_std_result_info
+                      WHERE std_id = #{slfId})                                                                    AS totMdulCnt
+                   , (SELECT COUNT(*)
+                      FROM aidt_lms.slf_std_result_info
+                      WHERE std_id = #{slfId}
+                        AND std_at = 'Y')                                                                         AS stdMdulCnt
+                   , B.stdTime
+              FROM aidt_lms.slf_std_info A
+                       INNER JOIN
+                   (SELECT std_id,
+                           TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(std_ed_dt, std_st_dt)))),
+                                       '%H:%i:%s') AS stdTime
+                    FROM aidt_lms.slf_std_result_info
+                    GROUP BY std_id) B
+                   ON A.id = B.std_id
+              WHERE A.id = #{slfId}
+              GROUP BY A.id
+                     , std_cd
+                     , std_nm
+                     , B.std_id
+
+              union all
+              SELECT      A.id
+                   ,1 as std_cd
+                   ,aidt_lms.F_CODE_NM('std_cd', 1) AS stdCdNm
+                   ,std_nm
+                   ,DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                   ,(SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = #{slfId} ) AS totMdulCnt
+                   ,(SELECT COUNT(*) FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = #{slfId} AND std_at = 'Y' ) AS stdMdulCnt
+                   ,B.stdTime
+              FROM aidt_lms.slf_ai_std_info A INNER JOIN
+                   (
+                       SELECT
+                           std_ai_id,
+                           TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(std_ed_dt, std_st_dt)))), '%H:%i:%s') AS stdTime
+                       FROM aidt_lms.slf_ai_std_result_info
+                       GROUP BY std_ai_id
+                   ) B
+                   ON A.id = B.std_ai_id
+              WHERE A.id = #{slfId}
+              GROUP BY
+                  A.id
+                     ,std_cd
+                     ,std_nm
+                     ,B.std_ai_id
+             ) aa
+            limit 1
+    </select>
+
+    <!-- 학습내역 결과 보기 -->
+    <!-- 사용하지 않음 -->
+    <select id="findStntSelfLrnResultSummaryList_ORI" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnResultSummaryList */
+                A.id  AS slfResultId
+                ,module_id
+                ,module_num
+                ,B.thumbnail /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+                ,B.questionStr
+                ,B.hashTags
+                ,B.url
+                ,B.image
+                ,A.std_at
+                ,A.mrk_cp_at
+                ,DATE_FORMAT(std_st_dt, "%Y.%m.%d %H:%i:%s") AS std_st_dt
+                ,DATE_FORMAT(std_ed_dt, "%Y.%m.%d %H:%i:%s") AS std_ed_dt
+                ,sub_mit_anw
+                ,sub_mit_anw_url
+                ,errata
+                ,sm_exm_at
+                ,src_result_info_id AS srcModuleId
+                ,(SELECT id FROM slf_std_result_info WHERE module_id = A.src_result_info_id AND std_id = #{slfId} LIMIT 1 ) AS srcSlfResultId
+                ,ai_tut_use_at
+                ,hdwrt_cn
+            FROM aidt_lms.slf_std_result_info A LEFT OUTER JOIN  aidt_lcms.article B
+              ON A.module_id = B.id
+           WHERE std_id = #{slfId}
+           order by module_num
+    </select>
+
+    <!-- 학습내역 결과 보기 -->
+    <select id="findStntSelfLrnResultSummaryList" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnResultSummaryList */
+              ssi.id as std_id
+             ,A.id  AS slfResultId
+             ,ifnull(A.src_result_info_id,A.id) AS orderId
+             ,module_id
+             ,module_num
+             ,B.thumbnail /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+             ,B.questionStr
+             ,B.hashTags
+             ,B.url
+             ,B.image
+             ,A.std_at
+             ,A.mrk_cp_at
+             ,DATE_FORMAT(std_st_dt, "%Y.%m.%d %H:%i:%s") AS std_st_dt
+             ,DATE_FORMAT(std_ed_dt, "%Y.%m.%d %H:%i:%s") AS std_ed_dt
+             ,sub_mit_anw
+             ,sub_mit_anw_url
+             ,errata
+             ,sm_exm_at
+             ,A.src_result_info_id AS srcSlfResultId
+             ,(SELECT module_id FROM slf_std_result_info WHERE id = A.src_result_info_id) AS srcModuleId
+             ,ai_tut_use_at
+             ,hdwrt_cn
+             ,hnt_use_at
+        FROM
+            aidt_lms.slf_std_info ssi
+            inner join aidt_lms.slf_std_result_info A
+                on ssi.id = A.std_id
+            left join aidt_lcms.article B
+                on A.module_id = B.id
+        WHERE
+            1=1
+            and ssi.id = #{slfId}
+        union all
+        SELECT
+              ssi.id as std_id
+             ,A.id  AS slfResultId
+             ,ifnull(A.src_result_info_id,A.id) AS orderId
+             ,module_id
+             ,'-' as module_num
+             ,B.thumbnail /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+             ,B.questionStr
+             ,B.hashTags
+             ,B.url
+             ,B.image
+             ,A.std_at
+             ,A.mrk_cp_at
+             ,DATE_FORMAT(std_st_dt, "%Y.%m.%d %H:%i:%s") AS std_st_dt
+             ,DATE_FORMAT(std_ed_dt, "%Y.%m.%d %H:%i:%s") AS std_ed_dt
+             ,sub_mit_anw
+             ,sub_mit_anw_url
+             ,errata
+             ,sm_exm_at
+             ,A.src_result_info_id AS srcSlfResultId
+             ,(SELECT module_id FROM slf_std_result_info WHERE id = A.src_result_info_id) AS srcModuleId
+             ,ai_tut_use_at
+             ,hdwrt_cn
+             ,hnt_use_at
+        FROM
+            aidt_lms.slf_ai_std_info ssi
+            inner join aidt_lms.slf_ai_std_result_info A
+                on ssi.id = A.std_ai_id
+            left join aidt_lcms.article B
+                on A.module_id = B.id
+        WHERE
+            1=1
+            and ssi.id = #{slfId}
+        ORDER BY std_id, orderId
+    </select>
+
+    <!--자기주도학습 (오답시) 유사문항 받기-모듈 추출(존재)-->
+    <select id="selectStntSelfLrnRecvModuleList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStntSelfLrnRecvModuleList */
+        select
+            g.id as g_id,
+            g.id as article_id,
+            a.id,
+            a.std_id,
+            a.textbk_id,
+            a.stdt_id,
+            a.module_num,
+            (
+                select sum(cnt)
+                from (
+                    /* 학습 자료 모듈(아티클) 정보 조회 */
+                    /* 평가 */
+                    select count(*) as cnt
+                    from aidt_lms.evl_info x
+                    inner join aidt_lms.evl_result_info y
+                        on x.id = y.evl_id and y.mamoym_id = a.stdt_id
+                    inner join aidt_lms.evl_result_detail z
+                        on y.id = z.evl_result_id
+                            /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */
+                            and z.evl_iem_id = g.id and z.sub_id = 0
+                    where
+                        1=1
+                        and x.textbook_id = a.textbk_id
+                        and x.cla_id = a.cla_id
+                    union all
+                    /* 과제 */
+                    select count(*) as cnt
+                    from aidt_lms.task_info x
+                    inner join aidt_lms.task_result_info y
+                        on x.id = y.task_id and y.mamoym_id = a.stdt_id
+                    inner join aidt_lms.task_result_detail z
+                        on y.id = z.task_result_id
+                            /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */
+                            and z.task_iem_id = g.id and z.sub_id = 0
+                    where
+                        1=1
+                        and x.textbk_id = a.textbk_id
+                        and x.cla_id = a.cla_id
+                    union all
+                    /* 학습자료 */
+                    select count(*) as cnt
+                    from aidt_lms.tab_info x
+                    inner join aidt_lms.std_dta_result_info y
+                        on x.id = y.textbk_tab_id and y.mamoym_id = a.stdt_id
+                    inner join aidt_lms.std_dta_result_detail z
+                        on y.id = z.dta_result_id
+                            /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */
+                            and z.dta_iem_id = g.id and z.sub_id = 0
+                    where
+                        1=1
+                        and x.textbk_id = a.textbk_id
+                        and x.cla_id = a.cla_id
+                    union all
+                    /* 자기주도학습 */
+                    select count(*) as cnt
+                    from aidt_lms.slf_std_info x
+                    inner join aidt_lms.slf_std_result_info y
+                        on x.id = y.std_id
+                            /* and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null) */
+                            and y.module_id = g.id and y.sub_id = 0
+                    where
+                        1=1
+                        and x.textbk_id =  a.textbk_id
+                        and x.cla_id = a.cla_id
+                        and x.stdt_id = a.stdt_id
+                    union all
+                    /* 자기주도학습(AI학습) */
+                    select count(*) as cnt
+                    from aidt_lms.slf_ai_std_info x
+                    inner join aidt_lms.slf_ai_std_result_info y
+                        on x.id = y.std_ai_id
+                           /* and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null) */
+                            and y.module_id = g.id and y.sub_id = 0
+                    where
+                        1=1
+                        and x.textbk_id = a.textbk_id
+                        and x.cla_id = a.cla_id
+                        and x.stdt_id = a.stdt_id
+                ) s
+            ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+        from
+            (
+                select
+                    /* 모듈(이티클) ID, 단원(대분류-1 depth) ID, 학습맵(지식요인), 난이도, 교과/비교과 */
+                    a.id
+                    , a.module_id
+                    , a.module_num
+                    , a.std_id
+                    , COALESCE(sui.textbk_id,b.textbk_id) as textbk_id
+                    , COALESCE(sui.cla_id,b.cla_id) as cla_id
+                    , COALESCE(sui.meta_id, f.meta_id) as meta_id
+                    , COALESCE(sui.kwg_main_id, g.meta_id) as kwg_main_id
+                    , b.stdt_id
+                    , e.meta_id as lvl_id
+                    , (select id from aidt_lcms.meta where name = 'studyMap_2' and id = c.meta_id) as studyMap_2
+                    , (select id from aidt_lcms.meta where name = 'articleCategory' and id = d.meta_id) as articleCategory
+                from
+                    aidt_lms.slf_std_result_info a
+                    inner join aidt_lms.slf_std_info b
+                        on a.std_id = b.id
+                    left join aidt_lms.std_usd_info sui
+                        on sui.id = b.std_usd_id
+                    inner join aidt_lcms.article_meta_map c
+                        on a.module_id = c.article_id
+                        and a.sub_id = c.sub_id
+                        and c.meta_name = 'studyMap_2' /* 학습맵(유형) */
+                    inner join aidt_lcms.article_meta_map d
+                        on a.module_id = d.article_id
+                        and a.sub_id = d.sub_id
+                        and d.meta_name = 'articleCategory' /* 교과/비교과 */
+                    inner join aidt_lcms.article_meta_map e
+                        on a.module_id = e.article_id
+                        and a.sub_id = e.sub_id
+                        and e.meta_name = 'difficulty' /* 난이도 */
+                    inner join aidt_lcms.article_meta_map f
+                            on a.module_id = f.article_id
+                            and a.sub_id = f.sub_id
+                            and f.meta_name = 'studyMap1'
+                    inner join aidt_lcms.article_meta_map g
+                            on a.module_id = g.article_id
+                            and a.sub_id = g.sub_id
+                            and g.meta_name = 'studyMap_1'
+                where
+                    1=1
+                    and a.id = #{slfResultId}
+            ) a
+            inner join aidt_lcms.article_meta_map b
+                on b.meta_name = 'studyMap1' /* 대분류(단원) */
+                    and b.meta_id = a.meta_id
+                    and b.sub_id = 0
+            inner join aidt_lcms.article_meta_map c
+                on b.article_id = c.article_id
+                    and b.sub_id = c.sub_id
+                    and c.meta_name = 'difficulty' /* 난이도 */
+                    and c.meta_id = a.lvl_id
+            inner join aidt_lcms.article_meta_map d
+                on b.article_id = d.article_id
+                    and b.sub_id = d.sub_id
+                    and d.meta_name = 'studyMap_1' /* 학습맵(지식요인) */
+                    and d.meta_id = (select id from aidt_lcms.meta where name = 'studyMap_1' and id = a.kwg_main_id)
+            inner join aidt_lcms.article_meta_map e
+                on b.article_id = e.article_id
+                    and b.sub_id = e.sub_id
+                    and e.meta_name = 'studyMap_2' /* 학습맵(유형) */
+                    <choose>
+                        <when test = 'studyMap2Equal.equals("Y")'>
+                            and e.meta_id = (select id from aidt_lcms.meta where name = 'studyMap_2' and id = a.studyMap_2)
+                        </when>
+                        <otherwise>
+                            and e.meta_id <![CDATA[<>]]> (select id from aidt_lcms.meta where name = 'studyMap_2' and id = a.studyMap_2)
+                        </otherwise>
+                    </choose>
+            inner join aidt_lcms.article_meta_map f
+                on b.article_id = f.article_id
+                    and b.sub_id = f.sub_id
+                    and f.meta_name = 'articleCategory' /* 교과/비교과 */
+                    and f.meta_id = (select id from aidt_lcms.meta where name = 'articleCategory' and id = a.articleCategory)
+            inner join aidt_lcms.article_meta_map h
+                on b.article_id = h.article_id
+                    and b.sub_id = h.sub_id
+                    and h.meta_name = 'questionType'
+                    and h.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+            inner join aidt_lcms.article_meta_map i
+                on b.article_id = i.article_id
+                and b.sub_id = i.sub_id
+                and i.meta_name = 'articleType'
+                and i.meta_id = (select id from aidt_lcms.meta where name = 'articleType' and code = 'question') /* 문항 */
+            inner join aidt_lcms.article g
+                on f.article_id = g.id
+                and g.is_active = 1
+                and g.is_publicOpen = 1
+        where
+            1=1
+            and g.id <![CDATA[<>]]> a.module_id
+            /* AIDT에서 교사가 제작한 모듈(아티클)은 제외, CBS에서 제작한 것만 포함 */
+            and g.creator_ty = 1
+            /* 현재 선택학습에 포함된 모듈은 제외 */
+            and g.id not in (
+                select module_id
+                from aidt_lms.slf_std_result_info
+                where std_id = (select std_id from aidt_lms.slf_std_result_info where id = #{slfResultId})
+        )
+        order by frequency, g_id
+        limit 1
+    </select>
+
+    <!-- 자기주도학습 (오답시) 유사문항 받기 (미존재 모듈)-->
+    <insert id="insertStntSelfLrnResultReceive" parameterType="map" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        /* StntSelfLrnMapper.insertStntSelfLrnResultReceive */
+        INSERT INTO aidt_lms.slf_std_result_info
+        (
+            id
+            ,std_id
+            ,module_num
+            ,module_id
+            ,std_st_dt
+            ,sm_exm_at
+            ,src_result_info_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES
+        <foreach collection="list" item="item" index="idx" separator=",">
+            (
+                null, #{item.stdId}, CONCAT(#{item.moduleNum},'-1'), #{item.articleId}, NOW(), 'Y', #{slfResultId}, #{item.stdtId} ,NOW() , #{item.stdtId} ,NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!--자기 주도학습 생성 결과 리턴-->
+    <select id="findStntSelfLrnCreateReceiveInfo" parameterType="map" resultType="camelHashMap">
+        SELECT  /* StntSelfLrnMapper.findStntSelfLrnCreateReceiveInfo */
+              id
+             ,module_id
+          FROM aidt_lms.slf_std_result_info A
+         WHERE A.id = #{id}
+    </select>
+
+    <!-- 리워드 획득 전 학급 정보 조회 -->
+    <select id="selectStntSelfLrnRewardClaid" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.selectStntSelfLrnRewardClaid */
+             a.cla_id,
+             c.stdt_id  AS user_id,
+             c.textbk_id,
+             (CASE WHEN c.std_cd = '1' THEN '5'
+                   WHEN c.std_cd = '2' THEN '6'
+              ELSE '' END ) AS std_cd
+         FROM aidt_lms.slf_std_info c
+        INNER JOIN aidt_lms.slf_std_result_info d
+           ON c.id = d.std_id
+          AND d.id = #{slfResultId}
+        INNER JOIN aidt_lms.tc_cla_mb_info a
+           ON a.stdt_id = c.stdt_id
+           AND a.cla_id = c.cla_id
+           and a.actvtn_at = 'Y'
+    </select>
+
+    <select id="stntSelflrnUsdlowKwgList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.stntSelflrnUsdlowKwgList */
+        select
+        B.unit_num,
+        B.meta_id,
+        (select val from aidt_lcms.meta where id = B.meta_id) as meta_nm,
+        (select flnm from aidt_lms.stdt_reg_info where user_id = #{userId}) as stdt_nm,
+        B.kwg_main_id,
+        LTRIM(SUBSTRING(B.kwg_nm, LOCATE('.', B.kwg_nm) + 1)) AS kwg_nm,
+        B.id
+        from
+        (
+            select
+            unit_num,
+            meta_id,
+            kwg_main_id,
+            kwg_nm,
+            sum(id) as id,
+            sum(usd_scr) as usd_scr
+            from
+            (
+                select
+                #{unitNum} as unit_num,
+                0 as id,
+                X.meta_id,
+                Y.id as kwg_main_id,
+                Y.val as kwg_nm,
+                0 as usd_scr,
+                #{textbkId} as textbk_id
+                from
+                (
+                    select
+                    b.id as meta_id,
+                    b.parent_id,
+                    b.`code`
+                    from aidt_lcms.meta a
+                    inner join aidt_lcms.meta b
+                        on a.`code` = b.description
+                        and b.is_active = 1
+                        and b.name = 'studyMap1'
+                    inner join aidt_lcms.meta c
+                        on c.id = b.parent_id
+                        and c.is_active = 1
+                    where 1=1
+                        and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                        and a.is_active = 1
+                        and b.id in (
+                            select distinct meta_id
+                            from aidt_lms.std_usd_info
+                            where textbk_id = #{textbkId}
+                            and unit_num = #{unitNum}
+                        )
+                ) X
+                inner join aidt_lcms.meta Y
+                    on Y.`code` like concat(X.`code`,'-%')
+                    and Y.name = 'studyMap_1'
+                    and Y.is_active = 1
+                union all
+                select
+                a.unit_num,
+                a.id,
+                a.meta_id,
+                a.kwg_main_id,
+                (select LTRIM(SUBSTRING(val, LOCATE('.', val) + 1)) from aidt_lcms.meta where id = a.kwg_main_id) as kwg_nm,
+                a.usd_scr,
+                a.textbk_id
+                from
+                aidt_lms.std_usd_info a
+                where
+                1=1
+                    and a.stdt_id = #{userId}
+                    and a.textbk_id = #{textbkId}
+                    and a.cla_id = #{claId}
+                    and a.unit_num = #{unitNum}
+                    and a.std_at = 'Y'
+                    and a.usd_scr <![CDATA[ < ]]> 50
+            ) A
+            group by
+            unit_num,
+            meta_id,
+            kwg_main_id,
+            kwg_nm
+            order by
+            meta_id,
+            kwg_main_id
+        ) B
+        where 1=1
+        and B.id != 0
+        <if test="textbkId == 1342">
+            and B.kwg_main_id not in ( 25908, 25914 )  /* 공통수학2 도형의 방정식 - 평행이동을 이용한 활용, 대칭이동을 이용한 활용 학습맵 제외 */
+        </if>
+        <if test="textbkId == 1152">
+            and B.kwg_main_id not in ( 945, 41914, 959, 983, 41932, 1026)  /* 중등수학1 ( 문자와 식 - 일차식의 덧셈의 원리, 일차식의 뺄셈의 원리 ) ( 좌표평면과 그래프 - 다양한 상황에 대한 그래프의 표현 ) ( 기본도형 - 작도 ) ( 통계 - 통계적 탐구 문제 설정, 공학 도구를 이용한 자료의 정리 및 해석 ) 학습맵 제외 */
+        </if>
+        order by B.usd_scr
+        limit 3
+    </select>
+
+    <select id="stntSelflrnUsdlowKwgList_bak" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.stntSelflrnUsdlowKwgList_bak */
+        select
+            a.unit_num,
+            a.meta_id,
+            (select val from aidt_lcms.meta where id = a.meta_id) as meta_nm,
+            (select flnm from aidt_lms.stdt_reg_info where user_id = a.stdt_id) as stdt_nm,
+            a.kwg_main_id,
+            (select LTRIM(SUBSTRING(val, LOCATE('.', val) + 1)) from aidt_lcms.meta where id = a.kwg_main_id) as kwg_nm
+        from
+            aidt_lms.std_usd_info a
+        where
+            1=1
+          and a.textbk_id = #{textbkId}
+          and a.cla_id = #{claId}
+          and a.stdt_id = #{userId}
+          and a.unit_num = #{unitNum}
+          and a.std_at ='Y'
+          and a.usd_scr <![CDATA[ < ]]> 50
+        order by a.usd_scr
+            limit 3
+    </select>
+
+    <select id="stntSelflrnUsdlowKwgList_stdAt" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.stntSelflrnUsdlowKwgList_stdAt */
+        select
+            count(1) as cnt
+        from
+            aidt_lms.std_usd_info a
+        where
+            1=1
+            and a.textbk_id = #{textbkId}
+            and a.cla_id = #{claId}
+            and a.stdt_id = #{userId}
+            and a.unit_num = #{unitNum}
+            and a.std_at ='Y'
+        order by a.usd_scr
+    </select>
+
+    <!--자기주도학습-학습역량 표시-->
+    <select id="selectStdCptList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStdCptList */
+        select code_cd as std_cpt_cd,     /* 학습역량코드 */
+        code_nm as std_cpt_nm      /* 학습역량명 */
+        from aidt_lms.se_code
+        where 1=1
+        <if test="codeGbCd != null and codeGbCd != ''">
+            and code_gb_cd = #{codeGbCd}
+        </if>
+        and use_at = 'Y'
+    </select>
+
+    <!--자기주도학습-학습방법 및 내용조회-->
+    <select id="selectStdMthList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStdMthList */
+        select code_cd as std_mth_cd,     /* 학습방법/내용코드 */
+        code_nm as std_mth_nm      /* 학습방법/내용명   */
+        from aidt_lms.se_code
+        where 1=1
+        <if test="codeGbCd != null and codeGbCd != ''">
+            and code_gb_cd = #{codeGbCd}
+        </if>
+        and use_at = 'Y'
+    </select>
+
+    <!-- 자기주도학습-활동난이도 표시 -->
+    <select id="findStntSelfLrnActLvlList" parameterType="map" resultType="map">
+        SELECT code_cd as actLvlCd
+             , code_nm as actLvlNm
+        FROM se_code
+        WHERE 1=1
+            <if test="codeGbCd != null and codeGbCd != ''">
+                and code_gb_cd = #{codeGbCd}
+            </if>
+            AND use_at = 'Y'
+    </select>
+
+    <!-- 자기주도학습-답안입력방식 조회 -->
+    <select id="findStntSelfLrnAnwIptTyList" parameterType="map" resultType="map">
+        SELECT code_cd as anwIptTyCd
+             , code_nm as anwIptTyNm
+        FROM se_code
+        WHERE 1=1
+            <if test="codeGbCd != null and codeGbCd != ''">
+                and code_gb_cd = #{codeGbCd}
+            </if>
+            AND use_at = 'Y'
+    </select>
+
+    <!-- 자기주도학습-답안입력방식 조회 -->
+    <select id="findStntSelfLrnActTyList" parameterType="map" resultType="map">
+        SELECT code_cd as actTyCd
+             , code_nm as actTyNm
+        FROM se_code
+        WHERE 1=1
+            <if test="codeGbCd != null and codeGbCd != ''">
+                and code_gb_cd = #{codeGbCd}
+            </if>
+            AND use_at = 'Y'
+    </select>
+
+    <!-- [학생] 학습관리 > 나의 학습 공간 > 자기주도학습 > 나의 단어장 > 목록 조회하기 -->
+    <select id="selectStntSelfLrnMyWordList" parameterType="map" resultType="camelHashMap">
+        /*
+         in - parameter :
+         1. curribook = 73  대단원
+         2. curriUnit = 234  중단원
+         3. curriUnit = 240  소단원
+         4. curriUnit = 251  토픽일렩번호
+         5. curriUnit = 278  차시 일련번호
+         */
+        select 	id as libtext_id, brand_id, type_1, name, parts, contents_entry, contents_multiLang, '' as example
+        from 	aidt_lcms.libtext a
+        where 	type_1 = '어휘'
+        /*
+          and		curriBook = 73
+          and		curriUnit1 = 234
+          and		curriUnit2 = 240
+          and		curriUnit3 = 251
+          and		curriUnit4 = 278
+         */
+    </select>
+
+    <!-- 학생] 학습관리 > 나의 학습 공간 > 자기주도학습 > 나의 단어장 > 나의단어장 플래시 카드 start -->
+    <select id="selectStntSelfLrnMyWordFlashStart" parameterType="pagingParam" resultType="camelHashMap">
+        /*
+         in - parameter :
+         1. curribook = 73  대단원
+         2. curriUnit = 234  중단원
+         3. curriUnit = 240  소단원
+         4. curriUnit = 251  토픽일렩번호
+         5. curriUnit = 278  차시 일련번호
+         */
+        select 	id as libtext_id, brand_id, type_1, name, parts, contents_entry, contents_multiLang, '' as example
+        ,       count(*) over () as full_count
+        from 	aidt_lcms.libtext a
+        where 	type_1 = '어휘'
+        <if test="param.id != null and param.id != ''">
+             and id in (#{param.myWordId})
+        </if>
+        /*
+         and		curriBook = 73
+         and		curriUnit1 = 234
+         and		curriUnit2 = 240
+         and		curriUnit3 = 251
+         and		curriUnit4 = 278
+         */
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <!-- 학생] 학습관리 > 나의 학습 공간 > 자기주도학습 > 나의 단어장 > 나의단어장 테스트 start -->
+    <select id="selectStntSelfLrnMyWordExamStart" parameterType="pagingParam" resultType="camelHashMap">
+/*
+         in - parameter :
+         1. curribook = 73  대단원
+         2. curriUnit = 234  중단원
+         3. curriUnit = 240  소단원
+         4. curriUnit = 251  토픽일렩번호
+         5. curriUnit = 278  차시 일련번호
+ */
+        select 	id as libtext_id, brand_id, type_1, name, parts, contents_entry, contents_multiLang, '' as example, 1 as exam_cd
+             ,       count(*) over () as full_count
+        from 	aidt_lcms.libtext a
+        where 	type_1 = '어휘'
+        <if test="param.id != null and param.id != ''">
+            and id in (#{param.myWordId})
+        </if>
+        <if test="param.examCd != null and param.examCd != ''">
+            and id in (#{param.examCd})
+        </if>
+        /*
+                  and		curriBook = 73
+                  and		curriUnit1 = 234
+                  and		curriUnit2 = 240
+                  and		curriUnit3 = 251
+                  and		curriUnit4 = 278
+
+         */
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <!-- 학생] 학습관리 > 나의 학습 공간 > 자기주도학습 > 나의 단어장 > 나의단어장 발음 연습하기 start -->
+    <select id="selectStntSelfLrnMyWordArticulationStart" parameterType="pagingParam" resultType="camelHashMap">
+/*
+         in - parameter :
+         1. curribook = 73  대단원
+         2. curriUnit = 234  중단원
+         3. curriUnit = 240  소단원
+         4. curriUnit = 251  토픽일렩번호
+         5. curriUnit = 278  차시 일련번호
+
+ */
+        select 	id as libtext_id, brand_id, type_1, name, parts, contents_entry, contents_multiLang, '' as example
+             ,       count(*) over () as full_count
+        from 	aidt_lcms.libtext a
+        where 	type_1 = '어휘'
+        <if test="param.id != null and param.id != ''">
+            and id in (#{param.myWordId})
+        </if>
+        /*
+                  and		curriBook = 73
+                  and		curriUnit1 = 234
+                  and		curriUnit2 = 240
+                  and		curriUnit3 = 251
+                  and		curriUnit4 = 278
+         */
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <!--모듈 학습내역 결과 조회  -->
+    <select id="findStntSelfLrnMudlResultSummaryList" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnMudlResultSummaryList */   A.id  AS slfResultId
+        ,module_id
+        ,module_num
+        ,B.thumbnail /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+        ,B.questionStr
+        ,B.hashTags
+        ,B.url
+        ,B.image
+        ,A.std_at
+        ,A.mrk_cp_at
+        ,DATE_FORMAT(std_st_dt, "%Y.%m.%d %H:%i:%s") AS std_st_dt
+        ,DATE_FORMAT(std_ed_dt, "%Y.%m.%d %H:%i:%s") AS std_ed_dt
+        ,sub_mit_anw
+        ,sub_mit_anw_url
+        ,errata
+        ,sm_exm_at
+        ,src_result_info_id AS srcModuleId
+        ,(SELECT id FROM slf_std_result_info WHERE module_id = A.src_result_info_id AND std_id = C.id LIMIT 1 ) AS srcSlfResultId
+        ,ai_tut_use_at
+        ,hdwrt_cn
+        FROM aidt_lms.slf_std_result_info A LEFT OUTER JOIN  aidt_lcms.article B
+          ON A.module_id = B.id
+        INNER JOIN aidt_lms.slf_std_info C
+           ON A.std_id = C.id
+        WHERE A.id = #{slfResultId}
+        order by module_num
+    </select>
+
+
+
+    <select id="findStntSelfLrnChapterList2" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.findStntSelfLrnChapterList2 */
+        SELECT
+            row_number() over (order by b.`code`) as unitNum,
+                b.id as meta_id,
+            b.parent_id,
+            b.code,
+            b.val AS unit_nm,
+            b.depth - 1 as depth
+        FROM
+            aidt_lcms.meta a
+                inner join aidt_lcms.meta b
+                           on a.`code` = b.description
+                               and b.is_active = 1
+                               and b.name = 'studyMap1'
+                inner join aidt_lcms.meta c
+                           on c.id = b.parent_id
+                               and c.is_active = 1
+                left join aidt_lcms.meta_extension d
+                          on b.meta_extension_id = d.meta_extension_id
+        WHERE
+            1=1
+          and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+          and a.is_active = 1
+          and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+    </select>
+
+    <select id="findStntSelfLrnChapterList3" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.findStntSelfLrnChapterList3 */
+        <![CDATA[
+        select
+            unit_num,
+            meta_id,
+            if(INSTR(LOWER(meta_val),'lesson') > 0,'Lesson','Unit') as meta_val,
+            case when sum(val) > 0 then 'Y' else 'N' end as std_at,
+            meta_val as val,
+            SUM(usd_ach_scr) as usd_ach_scr
+        from
+            (
+                select
+                    row_number() over () as unit_num,
+                    b.id as meta_id,
+                    b.val as meta_val,
+                    0 as val,
+                    0 as usd_ach_scr
+                from aidt_lcms.meta a
+                         inner join aidt_lcms.meta b
+                                    on a.`code` = b.description
+                                        and b.is_active = 1
+                                        and b.name = 'studyMap1'
+                         inner join aidt_lcms.meta c
+                                    on c.id = b.parent_id
+                                        and c.is_active = 1
+                         left join aidt_lcms.meta_extension d
+                                   on b.meta_extension_id = d.meta_extension_id
+                where 1=1
+                  and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                  and a.is_active = 1
+                  and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+                union all
+                select
+                    unit_num,
+                    MIN(meta_id) as meta_id,
+                    MIN(meta_val) as meta_val,
+                    MAX(val) as val,
+                    ROUND(AVG(current_usd_ach_scr), 2) as usd_ach_scr
+                from (
+                         select
+                             a.unit_num,
+                             MAX(a.meta_id) as meta_id,
+                             MAX((select val from aidt_lcms.meta where id = a.meta_id)) as meta_val,
+                             MAX(IF(a.std_at = 'Y', 1, 0)) as val,
+                             ROUND((SUM(a.usd_ach_scr) / SUM(a.rflt_actv_cnt) * 100), 2) as current_usd_ach_scr
+                         from aidt_lms.usd_ach_src2_info a
+                         where 1=1
+                           and a.textbk_id = #{textbkId}
+                           and a.cla_id = #{claId}
+                           and a.stdt_id = #{userId}
+                           and a.unit_num > 0
+                           and a.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                           and a.std_dt = (
+                             select max(b.std_dt)
+                             from aidt_lms.usd_ach_src2_info b
+                             where 1=1
+                               and b.textbk_id = #{textbkId}
+                               and b.cla_id = #{claId}
+                               and b.stdt_id = #{userId}
+                               and b.unit_num > 0
+                         )
+                         GROUP BY a.usd_ach_id, a.unit_num
+                         UNION ALL
+                         select
+                             a.unit_num,
+                             MAX(a.meta_id) as meta_id,
+                             MAX((select val from aidt_lcms.meta where id = a.meta_id)) as meta_val,
+                             MAX(IF(a.std_at = 'Y', 1, 0)) as val,
+                             CASE
+                                 WHEN a.usd_ach_id = 'pronunciation'
+                                     THEN ROUND(AVG(uas2d.usd_ach_scr / uas2d.rflt_actv_cnt), 2)
+                                 ELSE ROUND(AVG(uas2d.usd_ach_scr / uas2d.rflt_actv_cnt) * 100, 2)
+                                 END as current_usd_ach_scr
+                         from aidt_lms.usd_ach_src2_info a
+                                  inner join aidt_lms.usd_ach_src2_detail uas2d
+                                             on a.id = uas2d.usd_ach_src_id
+                         where 1=1
+                           and a.textbk_id = #{textbkId}
+                           and a.cla_id = #{claId}
+                           and a.stdt_id = #{userId}
+                           and a.unit_num > 0
+                           and a.usd_ach_id in ('pronunciation', 'vocabulary', 'grammar')
+                           and a.std_dt = (
+                             select max(b.std_dt)
+                             from aidt_lms.usd_ach_src2_info b
+                             where 1=1
+                               and b.textbk_id = #{textbkId}
+                               and b.cla_id = #{claId}
+                               and b.stdt_id = #{userId}
+                               and b.unit_num > 0
+                         )
+                         GROUP BY a.usd_ach_id, a.unit_num
+                     ) scores
+                GROUP BY unit_num
+            ) A
+        group by unit_num, meta_id, meta_val
+        ]]>
+    </select>
+
+
+    <update id="updateStntSelfLrnRecheck" parameterType="map">
+        /* StntSelfLrnMapper.updateStntSelfLrnRecheck */
+          UPDATE aidt_lms.slf_std_result_info
+             SET std_st_dt = IFNULL(std_st_dt, NOW())
+           WHERE id = #{slfResultId}
+    </update>
+
+    <select id="getBrandIdByTextbkId" parameterType="int" resultType="int">
+        /* StntSelfLrnMapper.getBrandIdByTextbkId */
+        select brand_id as brandId from aidt_lcms.textbook where id = #{textbkId}
+    </select>
+
+    <select id="getDeleteStntSelfLrnEnd" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.getDeleteStntSelfLrnEnd */
+        SELECT
+            /* 학습시간 */
+            TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS std_time
+        FROM
+            aidt_lms.slf_std_info x
+            inner join aidt_lms.slf_std_result_info y
+                on x.id = y.std_id
+        WHERE 1=1
+            and x.id = #{slfId}
+        GROUP BY y.std_id
+    </select>
+
+    <delete id="deleteStntSelfLrnEnd_info" parameterType="camelHashMap">
+        /* StntSelfLrnMapper.deleteStntSelfLrnEnd */
+        DELETE FROM aidt_lms.slf_std_info
+        WHERE id = #{slfId}
+    </delete>
+
+    <update id="updateStntSelfLrnEnd_info" parameterType="camelHashMap">
+        /* StntSelfLrnMapper.updateStntSelfLrnEnd_info */
+        update aidt_lms.slf_std_info
+        set ed_at = 'N'
+            , std_cnt = std_cnt - 1
+           , mdfy_dt = now()
+        WHERE id = #{slfId}
+    </update>
+
+    <delete id="deleteStntSelfLrnEnd_result_info" parameterType="camelHashMap">
+        /* StntSelfLrnMapper.deleteStntSelfLrnEnd */
+        DELETE FROM aidt_lms.slf_std_result_info
+        WHERE std_id = #{slfId}
+    </delete>
+
+    <update id="updateStntSelfLrnEnd_result_info" parameterType="camelHashMap">
+        /* StntSelfLrnMapper.deleteStntSelfLrnEnd */
+        UPDATE aidt_lms.slf_std_result_info
+             SET std_at = 'N'
+               , mrk_cp_at = 'N'
+               , std_st_dt = null
+               , std_ed_dt = null
+               , sub_mit_anw = null
+               , sub_mit_anw_url = null
+               , errata = null
+               , ai_tut_id = null
+               , ai_tut_use_at = 'N'
+               , ai_tut_cht_cn = null
+               , ai_tut_result = null
+               , libtext_id = null
+               , hdwrt_cn = null
+               , hnt_use_at = 'N'
+               , mdfy_dt = now()
+        WHERE std_id = #{slfId}
+    </update>
+    <update id="updateStntElementaryEngSelfLearningCount">
+        /*StntSelfLrnMapper.updateStntElementaryEngSelfLearningCount*/
+        update  aidt_lms.slf_std_info
+        set     std_cnt = std_cnt + 1
+        ,       mdfy_dt = now()
+        WHERE   id      = #{slfId}
+    </update>
+
+    <select id="findSlfStdInfoById" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.findSlfStdInfoById */
+        SELECT *
+        FROM aidt_lms.slf_std_info
+        WHERE id = #{slfId}
+        limit 1
+    </select>
+
+    <select id="selectAiEditInitEng" resultType="camelHashMap">
+        SELECT code_cd
+            , code_nm
+        FROM aidt_lms.se_code
+        WHERE code_gb_cd = 'ai_std_cd'
+        AND use_at = 'Y'
+    </select>
+
+    <insert id="insertAiEditSaveEng" parameterType="map" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO aidt_lms.ai_edit_prgrm  /* StntSelfLrnMapper.insertAiEditSaveEng */
+        (
+            id
+            ,stdt_id
+            ,std_dt
+            ,ai_std_cd
+            ,wrt_sents
+            ,ai_edit_at
+            ,ai_edit
+            ,ai_edit_anls_result
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,now()
+            ,#{aiStdCd}
+            ,#{wrtSents}
+            ,IF(#{aiEdit} IS NOT NULL AND #{aiEdit} != '', 'Y', 'N')
+            ,#{aiEdit}
+            ,#{aiEditAnlsResult}
+            ,#{userId}
+            ,now()
+            ,#{userId}
+            ,now()
+        )
+    </insert>
+
+    <select id="selectAiEditResultEng" parameterType="map" resultType="camelHashMap">
+        SELECT stdt_id as user_id
+            , DATE_FORMAT(std_dt, "%Y-%m-%d") as std_dt
+            , ai_std_cd
+            , (CASE WHEN ai_std_cd = '1' THEN 'AI Speaking'
+                ELSE 'AI Writing' END) as ai_std_nm
+            , wrt_sents
+            , ai_edit
+            , ai_edit_anls_result
+        FROM aidt_lms.ai_edit_prgrm
+        WHERE id = #{id}
+    </select>
+
+    <select id="findSlfStdResultInfo" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.findSlfStdResultInfo */
+        select (select y.`code`
+                  from aidt_lcms.article x
+                 inner join aidt_lcms.meta y on x.questionType = y.id
+                 where x.id = sri.module_id
+               ) as questionType
+               , si.std_cd
+               , sri.*
+        from aidt_lms.slf_std_result_info sri
+        join aidt_lms.slf_std_info si on sri.std_id = si.id
+        WHERE sri.id = #{slfResultId}
+    </select>
+
+    <select id="selectStntSelfLrnRecModuleAllList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStntSelfLrnRecModuleAllList */
+        SELECT
+                a.id
+                ,a.name
+                ,#{paramData.userId} as userId
+                ,f.meta_id AS studymap1    /* 지식요인 */
+                ,d.meta_id AS difficulty    /* 난이도 */
+                ,ROW_NUMBER() OVER (PARTITION BY f.meta_id ORDER BY RAND())
+                <if test="articleList != null and articleList.size() > 0 ">
+                    <foreach item="item" collection="articleList">
+                        + if ( f.meta_id = #{item.studymap1}, 1, 0)
+                    </foreach>
+                </if>
+                 AS rn
+                ,
+                    (
+                        select sum(cnt)
+                        from (
+                            /* 자기주도학습 */
+                            select count(*) as cnt
+                            from aidt_lms.slf_std_info x
+                            inner join aidt_lms.slf_std_result_info y
+                                on x.id = y.std_id
+                                    and y.module_id = a.id
+                            where
+                                1=1
+                                and x.textbk_id =  #{paramData.textbkId}
+                                and x.cla_id = #{paramData.claId}
+                                and x.stdt_id = #{paramData.userId}
+                        ) s
+                    ) as frequency
+        FROM aidt_lcms.article a
+        INNER JOIN aidt_lcms.article_meta_map f
+                    ON a.id = f.article_id
+                        AND f.meta_name = 'studyMap_1' /* 지식요인 */
+                        AND f.sub_id = 0
+        INNER JOIN aidt_lcms.article_meta_map e
+                    ON a.id = e.article_id
+                        AND e.meta_name = 'studyMap1' /* 단원 */
+                        AND e.sub_id = 0
+                        AND e.meta_id = #{paramData.metaId}
+        INNER JOIN aidt_lcms.article_meta_map b
+                   ON a.id = b.article_id
+                       AND b.meta_name = 'questionType'
+                       AND b.sub_id = 0
+                       AND b.meta_id NOT IN (SELECT id FROM aidt_lcms.meta WHERE name = 'questionType' AND code = 'chqz') /* 연쇄형은 제외 */
+        INNER JOIN aidt_lcms.article_meta_map c
+                   ON a.id = c.article_id
+                       AND c.meta_name = 'articleCategory'
+                       AND c.sub_id = 0
+                       AND c.meta_id IN (SELECT id FROM aidt_lcms.meta WHERE name = 'articleCategory' AND code = 'nonsubj') /* 비교과 */
+        INNER JOIN aidt_lcms.article_meta_map d
+                   ON a.id = d.article_id
+                       AND d.meta_name = 'difficulty'
+                       AND d.sub_id = 0
+                       AND d.meta_id IN (SELECT id FROM aidt_lcms.meta WHERE name = 'difficulty' AND code = #{paramData.difficulty} ) /* 난이도 */
+        INNER JOIN aidt_lcms.meta g
+                    on a.articleType = g.id
+                    and g.name = 'articleType' AND g.code = 'question'  /* 유형(문항) */
+        /* 자기주도학습
+        left join (
+
+                SELECT y.*
+                FROM aidt_lms.slf_std_info x
+                INNER JOIN aidt_lms.slf_std_result_info y
+                    ON x.id = y.std_id
+                        # AND y.module_id = a.id AND y.sub_id = 0
+                WHERE
+                    1=1
+                    AND x.textbk_id = #/{paramData.textbkId}
+                    AND x.cla_id = #/{paramData.claId}
+                    AND x.stdt_id = #/{paramData.userId}
+                    AND x.std_cd = 2
+        ) z on a.id = z.module_id
+         */
+        WHERE 1=1
+            /* AND z.module_id is null */
+            AND a.is_active = 1
+            AND a.is_publicOpen = 1
+            AND a.creator_ty = 1
+            <if test="articleList != null and articleList.size() > 0 ">
+                and a.id not in ( <foreach item="item" collection="articleList" separator=",">#{item.id}</foreach> )
+            </if>
+        order by
+            frequency, rn, rand()
+        limit #{paramData.cnt}
+    </select>
+
+    <select id="selectStntSelfLrnRecModuleStudymapList" parameterType="map" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStntSelfLrnRecModuleStudymapList */
+        SELECT
+                a.id
+                ,a.name
+                ,#{userId} as userId
+                ,f.meta_id AS studymap1    /* 지식요인 */
+                ,d.meta_id AS difficulty    /* 난이도 */
+                ,
+                    (
+                        select sum(cnt)
+                        from (
+                            /* 자기주도학습 */
+                            select count(*) as cnt
+                            from aidt_lms.slf_std_info x
+                            inner join aidt_lms.slf_std_result_info y
+                                on x.id = y.std_id
+                                    and y.module_id = a.id
+                            where
+                                1=1
+                                and x.textbk_id =  #{textbkId}
+                                and x.cla_id = #{claId}
+                                and x.stdt_id = #{userId}
+                        ) s
+                    ) as frequency
+        FROM aidt_lcms.article a
+        INNER JOIN aidt_lcms.article_meta_map f
+                    ON a.id = f.article_id
+                        AND f.meta_name = 'studyMap_1' /* 지식요인 */
+                        AND f.sub_id = 0
+                        AND f.meta_id = #{kwgMainId}
+        INNER JOIN aidt_lcms.article_meta_map e
+                    ON a.id = e.article_id
+                        AND e.meta_name = 'studyMap1' /* 단원 */
+                        AND e.sub_id = 0
+                        AND e.meta_id = #{metaId}
+        INNER JOIN aidt_lcms.article_meta_map b
+                   ON a.id = b.article_id
+                       AND b.meta_name = 'questionType'
+                       AND b.sub_id = 0
+                       AND b.meta_id NOT IN (SELECT id FROM aidt_lcms.meta WHERE name = 'questionType' AND code = 'chqz') /* 연쇄형은 제외 */
+        INNER JOIN aidt_lcms.article_meta_map c
+                   ON a.id = c.article_id
+                       AND c.meta_name = 'articleCategory'
+                       AND c.sub_id = 0
+                       AND c.meta_id IN (SELECT id FROM aidt_lcms.meta WHERE name = 'articleCategory' AND code = 'nonsubj') /* 비교과 */
+        INNER JOIN aidt_lcms.article_meta_map d
+                   ON a.id = d.article_id
+                       AND d.meta_name = 'difficulty'
+                       AND d.sub_id = 0
+                       AND d.meta_id IN (SELECT id FROM aidt_lcms.meta WHERE name = 'difficulty' AND code = #{difficulty} ) /* 난이도 */
+        INNER JOIN aidt_lcms.meta g
+                    on a.articleType = g.id
+                    and g.name = 'articleType' AND g.code = 'question'  /* 유형(문항) */
+        /* 자기주도학습
+        left join (
+
+                SELECT y.*
+                FROM aidt_lms.slf_std_info x
+                INNER JOIN aidt_lms.slf_std_result_info y
+                    ON x.id = y.std_id
+                        # AND y.module_id = a.id AND y.sub_id = 0
+                WHERE
+                    1=1
+                    AND x.textbk_id = #/{textbkId}
+                    AND x.cla_id = #/{claId}
+                    AND x.stdt_id = #/{userId}
+                    AND x.std_cd = 2
+        ) z on a.id = z.module_id
+         */
+        WHERE 1=1
+            /* AND z.module_id is null */
+            AND a.is_active = 1
+            AND a.is_publicOpen = 1
+            AND a.creator_ty = 1
+            <if test="excludedArticleIdList.size > 0">
+            AND a.id NOT IN (
+                <foreach collection="excludedArticleIdList" item="item" separator=",">
+                     #{item}
+                </foreach>
+                )
+            </if>
+        order by
+            frequency, rand()
+        limit #{cnt}
+    </select>
+
+    <select id="selectSaveStntSelfLrnEndCorrectCnt" resultType="camelHashMap">
+        SELECT errata as errata
+                    ,d.id as slf_result_id
+        FROM aidt_lms.slf_std_info c
+            INNER JOIN aidt_lms.slf_std_result_info d
+               ON c.id = d.std_id
+              AND c.id = #{slfId}
+        WHERE d.errata in (1,4) /* 1 : 정답, 4: 채점불가 (개념 : 리워드지급) */
+        AND d.mrk_cp_at  = 'Y'
+        AND d.std_at = 'Y'
+        GROUP BY slf_result_id
+    </select>
+</mapper>

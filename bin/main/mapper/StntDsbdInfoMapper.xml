@@ -1,0 +1,1303 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.dashboard.mapper.StntDsbdInfoMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <!-- 개념별 이해도 -  단원별 정보(콤보박스) -->
+    <select id="selectStntDsbdChptUnitCombo" parameterType="map" resultType="camelHashMap">
+        /* StntDsbdInfoMapper.selectStntDsbdChptUnitCombo */
+        with lastlesson as (
+            /* 마지막 수업한 위치 커리큘럼에 대한 학습맵 조회 */
+            select
+                (select cast(meta_id as unsigned) from aidt_lcms.v_curri_tree where textbk_id = #{textbookId} and id = d.id) as id
+            from
+                aidt_lms.tc_cla_mb_info a
+                inner join aidt_lms.tc_lastlesson b
+                    on a.user_id = b.wrter_id
+                        and a.cla_id = b.cla_id and b.textbk_id = #{textbookId}
+                inner join aidt_lcms.textbookcurriculum_meta_map c
+                    on b.textbk_idx_id = c.textbookIndex_id
+                        and b.crcul_id = c.`key`
+                        and c.meta_name = 'studyMap_1'
+                inner join aidt_lcms.meta d
+                    on c.meta_id = d.id
+            where
+                1=1
+                and a.stdt_id = #{userId}
+                and a.cla_id  = #{claId}
+                and a.actvtn_at = 'Y'
+            limit 1
+        )
+        select
+            X.meta_id,
+            X.unit_num,
+            X.unit_nm,
+            case
+                when ((select max(id) from lastlesson) is not null)
+                then (select if(count(1) > 0, 'Y', 'N') from lastlesson where X.meta_id = id)
+                else (if(X.unit_num = 1 , 'Y', 'N'))
+            end as unitLastLesnAt
+         from (
+        SELECT
+            X.id AS meta_id,
+            DENSE_RANK() OVER (order by X.id) AS unit_num,
+            X.unit_nm
+        FROM
+        (
+            SELECT
+                b.id,
+                b.parent_id,
+                b.code,
+                b.val AS unit_nm,
+                b.depth
+             FROM
+                aidt_lcms.meta a
+                INNER JOIN aidt_lcms.meta b ON a.code = b.description
+                  AND b.is_active = 1
+                  AND b.name = 'studyMap1'
+                inner join aidt_lcms.meta c
+                    on c.id = b.parent_id
+                        and c.is_active = 1
+            WHERE
+                  a.parent_id = (
+                        SELECT curriBook FROM aidt_lcms.textbook WHERE id = #{textbookId}
+                  )
+                  and a.is_active = 1
+            <if test="metaId != null and metaId !=''">
+              and b.id = #{metaId}
+            </if>
+        ) X
+        ORDER BY
+            X.parent_id,
+            X.code              /* 20240806 studyMap 정렬순서 수정 */
+        ) X
+    </select>
+
+    <!-- 개념별 이해도 -  단원별 지식요인 정보(콤보박스) -->
+    <select id="selectStntDsbdChptUnitKwgCombo" parameterType="map" resultType="camelHashMap">
+        /* StntDsbdInfoMapper.selectStntDsbdChptUnitKwgCombo */
+        with lastlesson as (
+            /* 마지막 수업한 위치 커리큘럼에 대한 학습맵 조회 */
+            select
+                f.id as id,
+                d.id as kwgMainId
+            from
+                aidt_lms.tc_cla_mb_info a
+                inner join aidt_lms.tc_lastlesson b
+                    on a.user_id = b.wrter_id
+                        and a.cla_id = b.cla_id and b.textbk_id = #{textbookId}
+                inner join aidt_lcms.textbookcurriculum_meta_map c
+                    on b.textbk_idx_id = c.textbookIndex_id
+                        and b.crcul_id = c.`key`
+                        and c.meta_name = 'studyMap_1'
+                inner join aidt_lcms.meta d
+                    on c.meta_id = d.id
+                inner join aidt_lcms.textbookcurriculum_meta_map e
+                    on b.textbk_idx_id = e.textbookIndex_id
+                        and b.crcul_id = e.`key`
+                        and e.meta_name = 'studyMap1'
+                inner join aidt_lcms.meta f
+                    on e.meta_id = f.id
+            where
+                1=1
+                and a.stdt_id = #{userId}
+                and a.cla_id  = #{claId}
+                and a.actvtn_at = 'Y'
+            order by d.id
+        ),
+        maxStdDtInfo as (
+            select DATE_FORMAT(ifnull(max(std_dt),now()), '%Y-%m%-%d') as max_std_dt
+            from aidt_lms.std_usd_unit_day_hist
+            where std_at = 'Y'
+            and textbk_id = #{textbookId}
+            and cla_id = #{claId}
+            and stdt_id = #{userId}
+        )
+        SELECT
+             T.meta_id
+            ,T.unit_num
+            ,T.unit_nm
+            ,T.kwg_main_id
+            ,T.kwgNm
+            ,T.std_at
+            ,T.usd_scr
+            ,T.total_usd_scr
+            ,case
+                when ((select max(id) from lastlesson) is not null)
+                then (select if(count(1) > 0, 'Y', 'N') from lastlesson where T.meta_id = id)
+                else (if(T.unit_num = 1 , 'Y', 'N'))
+            end as unitLastLesnAt
+            ,case
+                when ((select max(id) from lastlesson) is not null)
+                then (select if(T.std_at = 'Y' and count(1) > 0, 'Y', 'N') from lastlesson where T.meta_id = id and T.kwg_main_id = kwgMainId)
+                else (if(T.rowNo = 1 , 'Y', 'N'))
+            end as kwgLastLesnAt
+        FROM (
+            SELECT
+                X.id AS meta_id,
+                DENSE_RANK() OVER (order by X.id) AS unit_num,
+                X.unit_nm,
+                Y.id AS kwg_main_id,
+                Y.val AS kwgNm,
+                ifnull((
+                    select a.std_at
+                    from aidt_lms.std_usd_info a
+                    where a.cla_id = #{claId}
+                        and a.meta_id = X.id
+                        and a.unit_num = unit_num
+                        and a.kwg_main_id = Y.id
+                        and a.stdt_id = #{userId}
+                        and a.textbk_id = #{textbookId}
+                ),'N') AS std_at,
+                (
+                    select ifnull(round(avg(usd_scr),2),0) as usd_scr
+                      from aidt_lms.std_usd_info a
+                     where a.cla_id = #{claId}
+                       and a.meta_id = X.id
+                       and a.unit_num = unit_num
+                       and a.kwg_main_id = Y.id
+                       and a.stdt_id = #{userId}
+                       and a.textbk_id = #{textbookId}
+                       and a.std_at = 'Y'
+                ) as usd_scr,
+                ROW_NUMBER() OVER (order by Y.code) as rowNo,
+                ifnull(ROUND(b.curr_usd_scr, 2), 0) as total_usd_scr
+            FROM
+            (
+                SELECT
+                    b.id,
+                    b.parent_id,
+                    b.code,
+                    b.val AS unit_nm,
+                    b.depth
+                FROM
+                    aidt_lcms.meta a
+                    INNER JOIN aidt_lcms.meta b ON a.code = b.description
+                      AND b.is_active = 1
+                      AND b.name = 'studyMap1'
+                    inner join aidt_lcms.meta c
+                        on c.id = b.parent_id
+                            and c.is_active = 1
+                WHERE
+                    a.parent_id = (
+                        SELECT curriBook FROM aidt_lcms.textbook WHERE id = #{textbookId}
+                    )
+                    and a.is_active = 1
+                <if test="metaId != null and metaId !=''">
+                    and b.id = #{metaId}
+                </if>
+            ) X left join
+                (
+                    select
+                        s.meta_id
+                        , ifnull(sum((select usd_scr
+                                        from aidt_lms.std_usd_unit_day_hist ss
+                                        where s.id = ss.id
+                                        and DATE_FORMAT(ss.std_dt, '%Y-%m%-%d') = DATE_FORMAT(m.max_std_dt, '%Y-%m%-%d'))),
+                        0) as curr_usd_scr
+                    from aidt_lms.std_usd_unit_day_hist s,
+                    (select max_std_dt from maxStdDtInfo) m
+                    where
+                    1=1
+                    and s.textbk_id = #{textbookId}
+                    and s.stdt_id = #{userId}
+                    and s.cla_id = #{claId}
+                    and s.std_at = 'Y'
+                    and usd_scr is not null
+                    and DATE_FORMAT(s.std_dt, '%Y-%m%-%d') between DATE_FORMAT(m.max_std_dt-INTERVAL 1 DAY, '%Y-%m%-%d') and DATE_FORMAT(m.max_std_dt, '%Y-%m%-%d')
+                    group by meta_id
+                ) b on X.id = b.meta_id
+            INNER JOIN aidt_lcms.meta Y ON Y.code LIKE CONCAT(X.code, '-%')
+              AND Y.name = 'studyMap_1'
+              AND Y.is_active = 1
+            where 1=1
+            <if test="kwgMainId != null and kwgMainId !=''">
+                and Y.id = #{kwgMainId}
+            </if>
+            ORDER BY
+                Y.parent_id,
+                Y.code              /* 20240806 studyMap 정렬순서 수정 */
+        ) T
+        order by T.rowNo
+    </select>
+
+    <!-- 개념별 이해도 - 단원별 학생 분포 정보 -->
+    <select id="selectStntDsbdCncptUsdList" parameterType="map" resultType="camelHashMap">
+        SELECT /* StntDsbdInfoMapper.selectStntDsbdCncptUsdList */
+            a.meta_id,
+            a.unit_num,
+            a.kwg_main_id,
+            a.std_dt,
+            DATE_FORMAT(a.std_dt, '%m/%d') AS stdDtLabel,
+            a.usd_scr,
+            'Y' AS flag
+        FROM (
+            SELECT
+                meta_id,
+                unit_num,
+                kwg_main_id,
+                DATE_FORMAT(std_dt, '%Y%m%d') AS std_dt,
+                IFNULL(ROUND(usd_scr, 0), 0) AS usd_scr,
+                LAG(IFNULL(ROUND(usd_scr, 0), 0)) OVER (ORDER BY std_dt) AS prev_usd_scr
+            FROM
+                aidt_lms.std_usd_stdt_unit_kwg_day_hist
+            WHERE 1=1
+            AND textbk_id = #{textbookId}
+            AND cla_id = #{claId}
+            AND stdt_id = #{userId}
+            AND std_at = 'Y'
+            <if test="metaId != null and metaId != ''">
+                AND meta_id = #{metaId}
+            </if>
+            <if test="kwgMainId != null and kwgMainId != ''">
+                AND kwg_main_id = #{kwgMainId}
+            </if>
+        ) AS a
+        INNER JOIN (
+            SELECT DISTINCT DATE_FORMAT(ed_dt, '%Y%m%d') AS ed_dt, meta_id
+            FROM (
+                /* 학습자료 */
+                SELECT DATE_FORMAT(sdrd.eak_ed_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.tab_info ti
+                INNER JOIN aidt_lms.std_dta_result_info sdri
+                    ON ti.id = sdri.textbk_tab_id
+                INNER JOIN aidt_lms.std_dta_result_detail sdrd
+                    ON sdri.id = sdrd.dta_result_id
+                        AND sdrd.eak_at = 'Y' /* 응시 여부 */
+                        AND sdrd.mrk_ty <![CDATA[<>]]> 3 /* 채첨 불가 항목(3) 제외 */
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = sdrd.dta_iem_id
+                        and amm.sub_id = sdrd.sub_id
+                        and amm.meta_name ='studyMap_1'
+                        and amm.meta_id = #{kwgMainId}
+                WHERE ti.cla_id = #{claId}
+                  AND ti.textbk_id = #{textbookId}
+                  AND sdri.mamoym_id = #{userId}
+
+                UNION
+
+                /* 평가 */
+                SELECT DATE_FORMAT(ei.evl_cp_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.evl_info ei
+                JOIN aidt_lms.evl_result_info eri
+                    ON ei.id = eri.evl_id
+                        AND ei.evl_stts_cd = 5 /* 채점완료 */
+                        AND eri.mrk_cp_at = 'Y' /* 채점 완료 여부 */
+                        AND ei.rpt_othbc_at = 'Y'
+                JOIN aidt_lms.evl_result_detail erd
+                    ON eri.id = erd.evl_result_id
+                        AND erd.eak_at = 'Y' /* 응시 여부 */
+                        AND erd.mrk_ty <![CDATA[<>]]> 3 /* 채첨 불가 항목(3) 제외 */
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = erd.evl_iem_id
+                        and amm.sub_id = erd.sub_id
+                        and amm.meta_name ='studyMap_1'
+                        and amm.meta_id = #{kwgMainId}
+                WHERE ei.cla_id = #{claId}
+                  AND ei.textbook_id = #{textbookId}
+                  AND eri.mamoym_id = #{userId}
+
+                UNION
+
+                /* 과제 */
+                SELECT DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.task_info ti
+                JOIN aidt_lms.task_result_info tri
+                    ON ti.id = tri.task_id
+                        AND ti.task_stts_cd = 5
+                        AND tri.subm_at = 'Y' /* 제출 여부 */
+                        AND ti.rpt_othbc_at = 'Y'
+                JOIN aidt_lms.task_result_detail trd
+                    ON tri.id = trd.task_result_id
+                        AND trd.eak_at = 'Y' /* 응시 여부 */
+                        AND trd.mrk_ty <![CDATA[<>]]> 3 /* 채첨 불가 항목(3) 제외 */
+                        AND trd.mrk_cp_at = 'Y' /* 채점 완료 여부 */
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = trd.task_iem_id
+                        and amm.sub_id = trd.sub_id
+                        and amm.meta_name ='studyMap_1'
+                        and amm.meta_id = #{kwgMainId}
+                WHERE ti.cla_id = #{claId}
+                  AND ti.textbk_id = #{textbookId}
+                  AND tri.mamoym_id = #{userId}
+
+                UNION
+
+                /* 자기주도학습 (선택학습/AI학습) */
+                SELECT DATE_FORMAT(ssri.std_ed_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.slf_std_info ssi
+                JOIN aidt_lms.slf_std_result_info ssri
+                    ON ssi.id = ssri.std_id
+                        AND ssi.ed_at = 'Y'
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = ssri.module_id
+                        and amm.sub_id = ssri.sub_id
+                        and amm.meta_name ='studyMap_1'
+                        and amm.meta_id = #{kwgMainId}
+                WHERE ssi.cla_id = #{claId}
+                  AND ssi.textbk_id = #{textbookId}
+                  AND ssi.stdt_id = #{userId}
+            ) AS combined_dates
+        ) AS b
+        ON a.std_dt = b.ed_dt and a.kwg_main_id = b.meta_id
+        ORDER BY
+            a.std_dt, a.meta_id, a.kwg_main_id;
+    </select>
+
+    <select id="selectStntDsbdCncptUsdByDateList_bak" parameterType="map" resultType="camelHashMap">
+        /* StntDsbdInfoMapper.selectStntDsbdCncptUsdByDateList (학생) 단원에 대한 일자별 이해도 조회 */
+        SELECT
+            meta_id,
+            unit_num,
+            std_dt,
+            DATE_FORMAT( std_dt  ,'%m/%d') AS stdDtLabel,
+            usd_scr
+        FROM (
+                 SELECT
+                     meta_id,
+                     unit_num,
+                     DATE_FORMAT(std_dt, '%Y%m%d') AS std_dt,
+                     IFNULL(ROUND(usd_scr, 2), 0) AS usd_scr,
+                     LAG(IFNULL(ROUND(usd_scr, 2), 0)) OVER (ORDER BY std_dt) AS prev_usd_scr
+                 FROM
+                     aidt_lms.std_usd_unit_day_hist
+                 WHERE textbk_id = #{textbookId}
+                   AND meta_id = #{metaId}
+                   AND cla_id = #{claId}
+                   AND stdt_id = #{userId}
+                   AND std_at = 'Y'
+             ) AS subquery
+        WHERE
+            usd_scr <![CDATA[ <> ]]> prev_usd_scr OR prev_usd_scr IS NULL
+        ORDER BY
+            std_dt
+    </select>
+
+    <select id="selectStntDsbdCncptUsdByDateList" parameterType="map" resultType="camelHashMap">
+        /* StntDsbdInfoMapper.selectStntDsbdCncptUsdByDateList */
+        SELECT
+            a.meta_id,
+            a.unit_num,
+            a.std_dt,
+            a.stdDtLabel,
+            a.usd_scr
+        FROM (
+            SELECT
+                meta_id,
+                unit_num,
+                DATE_FORMAT(std_dt, '%Y%m%d') AS std_dt,
+                DATE_FORMAT(std_dt, '%m/%d') AS stdDtLabel,
+                IFNULL(ROUND(usd_scr, 2), 0) AS usd_scr
+            FROM
+                aidt_lms.std_usd_unit_day_hist
+            WHERE 1=1
+            AND textbk_id = #{textbookId}
+            AND meta_id = #{metaId}
+            AND cla_id = #{claId}
+            AND stdt_id = #{userId}
+            AND std_at = 'Y'
+        ) AS a
+        INNER JOIN (
+            SELECT DISTINCT DATE_FORMAT(ed_dt, '%Y%m%d') AS ed_dt, meta_id
+            FROM (
+                /* 학습자료 */
+                SELECT DATE_FORMAT(sdrd.eak_ed_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.tab_info ti
+                INNER JOIN aidt_lms.std_dta_result_info sdri
+                    ON ti.id = sdri.textbk_tab_id
+                INNER JOIN aidt_lms.std_dta_result_detail sdrd
+                    ON sdri.id = sdrd.dta_result_id
+                        AND sdrd.eak_at = 'Y' /* 응시 여부 */
+                        AND sdrd.mrk_ty <![CDATA[<>]]> 3 /* 채첨 불가 항목(3) 제외 */
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = sdrd.dta_iem_id
+                        and amm.sub_id = sdrd.sub_id
+                        and amm.meta_name = 'studyMap1'
+                        and amm.meta_id = #{metaId}
+                WHERE ti.cla_id = #{claId}
+                  AND ti.textbk_id = #{textbookId}
+                  AND sdri.mamoym_id = #{userId}
+
+                UNION
+
+                /* 평가 */
+                SELECT DATE_FORMAT(ei.evl_cp_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.evl_info ei
+                JOIN aidt_lms.evl_result_info eri
+                    ON ei.id = eri.evl_id
+                        AND ei.evl_stts_cd = 5 /* 채점완료 */
+                        AND eri.mrk_cp_at = 'Y' /* 채점 완료 여부 */
+                        AND ei.rpt_othbc_at = 'Y'
+                JOIN aidt_lms.evl_result_detail erd
+                    ON eri.id = erd.evl_result_id
+                        AND erd.eak_at = 'Y' /* 응시 여부 */
+                        AND erd.mrk_ty <![CDATA[<>]]> 3 /* 채첨 불가 항목(3) 제외 */
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = erd.evl_iem_id
+                        and amm.sub_id = erd.sub_id
+                        and amm.meta_name ='studyMap1'
+                        and amm.meta_id = #{metaId}
+                inner join aidt_lcms.article_meta_map amm2
+                   on amm2.article_id = erd.evl_iem_id
+                       and amm2.sub_id = erd.sub_id
+                       and amm2.meta_name ='studyMap_1'
+                WHERE ei.cla_id = #{claId}
+                  AND ei.textbook_id = #{textbookId}
+                  AND eri.mamoym_id = #{userId}
+
+                UNION
+
+                /* 과제 */
+                SELECT DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.task_info ti
+                JOIN aidt_lms.task_result_info tri
+                    ON ti.id = tri.task_id
+                        AND ti.task_stts_cd = 5
+                        AND tri.subm_at = 'Y' /* 제출 여부 */
+                        AND ti.rpt_othbc_at = 'Y'
+                JOIN aidt_lms.task_result_detail trd
+                    ON tri.id = trd.task_result_id
+                        AND trd.eak_at = 'Y' /* 응시 여부 */
+                        AND trd.mrk_ty <![CDATA[<>]]> 3 /* 채첨 불가 항목(3) 제외 */
+                        AND trd.mrk_cp_at = 'Y' /* 채점 완료 여부 */
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = trd.task_iem_id
+                        and amm.sub_id = trd.sub_id
+                        and amm.meta_name ='studyMap1'
+                        and amm.meta_id = #{metaId}
+                inner join aidt_lcms.article_meta_map amm2
+                   on amm2.article_id = trd.task_iem_id
+                       and amm2.sub_id = trd.sub_id
+                       and amm2.meta_name ='studyMap_1'
+                WHERE ti.cla_id = #{claId}
+                  AND ti.textbk_id = #{textbookId}
+                  AND tri.mamoym_id = #{userId}
+
+                UNION
+
+                /* 자기주도학습 (선택학습/AI학습) */
+                SELECT DATE_FORMAT(ssri.std_ed_dt, '%Y-%m-%d') AS ed_dt, amm.meta_id
+                FROM aidt_lms.slf_std_info ssi
+                JOIN aidt_lms.slf_std_result_info ssri
+                    ON ssi.id = ssri.std_id
+                        AND ssi.ed_at = 'Y'
+                inner join aidt_lcms.article_meta_map amm
+                    on amm.article_id = ssri.module_id
+                        and amm.sub_id = ssri.sub_id
+                        and amm.meta_name ='studyMap1'
+                        and amm.meta_id = #{metaId}
+                WHERE ssi.cla_id = #{claId}
+                  AND ssi.textbk_id = #{textbookId}
+                  AND ssi.stdt_id = #{userId}
+                ) AS combined_dates
+            ) AS b
+        ON a.std_dt = b.ed_dt and a.meta_id = b.meta_id
+        ORDER BY a.std_dt
+    </select>
+
+    <!-- 개념별 이해도 상세 - 이해도 원천 정보  -->
+    <select id="selectStntDsbdConceptUsdDetail" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntDsbdInfoMapper.selectStntDsbdConceptUsdDetail */
+        WITH filtered_history AS (
+            SELECT
+                id,
+                std_dt,
+                trgt_se_cd,
+                tab_id,
+                trgt_id,
+                std_cd,
+                cla_id,
+                stdt_id,
+                usd_scr,
+                meta_id,
+                kwg_main_id
+            FROM aidt_lms.std_usd_day_hist
+            WHERE 1=1
+             and std_dt <![CDATA[<=]]> STR_TO_DATE(#{param.stdDt}, '%Y%m%d')
+             and textbk_id = #{param.textbookId}
+             and cla_id  = #{param.claId}
+             and stdt_id = #{param.userId}
+             and std_at = 'Y'
+             and meta_id = #{param.metaId}
+            <if test="param.kwgMainId != null and param.kwgMainId != ''">
+                and kwg_main_id = #{param.kwgMainId}
+            </if>
+        ),
+        actual_study_dates AS (
+            SELECT DISTINCT
+                CASE WHEN tch_errata_chg_at  = 'Y' THEN sdrd.tch_errata_chg_dt
+                     ELSE IFNULL(DATE_FORMAT(sdrd.eak_ed_dt, '%Y-%m-%d'), DATE_FORMAT(sdrd.mdfy_dt, '%Y-%m-%d')) END AS actual_study_date,
+                amm.meta_id,
+                ti.crcul_id as trgt_id,
+                ti.id as tab_id
+            <if test="param.kwgMainId != null and param.kwgMainId != ''">
+                    , amm2.meta_id as kwg_main_id
+            </if>
+            FROM aidt_lms.std_dta_result_info sdri
+            INNER JOIN aidt_lms.std_dta_result_detail sdrd
+                ON sdri.id = sdrd.dta_result_id
+                AND sdrd.eak_at = 'Y' /* 응시 여부 */
+                AND sdrd.mrk_ty <![CDATA[<>]]> 3 /* 채점 불가 항목(3) 제외 */
+            INNER JOIN aidt_lms.tab_info ti
+                ON ti.id = sdri.textbk_tab_id
+            INNER JOIN aidt_lcms.article_meta_map amm
+                ON amm.article_id = sdrd.dta_iem_id
+                AND amm.sub_id = sdrd.sub_id
+                AND amm.meta_name = 'studyMap1'
+                AND amm.meta_id = #{param.metaId}
+        <if test="param.kwgMainId != null and param.kwgMainId != ''">
+            INNER JOIN aidt_lcms.article_meta_map amm2
+                ON amm2.article_id = sdrd.dta_iem_id
+                AND amm2.sub_id = sdrd.sub_id
+                AND amm2.meta_name = 'studyMap_1'
+                AND amm2.meta_id = #{param.kwgMainId}
+        </if>
+            WHERE ti.cla_id = #{param.claId}
+            AND ti.textbk_id = #{param.textbookId}
+            AND sdri.mamoym_id = #{param.userId}
+            AND DATE_FORMAT(sdrd.eak_ed_dt, '%Y-%m-%d') <![CDATA[<=]]> STR_TO_DATE(#{param.stdDt}, '%Y%m%d')
+
+            UNION
+
+            -- 평가 실제 응시 날짜
+            SELECT DISTINCT
+                DATE_FORMAT(
+                     CASE
+                       WHEN ei.rpt_othbc_dt IS NULL THEN ei.mrk_cp_dt
+                       WHEN ei.mrk_cp_dt > ei.rpt_othbc_dt THEN ei.mrk_cp_dt
+                       ELSE ei.rpt_othbc_dt
+                     END,
+                     '%Y-%m-%d'
+                ) AS actual_study_date,
+                amm.meta_id,
+                ei.id as trgt_id,
+                0 as tab_id
+                <if test="param.kwgMainId != null and param.kwgMainId != ''">
+                        , amm2.meta_id as kwg_main_id
+                </if>
+            FROM aidt_lms.evl_info ei
+            JOIN aidt_lms.evl_result_info eri
+                ON ei.id = eri.evl_id
+                AND ei.evl_stts_cd = 5 /* 채점완료 */
+                AND eri.mrk_cp_at = 'Y' /* 채점 완료 여부 */
+                AND ei.rpt_othbc_at = 'Y'
+            JOIN aidt_lms.evl_result_detail erd
+                ON eri.id = erd.evl_result_id
+                AND erd.eak_at = 'Y' /* 응시 여부 */
+                AND erd.mrk_ty <![CDATA[<>]]> 3 /* 채점 불가 항목(3) 제외 */
+            INNER JOIN aidt_lcms.article_meta_map amm
+                ON amm.article_id = erd.evl_iem_id
+                AND amm.sub_id = erd.sub_id
+                AND amm.meta_name = 'studyMap1'
+                AND amm.meta_id = #{param.metaId}
+        <if test="param.kwgMainId != null and param.kwgMainId != ''">
+            INNER JOIN aidt_lcms.article_meta_map amm2
+                ON amm2.article_id = erd.evl_iem_id
+                AND amm2.sub_id = erd.sub_id
+                AND amm2.meta_name = 'studyMap_1'
+                AND amm2.meta_id = #{param.kwgMainId}
+        </if>
+            WHERE ei.cla_id = #{param.claId}
+            AND ei.textbook_id = #{param.textbookId}
+            AND eri.mamoym_id = #{param.userId}
+            AND DATE_FORMAT(erd.eak_ed_dt, '%Y-%m-%d') <![CDATA[<=]]> STR_TO_DATE(#{param.stdDt}, '%Y%m%d')
+
+            UNION
+
+            -- 과제 실제 제출 날짜
+            SELECT DISTINCT
+                DATE_FORMAT(
+                     CASE
+                       WHEN ti.rpt_othbc_dt IS NULL THEN ti.mrk_cp_dt
+                       WHEN ti.mrk_cp_dt > ti.rpt_othbc_dt THEN ti.mrk_cp_dt
+                       ELSE ti.rpt_othbc_dt
+                     END,
+                     '%Y-%m-%d'
+                ) AS actual_study_date,
+                amm.meta_id,
+                ti.id as trgt_id,
+                0 as tab_id
+            <if test="param.kwgMainId != null and param.kwgMainId != ''">
+                    , amm2.meta_id as kwg_main_id
+            </if>
+            FROM aidt_lms.task_info ti
+            JOIN aidt_lms.task_result_info tri
+                ON ti.id = tri.task_id
+                AND ti.task_stts_cd = 5
+                AND tri.subm_at = 'Y' /* 제출 여부 */
+                AND ti.rpt_othbc_at = 'Y'
+            JOIN aidt_lms.task_result_detail trd
+                ON tri.id = trd.task_result_id
+                AND trd.eak_at = 'Y' /* 응시 여부 */
+                AND trd.mrk_ty <![CDATA[<>]]> 3 /* 채점 불가 항목(3) 제외 */
+                AND trd.mrk_cp_at = 'Y' /* 채점 완료 여부 */
+            INNER JOIN aidt_lcms.article_meta_map amm
+                ON amm.article_id = trd.task_iem_id
+                AND amm.sub_id = trd.sub_id
+                AND amm.meta_name = 'studyMap1'
+                AND amm.meta_id = #{param.metaId}
+        <if test="param.kwgMainId != null and param.kwgMainId != ''">
+            INNER JOIN aidt_lcms.article_meta_map amm2
+                ON amm2.article_id = trd.task_iem_id
+                AND amm2.sub_id = trd.sub_id
+                AND amm2.meta_name = 'studyMap_1'
+                AND amm2.meta_id = #{param.kwgMainId}
+        </if>
+            WHERE ti.cla_id = #{param.claId}
+            AND ti.textbk_id = #{param.textbookId}
+            AND tri.mamoym_id = #{param.userId}
+            AND DATE_FORMAT(trd.eak_ed_dt, '%Y-%m-%d') <![CDATA[<=]]> STR_TO_DATE(#{param.stdDt}, '%Y%m%d')
+
+            UNION
+
+            -- 자기주도학습 실제 완료 날짜
+            SELECT DISTINCT
+                DATE_FORMAT(ssri.std_ed_dt, '%Y-%m-%d') as actual_study_date,
+                amm.meta_id,
+                ssi.id as trgt_id,
+                0 as tab_id
+            <if test="param.kwgMainId != null and param.kwgMainId != ''">
+                    , amm2.meta_id as kwg_main_id
+            </if>
+            FROM aidt_lms.slf_std_info ssi
+            JOIN aidt_lms.slf_std_result_info ssri
+                ON ssi.id = ssri.std_id
+                AND ssi.ed_at = 'Y'
+            INNER JOIN aidt_lcms.article_meta_map amm
+                ON amm.article_id = ssri.module_id
+                AND amm.sub_id = ssri.sub_id
+                AND amm.meta_name = 'studyMap1'
+                AND amm.meta_id = #{param.metaId}
+        <if test="param.kwgMainId != null and param.kwgMainId != ''">
+            INNER JOIN aidt_lcms.article_meta_map amm2
+                ON amm2.article_id = ssri.module_id
+                AND amm2.sub_id = ssri.sub_id
+                AND amm2.meta_name = 'studyMap_1'
+                AND amm2.meta_id = #{param.kwgMainId}
+        </if>
+            WHERE ssi.cla_id = #{param.claId}
+            AND ssi.textbk_id = #{param.textbookId}
+            AND ssi.stdt_id = #{param.userId}
+            AND DATE_FORMAT(ssri.std_ed_dt, '%Y-%m-%d') <![CDATA[<=]]> STR_TO_DATE(#{param.stdDt}, '%Y%m%d')
+
+            UNION
+
+            -- AI 자기주도학습 실제 완료 날짜
+            SELECT DISTINCT
+                DATE_FORMAT(sasri.std_ed_dt, '%Y-%m-%d') as actual_study_date,
+                amm.meta_id,
+                sasi.id as trgt_id,
+                0 as tab_id
+            <if test="param.kwgMainId != null and param.kwgMainId != ''">
+                    , amm2.meta_id as kwg_main_id
+            </if>
+            FROM aidt_lms.slf_ai_std_info sasi
+            JOIN aidt_lms.slf_ai_std_result_info sasri
+                ON sasi.id = sasri.std_ai_id
+                AND sasi.ed_at = 'Y'
+            INNER JOIN aidt_lcms.article_meta_map amm
+                ON amm.article_id = sasri.module_id
+                AND amm.sub_id = sasri.sub_id
+                AND amm.meta_name = 'studyMap1'
+                AND amm.meta_id = #{param.metaId}
+        <if test="param.kwgMainId != null and param.kwgMainId != ''">
+            INNER JOIN aidt_lcms.article_meta_map amm2
+                ON amm2.article_id = sasri.module_id
+                AND amm2.sub_id = sasri.sub_id
+                AND amm2.meta_name = 'studyMap_1'
+                AND amm2.meta_id = #{param.kwgMainId}
+        </if>
+            WHERE sasi.cla_id = #{param.claId}
+            AND sasi.textbk_id = #{param.textbookId}
+            AND sasi.stdt_id = #{param.userId}
+            AND DATE_FORMAT(sasri.std_ed_dt, '%Y-%m-%d') <![CDATA[<=]]> STR_TO_DATE(#{param.stdDt}, '%Y%m%d')
+        )
+        SELECT
+            COUNT(*) OVER () AS full_count,
+            ROW_NUMBER() OVER (ORDER BY a.id, a.tab_id) as rowNo,
+            a.std_dt,
+            a.trgt_se_cd,
+            aidt_lms.f_code_nm('trgt_se_cd', a.trgt_se_cd) as trgt_se_nm,
+            a.tab_id,
+            (CASE WHEN a.trgt_se_cd = 1 THEN (
+                                                SELECT
+                                                    IF(a.tab_id > 0,
+                                                    CONCAT('[', (SELECT tab_nm FROM aidt_lms.tab_info WHERE id = a.tab_id), '] ', tc.`text`),
+                                                    tc.`text`)
+                                                FROM aidt_lms.tc_curriculum tc
+                                                WHERE 1=1
+                                                AND tc.textbk_id = #{param.textbookId}
+                                                AND tc.cla_id = #{param.claId}
+                                                AND tc.wrter_id = (SELECT user_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = #{param.userId} AND cla_id = #{param.claId} and actvtn_at = 'Y')
+                                                AND tc.`key` = a.trgt_id
+                                                )
+                WHEN a.trgt_se_cd = 2 THEN (SELECT task_nm FROM aidt_lms.task_info WHERE id = a.trgt_id)
+                WHEN a.trgt_se_cd = 3 THEN (SELECT evl_nm FROM aidt_lms.evl_info WHERE id = a.trgt_id)
+                /* 자기주도학습 : AI학습 */
+                WHEN a.trgt_se_cd = 4 AND a.std_cd = 1 THEN (SELECT std_nm FROM aidt_lms.slf_ai_std_info WHERE id = a.trgt_id)
+                /* 자기주도학습 : 선택학습 */
+                ELSE (SELECT std_nm FROM aidt_lms.slf_std_info WHERE id = a.trgt_id)
+            END) AS trgt_nm,
+        (CASE
+            WHEN a.trgt_se_cd = 1 THEN 'Y'
+            WHEN a.trgt_se_cd = 2 THEN (SELECT IFNULL(rpt_othbc_at, 'N') FROM aidt_lms.task_info WHERE id = a.trgt_id)
+            WHEN a.trgt_se_cd = 3 THEN (SELECT IFNULL(rpt_othbc_at, 'N') FROM aidt_lms.evl_info WHERE id = a.trgt_id)
+            ELSE 'Y'
+        END) AS rp_othbc_at
+        FROM filtered_history a
+        INNER JOIN actual_study_dates asd
+            ON a.std_dt = asd.actual_study_date
+            AND a.meta_id = asd.meta_id
+            AND a.trgt_id = asd.trgt_id
+            AND a.tab_id = asd.tab_id
+        <if test="param.kwgMainId != null and param.kwgMainId != ''">
+            AND a.kwg_main_id = asd.kwg_main_id
+        </if>
+        GROUP BY
+            a.trgt_se_cd,
+            a.trgt_id,
+            a.tab_id,
+            a.std_dt
+        ORDER BY rowNo DESC
+        limit #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <!-- 개념별 이해도 상세 - 이해도 원천 정보  -->
+    <select id="selectStntDsbdConceptUsdDetailTotal" parameterType="pagingParam" resultType="camelHashMap">
+        <![CDATA[
+        select /* StntDsbdInfoMapper.selectStntDsbdConceptUsdDetailTotal */
+            COUNT(*) over () AS full_count,
+                ROW_NUMBER() OVER (order by a.id) as rowNo,
+              /* DATE_FORMAT( a.std_dt  ,'%Y-%m-%d') as stdDt , */
+              /* 2024-10-22일 추가 */
+              /* 학습한 날짜 */
+            a.std_dt,
+            a.trgt_se_cd ,
+            aidt_lms.f_code_nm('trgt_se_cd', a.trgt_se_cd ) as trgt_se_nm,
+            a.tab_id,
+            (CASE WHEN a.trgt_se_cd = 1 THEN (
+                select
+                    if(a.tab_id > 0,concat('[', (select tab_nm from aidt_lms.tab_info where id = a.tab_id), '] ',tc.`text`), tc.`text`)
+                from aidt_lms.tc_curriculum tc
+                where 1=1
+                  AND tc.textbk_id = #{param.textbookId}
+                  AND tc.cla_id = #{param.claId}
+                  AND tc.wrter_id = (SELECT user_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = #{param.userId} AND cla_id = #{param.claId} and a.actvtn_at = 'Y')
+                  AND tc.`key`= a.trgt_id
+            )
+                  WHEN a.trgt_se_cd = 2 THEN (SELECT task_nm FROM aidt_lms.task_info WHERE id = a.trgt_id)
+                  WHEN a.trgt_se_cd = 3 THEN (SELECT evl_nm FROM aidt_lms.evl_info WHERE id = a.trgt_id)
+                /* 자기주도학습 : AI학습 */
+                  WHEN a.trgt_se_cd = 4 and a.std_cd = 1 THEN (SELECT std_nm FROM aidt_lms.slf_ai_std_info WHERE id = a.trgt_id)
+                /* 자기주도학습 : 선택학습 */
+                  ELSE (SELECT std_nm FROM aidt_lms.slf_std_info WHERE id = a.trgt_id)
+                END) AS trgt_nm,
+            (CASE WHEN a.trgt_se_cd = 1 THEN 'Y'
+                  WHEN a.trgt_se_cd = 2 THEN (SELECT IFNULL(rpt_othbc_at, 'N') FROM aidt_lms.task_info WHERE id = a.trgt_id)
+                  WHEN a.trgt_se_cd = 3 THEN (SELECT IFNULL(rpt_othbc_at, 'N') FROM aidt_lms.evl_info WHERE id = a.trgt_id)
+                  ELSE 'Y' END)
+                                                            AS rp_othbc_at
+        from aidt_lms.std_usd_day_hist a
+                 inner join aidt_lms.tc_cla_mb_info b
+                            on a.cla_id = b.cla_id and a.stdt_id = b.stdt_id and b.actvtn_at = 'Y'
+        where 1=1
+          and DATE_FORMAT( a.std_dt  ,'%Y%m%d') <= #{param.stdDt}
+          and a.textbk_id = #{param.textbookId}
+          and a.cla_id  = #{param.claId}
+          and a.stdt_id = #{param.userId}
+          and a.std_at = 'Y'
+          and a.meta_id = #{param.metaId}
+        group by a.meta_id
+        order by rowNo desc
+            limit #{pageable.pageSize} OFFSET #{pageable.offset}
+        ]]>
+    </select>
+
+    <!--학습맵 이해도 : 단원별 정보-->
+    <!--사용안함-->
+    <select id="selectStntDsbdChptUnitInfo" parameterType="map" resultType="camelHashMap">
+        select /* StntDsbdInfoMapper.selectStntDsbdChptUnitInfo */
+            X.meta_id,
+            X.unit_num,
+            X.unit_nm,
+            if( (X.tId is null and X.unit_num = 1) or (X.tId = X.meta_id) ,'Y,'N') as unitLastLesnAt
+        from (
+            SELECT
+                X.id AS meta_id,
+                DENSE_RANK() OVER (order by X.id) AS unit_num,
+                X.unit_nm,
+                if(T1.id = X.id ,'Y,'N') as unitLastLesnAt,
+                T1.id as tId
+            FROM
+            (
+            SELECT
+                b.id,
+                b.parent_id,
+                b.code,
+                b.val AS unit_nm,
+                b.depth
+            FROM
+                aidt_lcms.meta a
+                INNER JOIN aidt_lcms.meta b ON a.code = b.description
+                  AND b.is_active = 1
+                  AND b.name = 'studyMap1'
+                inner join aidt_lcms.meta c
+                    on c.id = b.parent_id
+                        and c.is_active = 1
+            WHERE 1=1
+            <if test="metaId != null and metaId != '' ">
+                and  b.id = #{metaId}
+            </if>
+            ) X
+            LEFT JOIN (
+               select id from aidt_lcms.v_curri_tree a
+                where a.textbk_id = #{textbookId}
+                  and a.id = (
+                            select
+                                b.id
+                            from
+                                aidt_lcms.meta a
+                           inner join aidt_lcms.meta b
+                              on a.id in (
+                                select
+                                    /*  NULL이 아닌 첫 번째 Column 값을 구함 */
+                                    COALESCE(curri.curriUnit5,curri.curriUnit4,curri.curriUnit3,curri.curriUnit2,curri.curriUnit1) as curriUnit
+                                from
+                                     aidt_lms.tc_lastlesson lst
+                                inner join aidt_lms.tc_curriculum curri
+                                  on lst.wrter_id = curri.wrter_id
+                                 and lst.cla_id = curri.cla_id
+                                 and lst.textbk_id = curri.textbk_id
+                                 and lst.crcul_id = curri.key
+                                 and lst.textbk_idx_id = curri.textbk_idx_id
+                               inner join aidt_lms.tc_cla_mb_info c
+                                 on c.cla_id = lst.cla_id
+                                and c.stdt_id = #{userId}
+                                and c.cla_id  = #{claId}
+                                and curri.wrter_id = c.user_id
+                                and c.actvtn_at = 'Y'
+                               where
+                                1=1
+                                 and curri.cla_id    = #{claId}
+                                 and curri.textbk_id = #{textbookId}
+                             )
+                )
+            ) as T1 ON X.id = T1.id
+            ORDER BY
+                X.parent_id,
+                X.code
+        ) X
+        <if test="metaId == null or metaId == ''">
+            where X.unitLastLesnAt = 'Y'
+        </if>
+    </select>
+
+    <!--학습맵 이해도 : 단원의 개념(지식요인) 정보 stdMapUsdList -->
+    <select id="selectStntDsbdStdMapUsdList" parameterType="map" resultType="camelHashMap">
+        select  /* StntDsbdInfoMapper.selectStntDsbdStdMapUsdList */
+            A.meta_id,
+            C.unit_num,
+            A.id                as kwg_main_id,
+            A.val               as kwg_nm,
+            ifnull(C.usd_scr,0) as usd_scr,
+            A.prev_meta_id      as prev_meta_id,
+            D.unit_num          as prev_unit_num,
+            A.val2              as prev_kwg_main_id,
+            B.val               as prev_kwg_nm,
+            ifnull(D.usd_scr,0) as prev_usd_scr
+        from
+        (
+            SELECT
+                a.meta_id,
+                a.id,
+                a.val,
+                a.val1,
+                numbers.n as sort_num,
+                (
+                WITH RECURSIVE UNIT_INFO AS (
+                SELECT
+                    id,
+                    parent_id,
+                    id_path,
+                    depth
+                FROM aidt_lcms.v_curri_tree a
+               WHERE a.textbk_id = #{textbookId} and a.id = SUBSTRING_INDEX(SUBSTRING_INDEX(a.val2,',',numbers.n),',',-1) /* 학습맵(지식요인-studyMap_1) 값 */
+               UNION ALL
+               SELECT
+                    a.id,
+                    a.parent_id,
+                    a.id_path,
+                    a.depth
+                FROM aidt_lcms.v_curri_tree a
+               INNER JOIN UNIT_INFO b ON a.id = b.parent_id  and a.textbk_id =  #{textbookId}
+               )
+                SELECT id FROM UNIT_INFO WHERE 1=1 and depth = 1
+              ) as prev_meta_id,
+              SUBSTRING_INDEX (SUBSTRING_INDEX(a.val2,',',numbers.n),',',-1) as val2
+            FROM
+            (
+            WITH RECURSIVE cte AS (
+            SELECT 1 AS n
+            UNION ALL
+            SELECT n + 1 FROM cte WHERE n <![CDATA[ < ]]> 10
+            )
+            select n from cte
+         ) numbers
+        INNER JOIN (
+        select
+            #{metaId} as meta_id, /* 2 단원 meta_id */
+            b.id,
+            b.val,
+            a.val1,         /* 교육부 표준교육체계 코드 */
+            /* a.val2 as val2_org, */
+            replace(a.val2,'#^|',',') as val2 /* 선수학습 */
+          from
+            aidt_lcms.meta_extension a
+         inner join aidt_lcms.meta b
+           on a.meta_extension_id = b.meta_extension_id
+        where b.meta_extension_id in (
+        select
+            b.meta_extension_id
+          from aidt_lcms.meta a
+         inner join aidt_lcms.meta b
+            on a.id = #{metaId}    /* 2 단원 meta_id */
+           and b.name = 'studyMap_1'
+           and b.code like concat(a.code,'-%')
+          )
+        ) a
+        ON CHAR_LENGTH(a.val2) - CHAR_LENGTH(REPLACE(a.val2,',','')) >= numbers.n-1
+        ) A
+        left join aidt_lcms.meta B
+          on A.val2 = B.id
+        left join aidt_lms.std_usd_info C
+          on A.meta_id = C.meta_id
+         and A.id = C.kwg_main_id
+         and C.textbk_id = #{textbookId}
+         and C.cla_id = #{claId}
+         and C.stdt_id = #{userId}
+         and C.std_at = 'Y'
+        left join aidt_lms.std_usd_info D
+          on A.prev_meta_id = D.meta_id
+         and A.val2 = D.kwg_main_id
+         and D.textbk_id = #{textbookId}
+         and D.cla_id = #{claId}
+         and D.stdt_id = #{userId}
+         and D.std_at = 'Y'
+       <if test="kwgMainId != null and kwgMainId != ''">
+       where A.id = #{kwgMainId}
+       </if>
+       order by A.id, A.sort_num
+    </select>
+
+    <!--학습맵 이해도 (개념) : 선수 지식요인(개념) 이해도 정보 -->
+    <select id="selectStntDsbdStdMapKwgList" parameterType="map" resultType="camelHashMap">
+        select  /* StntDsbdInfoMapper.selectStntDsbdStdMapKwgList */
+            A.val2              as kwg_main_id,
+            B.val               as kwg_nm,
+            ifnull(D.usd_scr,0) as kwg_usd_scr
+         from
+        (
+        SELECT
+            a.meta_id,
+            a.id,
+            a.val,
+            a.val1,
+            numbers.n as sort_num,
+            (
+            WITH RECURSIVE UNIT_INFO AS (
+            SELECT
+                id,
+                parent_id,
+                id_path,
+                depth
+             FROM aidt_lcms.v_curri_tree a
+            WHERE a.textbk_id = #{textbookId} and a.id = SUBSTRING_INDEX(SUBSTRING_INDEX(a.val2,',',numbers.n),',',-1) /* 학습맵(지식요인-studyMap_1) 값 */
+            UNION ALL
+            SELECT
+                a.id,
+                a.parent_id,
+                a.id_path,
+                a.depth
+             FROM aidt_lcms.v_curri_tree a
+            INNER JOIN UNIT_INFO b ON a.id = b.parent_id  and a.textbk_id =  #{textbookId}
+            )
+            SELECT id FROM UNIT_INFO WHERE 1=1 and depth = 1
+            ) as prev_meta_id,
+            SUBSTRING_INDEX (SUBSTRING_INDEX(a.val2,',',numbers.n),',',-1) as val2
+        FROM
+            (
+            WITH RECURSIVE cte AS (
+                SELECT 1 AS n
+                UNION ALL
+                SELECT n + 1 FROM cte WHERE n <![CDATA[ < ]]> 10
+            )
+                select n from cte
+            ) numbers
+        INNER JOIN (
+        select
+            #{metaId} as meta_id, /* 2 단원 meta_id */
+            b.id,
+            b.val,
+            a.val1,         /* 교육부 표준교육체계 코드 */
+            /* a.val2 as val2_org, */
+            replace(a.val2,'#^|',',') as val2 /* 선수학습 */
+         from
+            aidt_lcms.meta_extension a
+        inner join aidt_lcms.meta b
+          on a.meta_extension_id = b.meta_extension_id
+        where b.meta_extension_id in (
+        select
+            b.meta_extension_id
+          from aidt_lcms.meta a
+         inner join aidt_lcms.meta b
+            on a.id = #{metaId}    /* 2 단원 meta_id */
+           and b.name = 'studyMap_1'
+           and b.code like concat(a.code,'-%')
+          )
+        ) a
+        ON CHAR_LENGTH(a.val2) - CHAR_LENGTH(REPLACE(a.val2,',','')) >= numbers.n-1
+        ) A
+        left join aidt_lcms.meta B
+          on A.val2 = B.id
+        left join aidt_lms.std_usd_info C
+          on A.meta_id = C.meta_id
+         and A.id = C.kwg_main_id
+         and C.textbk_id = #{textbookId}
+         and C.cla_id = #{claId}
+         and C.stdt_id = #{userId}
+         and C.std_at = 'Y'
+        left join aidt_lms.std_usd_info D
+          on A.prev_meta_id = D.meta_id
+         and A.val2 = D.kwg_main_id
+         and D.textbk_id = #{textbookId}
+         and D.cla_id = #{claId}
+         and D.stdt_id = #{userId}
+         and D.std_at = 'Y'
+        <if test="kwgMainId != null and kwgMainId != ''">
+            where A.val2 = #{kwgMainId}
+        </if>
+        order by A.id, A.sort_num
+    </select>
+
+    <!--학습맵 이해도 (개념) -->
+    <!--사용안함-->
+    <select id="selectStntDsbdStdCncptUsdInfo" parameterType="map" resultType="camelHashMap">
+        select  /* StntDsbdInfoMapper.selectStntDsbdStdCncptUsdInfo */
+                B.*
+          from
+        (
+        select
+            kwg_nm,
+            round(usd_scr,2) as kwgUsdScr,
+            A.kwg_main_id,
+            ( select id_path_nm from aidt_lcms.v_curri_tree where name = 'studyMap_1' and id = #{kwgMainId} and textbk_id = #{textbookId} limit 1 ) as cncptCurri
+        from
+        (
+        select
+            0 as id,
+            X.meta_id,
+            Y.id as kwg_main_id,
+            Y.val as kwg_nm,
+            0 as usd_scr
+        from
+        (
+        select
+            b.id as meta_id,
+            b.parent_id,
+            b.code
+        from aidt_lcms.meta a
+       inner join aidt_lcms.meta b
+          on a.code = b.description
+         and b.is_active = 1
+         and b.name = 'studyMap1'
+        left join aidt_lms.tc_curriculum curri
+          on a.id = curri.curriUnit1
+         and curri.cla_id    = #{claId}
+         and curri.textbk_id = #{textbookId}
+       inner join aidt_lms.tc_cla_mb_info c
+          on curri.wrter_id = c.user_id
+         and c.stdt_id = #{userId}
+         and c.cla_id  = #{claId}
+         and c.actvtn_at = 'Y'
+       where a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbookId}) and a.is_active = 1
+        ) X
+        inner join aidt_lcms.meta Y
+           on Y.code like concat(X.code,'-%')
+          and Y.name = 'studyMap_1'
+          and X.meta_id = #{metaId}
+          and Y.id =  #{kwgMainId}
+        union all
+        select
+            a.id,
+            a.meta_id,
+            a.kwg_main_id,
+            (select val from aidt_lcms.meta where name = 'studyMap_1' and id = a.kwg_main_id) AS kwg_nm,
+            avg(a.usd_scr) as usd_scr
+        FROM
+            aidt_lms.std_usd_info a
+       WHERE 1=1
+         AND textbk_id = #{textbookId}
+         AND a.meta_id =  #{metaId}
+         AND a.kwg_main_id =  #{kwgMainId}
+         AND a.cla_id    = #{claId}
+         AND a.std_at = 'Y'
+       group by
+            a.id,
+            a.meta_id,
+            a.kwg_main_id
+            ) A
+        ) B
+        order by
+            kwg_nm,
+            kwgUsdScr desc
+        limit 1
+    </select>
+
+    <!--학습맵 이해도 상세  cncptStdtList -->
+    <select id="selectStntDsbdStdMapCncptStdtList" parameterType="pagingParam" resultType="camelHashMap">
+        <![CDATA[
+        select  /* StntDsbdInfoMapper.selectStntDsbdStdMapCncptStdtList */
+             COUNT(*) over () AS full_count,
+             row_number() over(order by a.id) as rowNo,
+             DATE_FORMAT( a.std_dt  ,'%Y-%m-%d') as stdDt ,
+             a.trgt_se_cd ,
+             aidt_lms.F_CODE_NM('trgt_se_cd', a.trgt_se_cd ) as trgt_se_nm,
+             (CASE WHEN a.trgt_se_cd = 1 THEN (
+                        select
+                            if(a.tab_id > 0,concat('[', (select tab_nm from aidt_lms.tab_info where id = a.tab_id), '] ',tc.`text`), tc.`text`)
+                        from aidt_lms.tc_curriculum tc
+                        where 1=1
+                            AND tc.textbk_id = #{param.textbookId}
+                            AND tc.cla_id = #{param.claId}
+                            AND tc.wrter_id = (SELECT user_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = #{param.userId} AND cla_id = #{param.claId} and actvtn_at = 'Y')
+                            AND tc.`key`= a.trgt_id
+                    )
+                    WHEN a.trgt_se_cd = 2 THEN (SELECT task_nm FROM aidt_lms.task_info WHERE id = a.trgt_id)
+                    WHEN a.trgt_se_cd = 3 THEN (SELECT evl_nm FROM aidt_lms.evl_info WHERE id = a.trgt_id)
+                    /* 자기주도학습 : AI학습 */
+                    WHEN a.trgt_se_cd = 4 and a.std_cd = 1 THEN (SELECT std_nm FROM aidt_lms.slf_ai_std_info WHERE id = a.trgt_id)
+                    /* 자기주도학습 : 선택학습 */
+                    ELSE (SELECT std_nm FROM aidt_lms.slf_std_info WHERE id = a.trgt_id)
+              END) AS trgt_nm,
+              (CASE WHEN a.trgt_se_cd = 1 THEN 'Y'
+                    WHEN a.trgt_se_cd = 2 THEN (SELECT IFNULL(rpt_othbc_at, 'N') FROM aidt_lms.task_info WHERE id = a.trgt_id)
+                    WHEN a.trgt_se_cd = 3 THEN (SELECT IFNULL(rpt_othbc_at, 'N') FROM aidt_lms.evl_info WHERE id = a.trgt_id)
+                    ELSE 'Y' END)
+              AS rp_othbc_at
+          from aidt_lms.std_usd_day_hist a
+            inner join aidt_lms.tc_cla_mb_info b
+                      on a.cla_id = b.cla_id and a.stdt_id = b.stdt_id and b.actvtn_at = 'Y'
+         where 1=1
+           and a.textbk_id = #{param.textbookId}
+           and a.cla_id  = #{param.claId}
+           and a.stdt_id = #{param.userId}
+           and a.std_at      = 'Y'
+           and a.meta_id   = #{param.metaId}
+           and a.kwg_main_id = #{param.kwgMainId}
+         order by rowNo desc
+         limit #{pageable.pageSize} OFFSET #{pageable.offset}
+        ]]>
+    </select>
+
+    <!--학습맵 이해도 상세  cncptPathNm -->
+    <select id="selectStntDsbdCncptPathNmInfo" parameterType="map" resultType="camelHashMap">
+        <![CDATA[
+            select /* StntDsbdInfoMapper.selectStntDsbdCncptPathNmInfo */
+                   concat( (select val from aidt_lcms.meta where id = #{metaId} ),'-', (select val from aidt_lcms.meta where id = #{kwgMainId}) )
+                   as cncptPathNm
+              from dual
+        ]]>
+    </select>
+
+    <select id="findStntDsbdStatusStudyMapDetail" parameterType="map" resultType="camelHashMap">
+        /*StntDsbdInfoMapper.findStntDsbdStatusStudyMapDetail*/
+        select a.unit_num, a.meta_id, a.kwg_main_id, sum(a.kwg_ach_num) as kwg_ach_num, sum(a.kwg_main_tot_exm_num) as kwg_tot_num
+        , (select val from aidt_lcms.meta where id =meta_id) as unit_nm
+        from aidt_lms.usd_ach_src2_kwg a
+        where a.kwg_main_cd = #{studyMapCd}
+          and a.cla_id = #{claId}
+          and a.textbk_id = #{textbkId}
+          and a.stdt_id = #{userId}
+          <if test="unitNum != 0">
+              and a.unit_num = #{unitNum}
+          </if>
+          and a.std_dt = (
+              select max(b.std_dt)
+              from aidt_lms.usd_ach_src2_kwg b
+              where a.kwg_main_cd = b.kwg_main_cd
+                and a.cla_id = b.cla_id
+                and a.textbk_id = b.textbk_id
+                and a.stdt_id = b.stdt_id
+                <if test="unitNum != 0">
+                and a.unit_num = b.unit_num
+                </if>
+                <if test="metaId != null and metaId != ''">
+                and b.kwg_main_id = #{metaId}
+                </if>
+              )
+
+        <choose>
+            <when test="metaId != null and metaId != ''">
+                AND a.kwg_main_id = #{metaId}
+                <if test="unitNum != 0">
+                    GROUP BY a.unit_num, a.meta_id, a.kwg_main_id
+                </if>
+                <if test="unitNum == 0">
+                    GROUP BY a.kwg_main_id
+                </if>
+            </when>
+            <otherwise>
+                <if test="unitNum != 0">
+                    GROUP BY a.unit_num, meta_id
+                </if>
+                <if test="unitNum == 0">
+                    GROUP BY a.kwg_main_id
+                </if>
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="findStntDsbdStatusStudyMapDetail_list" parameterType="map" resultType="camelHashMap">
+        /*StntDsbdInfoMapper.findStntDsbdStatusStudyMapDetail_list*/
+               select t.unitNum
+              ,t.stdt_id
+              ,t.article_id
+              ,t.sub_id
+              ,t.thumbnail
+        from (select (select unit_num
+                      from (select row_number() over (order by b.`code`) as unit_num, b.id
+                            from aidt_lcms.meta a
+                                     inner join aidt_lcms.meta b
+                                                on a.`code` = b.description and b.is_active = 1 and b.name = 'studyMap1'
+                                     inner join aidt_lcms.meta c on c.id = b.parent_id and c.is_active = 1
+                                     left join aidt_lcms.meta_extension d on b.meta_extension_id = d.meta_extension_id
+                            where 1 = 1
+                              and ifnull(d.val1,'1') = '1'
+                              and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                              and a.is_active = 1) s
+                      where id = achInfo.meta_id) as unitNum,
+                     achInfo.stdt_id
+              ,achInfo.article_id
+              ,achInfo.sub_id
+              ,achInfo.thumbnail /* 수집할때 이미 처리함 */
+              from aidt_lms.ach_cac_src_info achInfo
+              where achInfo.textbk_id = #{textbkId}
+                and  achInfo.cla_id = #{claId}
+                <if test="metaId != null and metaId != '' ">
+                    and achInfo.kwg_main_id = #{metaId}
+                </if>
+                <if test="studyMapCd != null and studyMapCd != '' ">
+                    and std_clsf = #{studyMapCd}
+                </if>
+                and achInfo.stdt_id =#{userId}
+                and achInfo.errata is not null
+              group by achInfo.article_id) as t
+        where 1=1
+        <if test="unitNum != null and unitNum != '' and unitNum != 0">
+            and t.unitNum = #{unitNum}
+        </if>
+    </select>
+</mapper>

@@ -1,0 +1,541 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchToolBarMapper">
+    <select id="findToolBarCall" parameterType="map" resultType="camelHashMap">
+        /* TchToolBarMapper.findToolBarCall */
+        SELECT
+            user_id,
+            pen_clor
+        FROM aidt_lms.wrt_pen_sv
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="findUserId" parameterType="map">
+        SELECT
+            user_id
+        FROM aidt_lms.wrt_pen_sv
+        WHERE user_id = #{userId}
+    </select>
+
+    <insert id="insertTchToolBar" parameterType="map">
+        /* TchToolBarMapper.insertTchToolBar */
+        INSERT INTO aidt_lms.wrt_pen_sv
+        (
+         id
+        ,user_id
+        ,pen_clor
+        ,rgtr
+        ,reg_dt
+        , mdfr
+        ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{penClor}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <update id="updateTchToolBar" parameterType="map">
+        /* TchToolBarMapper.updateTchToolBar */
+        UPDATE aidt_lms.wrt_pen_sv
+        SET pen_clor = #{penClor}
+            ,mdfr = #{userId}
+            ,mdfy_dt = NOW()
+        WHERE user_id = #{userId}
+    </update>
+
+    <!--툴편집(저장) 호출하는 곳없어요. heum-->
+    <insert id="insertTchTool" parameterType="map">
+        INSERT INTO aidt_lms.tc_tol_set ( /* TchToolBarMapper.insertTchTool */
+                    id,
+                    wrter_id,
+                    cla_id,
+                    textbk_id,
+                    user_se_cd,
+                    monitor,
+                    attention,
+                    pentool,
+                    mathtool,
+                    bookmark,
+                    quiz,
+                    opinion_board,
+                    white_board,
+                    sbjct_cd,
+                    rgtr,
+                    reg_dt,
+                    mdfr,
+                    mdfy_dt
+        ) VALUES  (
+                    null,
+                    #{userId},
+                    #{claId},
+                    #{textbkId},
+                    #{userSeCd},
+                    #{monitor},
+                    #{attention},
+                    #{pentool},
+                    <choose>
+                        <when test="sbjctCd == 1">
+                            4,
+                        </when>
+                        <otherwise>
+                            -1,
+                        </otherwise>
+                    </choose>
+                    #{bookmark},
+                    #{quiz},
+                    #{opinionBoard},
+                    #{whiteBoard},
+                    #{sbjctCd},
+                    #{userId},
+                    NOW(),
+                    #{userId},
+                    NOW()
+        )
+    </insert>
+
+    <!--툴편집(저장)-->
+    <update id="updateTchTool" parameterType="map">
+        /* TchToolBarMapper.updateTchTool */
+        UPDATE aidt_lms.tc_tol_set
+        SET monitor  = #{monitor},
+            attention= #{attention},
+            pentool  = #{pentool},
+            <choose>
+                <when test="sbjctCd == 1">
+                    mathtool =#{mathtool},
+                    mathcanvas = #{mathcanvas},
+                    ai_spk = -1,
+                    ai_wrt = -1,
+                </when>
+                <when test="sbjctCd == 2">
+                    mathtool = -1,
+                    mathcanvas = -1,
+                    ai_spk = #{aiSpeaking},
+                    ai_wrt = #{aiWriting},
+                </when>
+                <otherwise>
+                    mathtool = -1,
+                    mathcanvas = -1,
+                    ai_spk = -1,
+                    ai_wrt = -1,
+                </otherwise>
+            </choose>
+            timer    = -1,
+            picker   = -1,
+            bookmark = #{bookmark},
+            hide_show= -1,
+            quiz     = #{quiz},
+            opinion_board = #{opinionBoard},
+            white_board   = #{whiteBoard},
+            smart_tool    = #{smartTool},
+            sbjct_cd      = #{sbjctCd},
+            mdfr          = #{userId},
+            mdfy_dt       = NOW(),
+            wrter_id = CASE
+                WHEN #{userSeCd} = 'T' THEN #{userId}
+                ELSE wrter_id
+            END,
+            cla_id        = #{claId},
+            textbk_id     = #{textbkId},
+            user_se_cd    = #{userSeCd}
+        WHERE id = #{tolId}
+        AND cla_id = #{claId}
+        AND textbk_id = #{textbkId}  -- 추가 필요
+        AND user_se_cd = #{userSeCd}  -- 추가 필요
+        <if test='"T".equals(userSeCd)'>
+            AND wrter_id = #{userId}
+        </if>
+    </update>
+
+    <!--툴편집(호출)-->
+    <select id="selectTchToolExistCheck" parameterType="map" resultType="camelHashMap">
+        SELECT /* TchToolBarMapper.selectTchToolExistCheck */
+            id AS tolId,
+            cla_id,
+            textbk_id,
+            user_se_cd,
+            monitor,
+            attention,
+            pentool,
+            <choose>
+                <when test="sbjctCd == 1">
+                    mathtool,
+                    mathcanvas,
+                </when>
+                <when test="sbjctCd == 2"> /*영어*/
+                    ai_spk as aiSpeaking,
+                    ai_wrt as aiWriting,
+                </when>
+            </choose>
+            timer,
+            picker,
+            bookmark,
+            hide_show,
+            quiz,
+            opinion_board,
+            white_board,
+            IFNULL(smart_tool, -1) as smart_tool,
+            sbjct_cd
+        FROM aidt_lms.tc_tol_set
+        WHERE  cla_id   = #{claId}
+        AND  textbk_id= #{textbkId}
+        AND  user_se_cd = #{userSeCd}
+        <if test='"T".equals(userSeCd)'>
+            AND wrter_id = #{userId}
+        </if>
+    </select>
+    <!--초기 init-->
+    <insert id="insertTchToolInfo" parameterType="map">
+        INSERT INTO aidt_lms.tc_tol_set ( /* TchToolBarMapper.insertTchToolInfo */
+            id,
+            wrter_id,
+            cla_id,
+            textbk_id,
+            user_se_cd,
+            sbjct_cd,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt,
+            mathtool,
+            opinion_board,
+            picker,
+            bookmark,
+            hide_show,
+            quiz,
+            white_board,
+            timer,
+            zoomin,
+            zoomout,
+            ai_spk,
+            ai_wrt,
+            mathcanvas,
+            monitor,
+            attention,
+            pentool,
+            smart_tool
+        ) VALUES  (
+            null,
+            #{userId},
+            #{claId},
+            #{textbkId},
+            #{userSeCd},
+            #{sbjctCd},
+            #{userId},
+            NOW(),
+            #{userId},
+            NOW(),
+            <choose>
+                <when test='sbjctCd == 1 '>/*수학*/
+                    <choose>
+                        <when test='userSeCd == "T"'>/*수학-t*/
+                            5, /*mathtool*/
+                            7, /*opinion_board*/
+                            -1, /*picker*/
+                            8, /*bookmark*/
+                            -1, /*hide_show*/
+                            -1, /*quiz*/
+                            -1, /*white_board*/
+                            -1, /*timer*/
+                            -1, /*zoomin*/
+                            -1, /*zoomout*/
+                            -1, /*ai_spk*/
+                            -1, /*ai_wrt*/
+                            6, /* mathcanvas */
+                            1, /* monitor */
+                            2, /* attention */
+                            3,  /* pentool */
+                            4  /* smart_tool */
+                        </when>
+                        <when test='userSeCd == "S"'>/*수학-s*/
+                            1, /*mathtool*/
+                            -1, /*opinion_board*/
+                            -1, /*picker*/
+                            2, /*bookmark*/
+                            -1, /*hide_show*/
+                            -1, /*quiz*/
+                            -1, /*white_board*/
+                            -1, /*timer*/
+                            -1, /*zoomin*/
+                            -1, /*zoomout*/
+                            -1, /*ai_spk*/
+                            -1, /*ai_wrt*/
+                            -1, /* mathcanvas */
+                            -1, /* monitor */
+                            -1, /* attention */
+                            -1,  /* pentool */
+                            -1  /* smart_tool */
+                        </when>
+                        <otherwise>
+                            -1, /*mathtool*/
+                            -1, /*opinion_board*/
+                            -1, /*picker*/
+                            -1, /*bookmark*/
+                            -1, /*hide_show*/
+                            -1, /*quiz*/
+                            -1, /*white_board*/
+                            -1, /*timer*/
+                            -1, /*zoomin*/
+                            -1, /*zoomout*/
+                            -1, /*ai_spk*/
+                            -1, /*ai_wrt*/
+                            -1, /* mathcanvas */
+                            -1, /* monitor */
+                            -1, /* attention */
+                            -1, /* pentool */
+                            -1  /* smart_tool */
+                        </otherwise>
+                    </choose>
+                </when>
+                <when test="sbjctCd == 2">/*영어*/
+                    <choose>
+                        <when test='userSeCd == "T"'>/*영어-t*/
+                            -1, /*mathtool*/
+                            5, /*opinion_board*/
+                            -1, /*picker*/
+                            8, /* bookmark */
+                            -1, /*hide_show*/
+                            -1, /*quiz*/
+                            -1, /*white_board*/
+                            -1, /*timer*/
+                            -1, /*zoomin*/
+                            -1, /*zoomout*/
+                            7, /* ai_spk */
+                            6, /* ai_wrt */
+                            -1,  /* mathcanvas */
+                            1, /* monitor */
+                            2, /* attention */
+                            3, /* pentool */
+                            4 /* smart_tool */
+                        </when>
+                        <when test='userSeCd == "S"'>/*영어-s*/
+                            -1, /*mathtool*/
+                            -1, /*opinion_board*/
+                            -1, /*picker*/
+                            3, /* bookmark */
+                            -1, /*hide_show*/
+                            -1, /*quiz*/
+                            -1, /*white_board*/
+                            -1, /*timer*/
+                            -1, /*zoomin*/
+                            -1, /*zoomout*/
+                            1, /* ai_spk */
+                            2, /* ai_wrt */
+                            -1, /* mathcanvas */
+                            -1, /* monitor */
+                            -1, /* attention */
+                            -1, /* pentool */
+                            -1  /* smart_tool */
+                        </when>
+                        <otherwise>
+                            -1, /*mathtool*/
+                            -1, /*opinion_board*/
+                            -1, /*picker*/
+                            -1, /*bookmark*/
+                            -1, /*hide_show*/
+                            -1, /*quiz*/
+                            -1, /*white_board*/
+                            -1, /*timer*/
+                            -1, /*zoomin*/
+                            -1, /*zoomout*/
+                            -1, /*ai_spk*/
+                            -1, /*ai_wrt*/
+                            -1, /* mathcanvas */
+                            -1, /* monitor */
+                            -1, /* attention */
+                            -1, /* pentool */
+                            -1  /* smart_tool */
+                        </otherwise>
+                    </choose>
+                </when>
+                <otherwise>
+                    -1, /*mathtool*/
+                    -1, /*opinion_board*/
+                    -1, /*picker*/
+                    -1, /*bookmark*/
+                    -1, /*hide_show*/
+                    -1, /*quiz*/
+                    -1, /*white_board*/
+                    -1, /*timer*/
+                    -1, /*zoomin*/
+                    -1, /*zoomout*/
+                    -1, /*ai_spk*/
+                    -1, /*ai_wrt*/
+                    -1, /* mathcanvas */
+                    -1, /* monitor */
+                    -1, /* attention */
+                    -1, /* pentool */
+                    -1  /* smart_tool */
+                </otherwise>
+            </choose>
+        )
+    </insert>
+
+    <delete id="deleteTchToolBar" parameterType="map">
+        /* TchToolBarMapper.deleteTchToolBar */
+        DELETE FROM aidt_lms.tc_tol_set
+        WHERE cla_id = #{claId}
+        AND textbk_id = #{textbkId}
+        AND user_se_cd = #{userSeCd}
+        AND sbjct_cd = #{sbjctCd}
+    </delete>
+
+    <!--교사펜툴(호출)-->
+    <select id="selectTchBoard" parameterType="map" resultType="camelHashMap">
+         SELECT /* TchToolBarMapper.selectTchBoard */
+            id     as tch_board_id
+            ,textbk_id  as textbk_id
+            ,wrter_id   as wrter_id
+            ,tab_id     as tab_id
+            ,article_id as article_id
+            ,sub_id     as sub_id
+            ,hdwrt_cn   as hdwrt_cn
+           FROM aidt_lms.tch_board
+         WHERE  wrter_id   = #{wrterId}
+            AND  textbk_id= #{textbkId}
+            AND  tab_id = #{tabId}
+            AND  article_id = #{articleId}
+            AND  sub_id = #{subId}
+    </select>
+
+    <!--교사펜툴(저장)-->
+    <insert id="insertTchBoard" parameterType="map">
+        INSERT INTO aidt_lms.tch_board /* TchToolBarMapper.insertTchBoard */
+        (
+            id
+            ,textbk_id
+            ,wrter_id
+            ,tab_id
+            ,article_id
+            ,sub_id
+            ,hdwrt_cn
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{textbkId}
+            ,#{wrterId}
+            ,#{tabId}
+            ,#{articleId}
+            ,#{subId}
+            ,#{hdwrtCn}
+            ,#{wrterId}
+            ,NOW()
+            ,#{wrterId}
+            ,NOW()
+        )
+    </insert>
+
+    <!--교사펜툴(수정)-->
+    <update id="updateTchBoard" parameterType="map">
+        UPDATE aidt_lms.tch_board /* TchToolBarMapper.updateTchBoard */
+        SET hdwrt_cn = #{hdwrtCn}
+        ,mdfr = #{wrterId}
+        ,mdfy_dt = NOW()
+        WHERE wrter_id   = #{wrterId}
+            AND  textbk_id= #{textbkId}
+            AND  tab_id = #{tabId}
+            AND  article_id = #{articleId}
+            AND  sub_id = #{subId}
+    </update>
+
+    <!-- 화면 제어 설정 전체 조회 -->
+    <select id="selectScreenControlSettings" parameterType="map" resultType="camelHashMap">
+        /* TchToolBarMapper.selectScreenControlSettings */
+        SELECT
+            tcs.cla_id as claId,
+            tcs.setting_code as settingCode,
+            tcs.setting_value as settingValue,
+            COALESCE(tcs.comment, sc.code_nm) as comment,
+            sc.code_nm as codeNm,
+            tcs.rgtr,
+            tcs.reg_dt as regDt,
+            tcs.mdfr,
+            tcs.mdfy_dt as mdfyDt
+        FROM aidt_lms.tc_screen_control_settings tcs
+        LEFT JOIN aidt_lms.se_code sc
+            ON sc.code_gb_cd = 'tc_screen_control_cd' COLLATE utf8mb4_general_ci
+            AND sc.code_cd = CAST(tcs.setting_code AS CHAR) COLLATE utf8mb4_general_ci
+        WHERE tcs.cla_id = #{claId}
+        ORDER BY tcs.setting_code
+    </select>
+
+    <!-- 화면 제어 설정 단일 조회 -->
+    <select id="selectScreenControlSetting" parameterType="map" resultType="camelHashMap">
+        /* TchToolBarMapper.selectScreenControlSetting */
+        SELECT
+            id,
+            cla_id as claId,
+            setting_code as settingCode,
+            setting_value as settingValue,
+            comment,
+            rgtr,
+            reg_dt as regDt,
+            mdfr,
+            mdfy_dt as mdfyDt
+        FROM aidt_lms.tc_screen_control_settings
+        WHERE cla_id = #{claId}
+          AND setting_code = #{settingCode}
+    </select>
+
+    <!-- 화면 제어 설정 추가 -->
+    <insert id="insertScreenControlSetting" parameterType="map">
+        /* TchToolBarMapper.insertScreenControlSetting */
+        INSERT INTO aidt_lms.tc_screen_control_settings (
+            cla_id,
+            setting_code,
+            setting_value,
+            comment,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        ) VALUES (
+            #{claId},
+            #{settingCode},
+            #{settingValue},
+            #{comment},
+            #{rgtr},
+            NOW(),
+            #{mdfr},
+            NOW()
+        )
+    </insert>
+
+    <!-- 화면 제어 설정 수정 -->
+    <update id="updateScreenControlSetting" parameterType="map">
+        /* TchToolBarMapper.updateScreenControlSetting */
+        UPDATE aidt_lms.tc_screen_control_settings
+        SET
+            setting_value = #{settingValue},
+            <if test="comment != null">
+                comment = #{comment},
+            </if>
+            mdfr = #{mdfr},
+            mdfy_dt = NOW()
+        WHERE cla_id = #{claId}
+          AND setting_code = #{settingCode}
+    </update>
+
+    <!-- se_code 테이블에서 화면 제어 코드 목록 조회 -->
+    <select id="selectScreenControlCodes" resultType="camelHashMap">
+        /* TchToolBarMapper.selectScreenControlCodes */
+        SELECT
+            code_cd as codeCd,
+            code_nm as codeNm,
+            code_seq as codeSeq
+        FROM aidt_lms.se_code
+        WHERE code_gb_cd = 'tc_screen_control_cd'
+        ORDER BY code_seq
+    </select>
+</mapper>

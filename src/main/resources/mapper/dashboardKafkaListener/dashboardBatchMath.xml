@@ -1,0 +1,1849 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.kafka.mapper.KafkaMathMapper">
+    <delete id="deleteStdUsdTarget_1" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_1 */
+        delete from aidt_lms.usd_cac_src_info ucsi
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_2" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_2 */
+        delete from aidt_lms.std_usd_stdt_unit_kwg_day_hist susukdh
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_3" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_3 학생X*/
+        delete from aidt_lms.std_usd_unit_kwg_day_hist suukdh
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_4" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_4 학생X*/
+        delete from aidt_lms.std_usd_notstdt_unit_day_hist suudh
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_5" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_5 */
+        delete from aidt_lms.std_usd_unit_day_hist suudh
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_6" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_6 */
+        delete from aidt_lms.std_usd_day_hist sudh
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_7" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_7 */
+        delete from aidt_lms.std_usd_total_hist
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+          and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <delete id="deleteStdUsdTarget_8" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_8 */
+        delete from aidt_lms.std_usd_content_area_hist
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+          and cla_id = #{cla_id}
+          and textbk_id = #{textbk_id}
+    </delete>
+
+    <insert id="insertUsdCacSrcInfo" parameterType="map" >
+        /* StdUsdCalculateMapper.insertUsdCacSrcInfo */
+        <![CDATA[
+        insert into aidt_lms.usd_cac_src_info (
+            id,
+            textbk_id,
+            usd_clsf_cd,
+            std_cd,
+            usd_tg_id,
+            tab_id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            kwg_main_tot_exm_num,
+            gd_exm_num,
+            gd_gnrl_rgt_asw_cnt,
+            gd_gnrl_pat_asw_cnt,
+            gd_hnt_gnrl_rgt_asw_cnt,
+            gd_hnt_gnrl_pat_asw_cnt,
+            gd_sm_exm_rgt_asw_cnt,
+            gd_sm_exm_pat_asw_cnt,
+            av_up_exm_num,
+            av_up_gnrl_rgt_asw_cnt,
+            av_up_gnrl_pat_asw_cnt,
+            av_up_hnt_gnrl_rgt_asw_cnt,
+            av_up_hnt_gnrl_pat_asw_cnt,
+            av_up_sm_exm_rgt_asw_cnt,
+            av_up_sm_exm_pat_asw_cnt,
+            av_exm_num,
+            av_gnrl_rgt_asw_cnt,
+            av_gnrl_pat_asw_cnt,
+            av_hnt_gnrl_rgt_asw_cnt,
+            av_hnt_gnrl_pat_asw_cnt,
+            av_sm_exm_rgt_asw_cnt,
+            av_sm_exm_pat_asw_cnt,
+            av_lw_exm_num,
+            av_lw_gnrl_rgt_asw_cnt,
+            av_lw_gnrl_pat_asw_cnt,
+            av_lw_hnt_gnrl_rgt_asw_cnt,
+            av_lw_hnt_gnrl_pat_asw_cnt,
+            av_lw_sm_exm_rgt_asw_cnt,
+            av_lw_sm_exm_pat_asw_cnt,
+            bd_exm_num,
+            bd_gnrl_rgt_asw_cnt,
+            bd_gnrl_pat_asw_cnt,
+            bd_hnt_gnrl_rgt_asw_cnt,
+            bd_hnt_gnrl_pat_asw_cnt,
+            bd_sm_exm_rgt_asw_cnt,
+            bd_sm_exm_pat_asw_cnt,
+            nd_exm_num,
+            nd_gnrl_rgt_asw_cnt,
+            nd_gnrl_pat_asw_cnt,
+            nd_hnt_gnrl_rgt_asw_cnt,
+            nd_hnt_gnrl_pat_asw_cnt,
+            nd_sm_exm_rgt_asw_cnt,
+            nd_sm_exm_pat_asw_cnt,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            id,
+            textbk_id,
+            usd_clsf_cd,
+            std_cd,
+            usd_tg_id,
+            tab_id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            kwg_main_tot_exm_num,
+            gd_exm_num,
+            gd_gnrl_rgt_asw_cnt,
+            gd_gnrl_pat_asw_cnt,
+            gd_hnt_gnrl_rgt_asw_cnt,
+            gd_hnt_gnrl_pat_asw_cnt,
+            gd_sm_exm_rgt_asw_cnt,
+            gd_sm_exm_pat_asw_cnt,
+            av_up_exm_num,
+            av_up_gnrl_rgt_asw_cnt,
+            av_up_gnrl_pat_asw_cnt,
+            av_up_hnt_gnrl_rgt_asw_cnt,
+            av_up_hnt_gnrl_pat_asw_cnt,
+            av_up_sm_exm_rgt_asw_cnt,
+            av_up_sm_exm_pat_asw_cnt,
+            av_exm_num,
+            av_gnrl_rgt_asw_cnt,
+            av_gnrl_pat_asw_cnt,
+            av_hnt_gnrl_rgt_asw_cnt,
+            av_hnt_gnrl_pat_asw_cnt,
+            av_sm_exm_rgt_asw_cnt,
+            av_sm_exm_pat_asw_cnt,
+            av_lw_exm_num,
+            av_lw_gnrl_rgt_asw_cnt,
+            av_lw_gnrl_pat_asw_cnt,
+            av_lw_hnt_gnrl_rgt_asw_cnt,
+            av_lw_hnt_gnrl_pat_asw_cnt,
+            av_lw_sm_exm_rgt_asw_cnt,
+            av_lw_sm_exm_pat_asw_cnt,
+            bd_exm_num,
+            bd_gnrl_rgt_asw_cnt,
+            bd_gnrl_pat_asw_cnt,
+            bd_hnt_gnrl_rgt_asw_cnt,
+            bd_hnt_gnrl_pat_asw_cnt,
+            bd_sm_exm_rgt_asw_cnt,
+            bd_sm_exm_pat_asw_cnt,
+            nd_exm_num,
+            nd_gnrl_rgt_asw_cnt,
+            nd_gnrl_pat_asw_cnt,
+            nd_hnt_gnrl_rgt_asw_cnt,
+            nd_hnt_gnrl_pat_asw_cnt,
+            nd_sm_exm_rgt_asw_cnt,
+            nd_sm_exm_pat_asw_cnt,
+            rgtr,
+            reg_dt,
+            #{serverInfo} as mdfr,
+            mdfy_dt
+        from (
+                 select
+                     null as id,
+                     M.textbk_id,
+                     M.trgt_se_cd as usd_clsf_cd,
+                     M.std_cd,
+                     M.trgt_id 	as usd_tg_id,
+                     M.tab_id,
+                     M.std_dt,
+                     M.cla_id,
+                     M.stdt_id,
+                     ifnull((   select unit_num
+                                from (
+                                         select row_number() over () as unit_num, b.id
+                                         from aidt_lcms.meta a
+                                                  inner join aidt_lcms.meta b on b.parent_id = a.parent_id and b.is_active = 1
+                                         where a.id = M.studyMap1
+                                         order by b.id
+                                     ) s
+                                where id = M.studyMap1
+                            ),0) as unit_num,
+                     M.studyMap1	as meta_id,
+                    'Y'                         as std_at,
+                     M.studyMap_1 				as kwg_main_id,
+                     M.mudlCnt 					as kwg_main_tot_exm_num,
+                     /* 상 */
+                     M.MD01_cnt 					as gd_exm_num,
+                     M.MD01_answerCnt 			as gd_gnrl_rgt_asw_cnt,
+                     M.MD01_partAnswerCnt 		as gd_gnrl_pat_asw_cnt,
+                     M.MD01_hntUseAnswerCnt 		as gd_hnt_gnrl_rgt_asw_cnt,
+                     M.MD01_hntUsePartAnswerCnt 	as gd_hnt_gnrl_pat_asw_cnt,
+                     M.MD01_smExmAnswerCnt 		as gd_sm_exm_rgt_asw_cnt,
+                     M.MD01_smExmPartAnswerCnt 	as gd_sm_exm_pat_asw_cnt,
+                     /* 중상 */
+                     M.MD02_cnt 					as av_up_exm_num,
+                     M.MD02_answerCnt 			as av_up_gnrl_rgt_asw_cnt,
+                     M.MD02_partAnswerCnt 		as av_up_gnrl_pat_asw_cnt,
+                     M.MD02_hntUseAnswerCnt 		as av_up_hnt_gnrl_rgt_asw_cnt,
+                     M.MD02_hntUsePartAnswerCnt 	as av_up_hnt_gnrl_pat_asw_cnt,
+                     M.MD02_smExmAnswerCnt 		as av_up_sm_exm_rgt_asw_cnt,
+                     M.MD02_smExmPartAnswerCnt 	as av_up_sm_exm_pat_asw_cnt,
+                     /* 중 */
+                     M.MD03_cnt 					as av_exm_num,
+                     M.MD03_answerCnt 			as av_gnrl_rgt_asw_cnt,
+                     M.MD03_partAnswerCnt 		as av_gnrl_pat_asw_cnt,
+                     M.MD03_hntUseAnswerCnt 		as av_hnt_gnrl_rgt_asw_cnt,
+                     M.MD03_hntUsePartAnswerCnt 	as av_hnt_gnrl_pat_asw_cnt,
+                     M.MD03_smExmAnswerCnt 		as av_sm_exm_rgt_asw_cnt,
+                     M.MD03_smExmPartAnswerCnt 	as av_sm_exm_pat_asw_cnt,
+                     /* 중하 */
+                     M.MD04_cnt 					as av_lw_exm_num,
+                     M.MD04_answerCnt 			as av_lw_gnrl_rgt_asw_cnt,
+                     M.MD04_partAnswerCnt 		as av_lw_gnrl_pat_asw_cnt,
+                     M.MD04_hntUseAnswerCnt 		as av_lw_hnt_gnrl_rgt_asw_cnt,
+                     M.MD04_hntUsePartAnswerCnt 	as av_lw_hnt_gnrl_pat_asw_cnt,
+                     M.MD04_smExmAnswerCnt 		as av_lw_sm_exm_rgt_asw_cnt,
+                     M.MD04_smExmPartAnswerCnt 	as av_lw_sm_exm_pat_asw_cnt,
+                     /* 하 */
+                     M.MD05_cnt 					as bd_exm_num,
+                     M.MD05_answerCnt 			as bd_gnrl_rgt_asw_cnt,
+                     M.MD05_partAnswerCnt 		as bd_gnrl_pat_asw_cnt,
+                     M.MD05_hntUseAnswerCnt 		as bd_hnt_gnrl_rgt_asw_cnt,
+                     M.MD05_hntUsePartAnswerCnt 	as bd_hnt_gnrl_pat_asw_cnt,
+                     M.MD05_smExmAnswerCnt 		as bd_sm_exm_rgt_asw_cnt,
+                     M.MD05_smExmPartAnswerCnt 	as bd_sm_exm_pat_asw_cnt,
+                     /* 난이도 없는 활동 */
+                     M.MD00_cnt 					as nd_exm_num,
+                     M.MD00_answerCnt 			as nd_gnrl_rgt_asw_cnt,
+                     M.MD00_partAnswerCnt 		as nd_gnrl_pat_asw_cnt,
+                     M.MD00_hntUseAnswerCnt 		as nd_hnt_gnrl_rgt_asw_cnt,
+                     M.MD00_hntUsePartAnswerCnt 	as nd_hnt_gnrl_pat_asw_cnt,
+                     M.MD00_smExmAnswerCnt 		as nd_sm_exm_rgt_asw_cnt,
+                     M.MD00_smExmPartAnswerCnt 	as nd_sm_exm_pat_asw_cnt,
+                     'system' as rgtr,
+                     now() as reg_dt,
+                     'system' as mdfr,
+                     now() as mdfy_dt
+                 from (
+                          select
+                              A.std_dt,
+                              A.trgt_se_cd,
+                              A.std_cd,
+                              A.trgt_id,
+                              A.tab_id,
+                              A.cla_id,
+                              A.stdt_id,
+                              A.studyMap1,
+                              A.studyMap_1,
+                              A.textbk_id,
+                              sum(ifnull(A.studyCnt,0)) as studyCnt,
+                              sum(ifnull(A.mudlCnt,0)) as mudlCnt,
+                              sum(ifnull(A.MD01_cnt,0)) as MD01_cnt,
+                              sum(ifnull(A.MD01_answerCnt,0)) as MD01_answerCnt,
+                              sum(ifnull(A.MD01_partAnswerCnt,0)) as MD01_partAnswerCnt,
+                              sum(ifnull(A.MD01_hntUseAnswerCnt,0)) as MD01_hntUseAnswerCnt,
+                              sum(ifnull(A.MD01_hntUsePartAnswerCnt,0)) as MD01_hntUsePartAnswerCnt,
+                              sum(ifnull(A.MD01_smExmAnswerCnt,0)) as MD01_smExmAnswerCnt,
+                              sum(ifnull(A.MD01_smExmPartAnswerCnt,0)) as MD01_smExmPartAnswerCnt,
+                              sum(ifnull(A.MD02_cnt,0)) as MD02_cnt,
+                              sum(ifnull(A.MD02_answerCnt,0)) as MD02_answerCnt,
+                              sum(ifnull(A.MD02_partAnswerCnt,0)) as MD02_partAnswerCnt,
+                              sum(ifnull(A.MD02_hntUseAnswerCnt,0)) as MD02_hntUseAnswerCnt,
+                              sum(ifnull(A.MD02_hntUsePartAnswerCnt,0)) as MD02_hntUsePartAnswerCnt,
+                              sum(ifnull(A.MD02_smExmAnswerCnt,0)) as MD02_smExmAnswerCnt,
+                              sum(ifnull(A.MD02_smExmPartAnswerCnt,0)) as MD02_smExmPartAnswerCnt,
+                              sum(ifnull(A.MD03_cnt,0)) as MD03_cnt,
+                              sum(ifnull(A.MD03_answerCnt,0)) as MD03_answerCnt,
+                              sum(ifnull(A.MD03_partAnswerCnt,0)) as MD03_partAnswerCnt,
+                              sum(ifnull(A.MD03_hntUseAnswerCnt,0)) as MD03_hntUseAnswerCnt,
+                              sum(ifnull(A.MD03_hntUsePartAnswerCnt,0)) as MD03_hntUsePartAnswerCnt,
+                              sum(ifnull(A.MD03_smExmAnswerCnt,0)) as MD03_smExmAnswerCnt,
+                              sum(ifnull(A.MD03_smExmPartAnswerCnt,0)) as MD03_smExmPartAnswerCnt,
+                              sum(ifnull(A.MD04_cnt,0)) as MD04_cnt,
+                              sum(ifnull(A.MD04_answerCnt,0)) as MD04_answerCnt,
+                              sum(ifnull(A.MD04_partAnswerCnt,0)) as MD04_partAnswerCnt,
+                              sum(ifnull(A.MD04_hntUseAnswerCnt,0)) as MD04_hntUseAnswerCnt,
+                              sum(ifnull(A.MD04_hntUsePartAnswerCnt,0)) as MD04_hntUsePartAnswerCnt,
+                              sum(ifnull(A.MD04_smExmAnswerCnt,0)) as MD04_smExmAnswerCnt,
+                              sum(ifnull(A.MD04_smExmPartAnswerCnt,0)) as MD04_smExmPartAnswerCnt,
+                              sum(ifnull(A.MD05_cnt,0)) as MD05_cnt,
+                              sum(ifnull(A.MD05_answerCnt,0)) as MD05_answerCnt,
+                              sum(ifnull(A.MD05_partAnswerCnt,0)) as MD05_partAnswerCnt,
+                              sum(ifnull(A.MD05_hntUseAnswerCnt,0)) as MD05_hntUseAnswerCnt,
+                              sum(ifnull(A.MD05_hntUsePartAnswerCnt,0)) as MD05_hntUsePartAnswerCnt,
+                              sum(ifnull(A.MD05_smExmAnswerCnt,0)) as MD05_smExmAnswerCnt,
+                              sum(ifnull(A.MD05_smExmPartAnswerCnt,0)) as MD05_smExmPartAnswerCnt,
+                              sum(ifnull(A.MD00_cnt,0)) as MD00_cnt,
+                              sum(ifnull(A.MD00_answerCnt,0)) as MD00_answerCnt,
+                              sum(ifnull(A.MD00_partAnswerCnt,0)) as MD00_partAnswerCnt,
+                              sum(ifnull(A.MD00_hntUseAnswerCnt,0)) as MD00_hntUseAnswerCnt,
+                              sum(ifnull(A.MD00_hntUsePartAnswerCnt,0)) as MD00_hntUsePartAnswerCnt,
+                              sum(ifnull(A.MD00_smExmAnswerCnt,0)) as MD00_smExmAnswerCnt,
+                              sum(ifnull(A.MD00_smExmPartAnswerCnt,0)) as MD00_smExmPartAnswerCnt
+                          from (
+                                   select
+                                       X.trgt_id,	  		/* 대상 ID */
+                                       X.tab_id,           /* 탭 ID */
+                                       X.std_cd,			/* 학습구분 */
+                                       X.trgt_se_cd,		/* 대상구분 */
+                                       #{stdDt} as std_dt,	/* 학습날짜 (배치 실행시점에 구해놓은 날짜값) */
+                                       X.cla_id,	  		/* 학급 ID */
+                                       X.stdt_id,	  		/* 학생 ID */
+                                       X.studyMap1,	  	/* 학습맵(단원) */
+                                       X.studyMap_1,	  	/* 학습맵(지식요인) */
+                                       X.textbk_id,
+                                       sum(X.is_study) as studyCnt,
+                                       count(X.article_id) as mudlCnt,
+                                       /* 난이도 (상) */
+                                       sum(case when X.difficulty = 'MD01' then 1 else 0 end) as MD01_cnt,
+                                       sum(case when X.difficulty = 'MD01' and X.errata = 1 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD01' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD01' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD01' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD01_answerCnt,	 /* 난이도(상) - 정답수 */
+                                       sum(case when X.difficulty = 'MD01' and X.errata = 3 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD01' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD01' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD01' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD01_partAnswerCnt,/* 난이도(상) - 부분 정답수 */
+                                       sum(case when X.difficulty = 'MD01' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end) as MD01_hntUseAnswerCnt,	    /* 난이도(상) - 힌트사용 정답수 */
+                                       (
+                                           sum(case when X.difficulty = 'MD01' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                               +
+                                           sum(case when X.difficulty = 'MD01' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           ) as MD01_hntUsePartAnswerCnt,	 /* 난이도(상) - 힌트사용 부분 정답수 (힌트사용 및 유사문항인 정답 포함) */
+                                       sum(case when X.difficulty = 'MD01' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD01_smExmAnswerCnt,	    /* 난이도(상) - 유사문항 정답수 */
+                                       sum(case when X.difficulty = 'MD01' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD01_smExmPartAnswerCnt,	/* 난이도(상) - 유사문항 부분 정답수 */
+                                       /* 난이도 (중상) */
+                                       sum(case when X.difficulty = 'MD02' then 1 else 0 end) as MD02_cnt,
+                                       sum(case when X.difficulty = 'MD02' and X.errata = 1 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD02' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD02' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD02' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD02_answerCnt,	 /* 난이도(중상) - 정답수 */
+                                       sum(case when X.difficulty = 'MD02' and X.errata = 3 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD02' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD02' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD02' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD02_partAnswerCnt,/* 난이도(중상) - 부분 정답수 */
+                                       sum(case when X.difficulty = 'MD02' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end) as MD02_hntUseAnswerCnt,	    /* 난이도(중상) - 힌트사용 정답수 */
+                                       (
+                                           sum(case when X.difficulty = 'MD02' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                               +
+                                           sum(case when X.difficulty = 'MD02' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           ) as MD02_hntUsePartAnswerCnt,	 /* 난이도(중상) - 힌트사용 부분 정답수 (힌트사용 및 유사문항인 정답 포함) */
+                                       sum(case when X.difficulty = 'MD02' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD02_smExmAnswerCnt,	    /* 난이도(중상) - 유사문항 정답수 */
+                                       sum(case when X.difficulty = 'MD02' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD02_smExmPartAnswerCnt,	/* 난이도(중상) - 유사문항 부분 정답수 */
+                                       /* 난이도 (중) */
+                                       sum(case when X.difficulty = 'MD03' then 1 else 0 end) as MD03_cnt,
+                                       sum(case when X.difficulty = 'MD03' and X.errata = 1 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD03' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD03' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD03' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD03_answerCnt,	 /* 난이도(중) - 정답수 */
+                                       sum(case when X.difficulty = 'MD03' and X.errata = 3 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD03' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD03' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD03' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD03_partAnswerCnt,/* 난이도(중) - 부분 정답수 */
+                                       sum(case when X.difficulty = 'MD03' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end) as MD03_hntUseAnswerCnt,	    /* 난이도(중) - 힌트사용 정답수 */
+                                       (
+                                           sum(case when X.difficulty = 'MD03' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                               +
+                                           sum(case when X.difficulty = 'MD03' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           ) as MD03_hntUsePartAnswerCnt,	 /* 난이도(중) - 힌트사용 부분 정답수 (힌트사용 및 유사문항인 정답 포함) */
+                                       sum(case when X.difficulty = 'MD03' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD03_smExmAnswerCnt,	    /* 난이도(중) - 유사문항 정답수 */
+                                       sum(case when X.difficulty = 'MD03' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD03_smExmPartAnswerCnt,	/* 난이도(중) - 유사문항 부분 정답수 */
+                                       /* 난이도 (중하) */
+                                       sum(case when X.difficulty = 'MD04' then 1 else 0 end) as MD04_cnt,
+                                       sum(case when X.difficulty = 'MD04' and X.errata = 1 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD04' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD04' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD04' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD04_answerCnt,	 /* 난이도(중하) - 정답수 */
+                                       sum(case when X.difficulty = 'MD04' and X.errata = 3 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD04' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD04' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD04' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD04_partAnswerCnt,/* 난이도(중하) - 부분 정답수 */
+                                       sum(case when X.difficulty = 'MD04' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end) as MD04_hntUseAnswerCnt,	    /* 난이도(중하) - 힌트사용 정답수 */
+                                       (
+                                           sum(case when X.difficulty = 'MD04' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                               +
+                                           sum(case when X.difficulty = 'MD04' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           ) as MD04_hntUsePartAnswerCnt,	 /* 난이도(중하) - 힌트사용 부분 정답수 (힌트사용 및 유사문항인 정답 포함) */
+                                       sum(case when X.difficulty = 'MD04' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD04_smExmAnswerCnt,	    /* 난이도(중하) - 유사문항 정답수 */
+                                       sum(case when X.difficulty = 'MD04' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)  as MD04_smExmPartAnswerCnt,	/* 난이도(중하) - 유사문항 부분 정답수 */
+                                       /* 난이도 (하) */
+                                       sum(case when X.difficulty = 'MD05' then 1 else 0 end) as MD05_cnt,
+                                       sum(case when X.difficulty = 'MD05' and X.errata = 1 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD05' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD05' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD05' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD05_answerCnt,	 /* 난이도(하) - 정답수 */
+                                       sum(case when X.difficulty = 'MD05' and X.errata = 3 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD05' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD05' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD05' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD05_partAnswerCnt,/* 난이도(하) - 부분 정답수 */
+                                       sum(case when X.difficulty = 'MD05' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end) as MD05_hntUseAnswerCnt,	    /* 난이도(하) - 힌트사용 정답수 */
+                                       (
+                                           sum(case when X.difficulty = 'MD05' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                               +
+                                           sum(case when X.difficulty = 'MD05' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           ) as MD05_hntUsePartAnswerCnt,	 /* 난이도(하) - 힌트사용 부분 정답수 (힌트사용 및 유사문항인 정답 포함) */
+                                       sum(case when X.difficulty = 'MD05' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD05_smExmAnswerCnt,	    /* 난이도(하) - 유사문항 정답수 */
+                                       sum(case when X.difficulty = 'MD05' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD05_smExmPartAnswerCnt,	    /* 난이도(하) - 유사문항 부분 정답수 */
+                                        /* 난이도 없는 활동 */
+                                       sum(case when X.difficulty = 'MD00' then 1 else 0 end) as MD00_cnt,
+                                       sum(case when X.difficulty = 'MD00' and X.errata = 1 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD00' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD00' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD00' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD00_answerCnt,   /* 난이도 없음 - 정답수 */
+                                       sum(case when X.difficulty = 'MD00' and X.errata = 3 then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD00' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD00' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           - sum(case when X.difficulty = 'MD00' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           as MD00_partAnswerCnt,/* 난이도 없음 - 부분 정답수 */
+                                       sum(case when X.difficulty = 'MD00' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end) as MD00_hntUseAnswerCnt,       /* 난이도 없음 - 힌트사용 정답수 */
+                                       (
+                                           sum(case when X.difficulty = 'MD00' and X.errata = 3 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'N' then 1 else 0 end)
+                                               +
+                                           sum(case when X.difficulty = 'MD00' and X.errata = 1 and X.hnt_use_at = 'Y' and X.sm_exm_at = 'Y' then 1 else 0 end)
+                                           ) as MD00_hntUsePartAnswerCnt,   /* 난이도 없음 - 힌트사용 부분 정답수 (힌트사용 및 유사문항인 정답 포함) */
+                                       sum(case when X.difficulty = 'MD00' and X.errata = 1 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD00_smExmAnswerCnt,        /* 난이도 없음 - 유사문항 정답수 */
+                                       sum(case when X.difficulty = 'MD00' and X.errata = 3 and X.hnt_use_at = 'N' and X.sm_exm_at = 'Y' then 1 else 0 end) as MD00_smExmPartAnswerCnt     /* 난이도 없음 - 유사문항 부분 정답수 */
+                                   from (
+                                            select
+                                                trgt_se_cd,
+                                                std_cd,
+                                                trgt_id,
+                                                tab_id,
+                                                cla_id,
+                                                stdt_id,
+                                                article_id,
+                                                sub_id,
+                                                is_study,
+                                                errata,
+                                                hnt_use_at,
+                                                sm_exm_at,
+                                                studyMap1,
+                                                studyMap_1,
+                                                difficulty,
+                                                curriSubject,
+                                                textbk_id,
+                                                wrter_id
+                                            from aidt_lms.mv_lms_usd_cac_src_info
+                                            where errata is not null
+                                              and reg_dt is not null
+                                              and reg_dt != ''
+                                              and (
+                                                CASE
+                                                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                                                        DATE(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00')) <= #{stdDt}
+                                                    WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                                                        SUBSTRING(reg_dt, 1, 10) <= #{stdDt}
+                                                    ELSE FALSE
+                                                END
+                                            )
+                                              AND (
+                                                CASE
+                                                    WHEN textbk_id = 6993 THEN studyMap_1 NOT IN (45845, 45850, 45861, 45871, 45879, 45885, 45894, 45900, 45908, 45983)
+                                                    ELSE TRUE  -- 6993이 아닌 경우 항상 TRUE (조건 무시)
+                                                END
+                                                )
+                                            order by
+                                                trgt_se_cd, std_cd, trgt_id, article_id, sub_id
+                                        ) X
+                                   where
+                                       1=1
+                                     AND X.textbk_id = #{textbk_id}
+                                     AND X.cla_id = #{cla_id}
+                                     and X.studyMap1 is not null
+                                     and X.studyMap_1 is not null
+                                     and X.difficulty is not null
+                                   group by
+                                       X.trgt_se_cd,
+                                       X.std_cd,
+                                       X.trgt_id,
+                                       X.tab_id,
+                                       X.cla_id,
+                                       X.stdt_id,
+                                       X.studyMap1,
+                                       X.studyMap_1
+                               ) A
+                          group by
+                              A.std_dt,
+                              A.trgt_se_cd,
+                              A.std_cd,
+                              A.trgt_id,
+                              A.tab_id,
+                              A.cla_id,
+                              A.stdt_id,
+                              A.studyMap1,
+                              A.studyMap_1
+                          order by
+                              A.cla_id,
+                              A.stdt_id,
+                              A.trgt_id,
+                              A.studyMap1,
+                              A.studyMap_1
+                      ) M
+             ) N
+        where
+            1=1
+            /* and std_at = 'Y' */
+          and meta_id >  0 /* 학습맵 정보가 설정되어 있지 않는 아티클은 제외 */
+        order by
+            textbk_id,
+            cla_id,
+            stdt_id,
+            usd_clsf_cd,
+            unit_num,
+            meta_id,
+            kwg_main_id
+        ]]>
+    </insert>
+    <insert id="insertStdUsdDayHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdDayHist */
+        insert into std_usd_day_hist (
+            id,
+            std_dt,
+            trgt_se_cd,
+            std_cd,
+            trgt_id,
+            tab_id,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            std_dt,
+            usd_clsf_cd as trgt_se_cd,
+            std_cd,
+            usd_tg_id as trgt_id,
+            tab_id,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            case when std_at = 'Y' then
+                     round(((
+                                /* 상 */
+                                (gd_gnrl_rgt_asw_cnt * 6)
+                                    + (gd_gnrl_pat_asw_cnt * 0.5 * 6)
+                                    + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                    + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                    + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                    + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                    /* 중상(6) */
+                                    + (av_up_gnrl_rgt_asw_cnt * 6)
+                                    + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                    + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                    + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                    + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                    + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                    /* 중(5) */
+                                    + (av_gnrl_rgt_asw_cnt * 4)
+                                    + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                    + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                    + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                    + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                    + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                    /* 중하(3) */
+                                    + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                    + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                    + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                    + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                    + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                    + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                    /* 하(2) */
+                                    + (bd_gnrl_rgt_asw_cnt * 2)
+                                    + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                    + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                    + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                    + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                    + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                    /* 난이도 없는 활동 */
+                                    + (nd_gnrl_rgt_asw_cnt * 1)
+                                    + (nd_gnrl_pat_asw_cnt * 0.5)
+                                    + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                    + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                    + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                    + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                                ) / (
+                                gd_exm_num * 6
+                                    + av_up_exm_num * 6
+                                    + av_exm_num * 4
+                                    + av_lw_exm_num * 3
+                                    + bd_exm_num * 2
+                                    + nd_exm_num
+                                )
+                               ) * 100,2)
+                 else 0 end as usd_scr,
+            'system' as rgtr,
+            now() as reg_dt,
+            'system' as mdfr,
+            now() as mdfy_dt
+        from
+            aidt_lms.usd_cac_src_info
+        where 1=1
+          and std_dt = #{stdDt} /* 오늘날짜*/
+          and textbk_id = #{textbk_id}
+          and cla_id = #{cla_id}
+          and (
+                  gd_exm_num
+                      + av_up_exm_num
+                      + av_exm_num
+                      + av_lw_exm_num
+                      + bd_exm_num
+                  ) > 0  /* 방어코드 추가 */
+    </insert>
+
+    <insert id="insertStdUsdTotalHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdTotalHist */
+        insert into aidt_lms.std_usd_total_hist (
+            id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            std_at,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            max(std_at) as std_at,
+            round(avg(usd_scr),2) as usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        from (
+                 select
+                     std_dt,
+                     stdt_id,
+                     cla_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+                     if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+                     'system' as rgtr,
+                     now() as reg_dt,
+                     'system' as mdfr,
+                     now() as mdfy_dt
+                 from (
+                          select
+                              std_dt,
+                              stdt_id,
+                              cla_id,
+                              textbk_id,
+                              unit_num,
+                              meta_id,
+                              ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                              sum(
+                                  /* 상 */
+                                      (gd_gnrl_rgt_asw_cnt * 6)
+                                          + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                          + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                          + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                          + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          /* 중상(6) */
+                                          + (av_up_gnrl_rgt_asw_cnt * 6)
+                                          + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                          + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                          + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                          + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          /* 중(5) */
+                                          + (av_gnrl_rgt_asw_cnt * 4)
+                                          + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                          + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                          + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                          + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                          + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                          /* 중하(3) */
+                                          + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                          + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                          + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                          + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                          + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                          + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                          /* 하(2) */
+                                          + (bd_gnrl_rgt_asw_cnt * 2)
+                                          + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                          + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                          + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                          + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                          + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                          /* 난이도 없는 활동 */
+                                          + (nd_gnrl_rgt_asw_cnt * 1)
+                                          + (nd_gnrl_pat_asw_cnt * 0.5)
+                                          + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                          + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                          + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                          + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                              ) as x1,
+                              sum(
+                                      gd_exm_num * 6
+                                          + av_up_exm_num * 6
+                                          + av_exm_num * 4
+                                          + av_lw_exm_num * 3
+                                          + bd_exm_num * 2
+                                          + nd_exm_num
+                              ) as x2
+                          from
+                              aidt_lms.usd_cac_src_info
+                          where 1=1
+                            and std_dt = #{stdDt} /* 오늘날짜 */
+                            and textbk_id = #{textbk_id} /* 교과서 ID */
+                            and cla_id = #{cla_id}
+                            and (
+                                    gd_exm_num
+                                        + av_up_exm_num
+                                        + av_exm_num
+                                        + av_lw_exm_num
+                                        + bd_exm_num
+                                    ) > 0  /* 방어코드 추가 */
+                          group by
+                              std_dt,
+                              stdt_id,
+                              cla_id,
+                              textbk_id
+                      ) A
+             ) B
+        group by
+            std_dt,
+            stdt_id,
+            cla_id,
+            textbk_id
+    </insert>
+
+    <insert id="insertStdUsdContentAreaHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdContentAreaHist */
+        insert into aidt_lms.std_usd_content_area_hist (
+            id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            content_area_id,
+            content_area_nm,
+            std_at,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        with content_area_info as (
+            select
+                a.id as meta_id,
+                c.id as content_area_id,
+                c.val as content_area_nm
+            from aidt_lcms.meta a
+                     left join aidt_lcms.meta_meta_map b
+                               on a.id = b.meta_id_a
+                     left join aidt_lcms.meta c
+                               on b.meta_name_b = 'contentarea'
+                                   and b.meta_id_b = c.id
+            where a.parent_id = (
+                                /* textbookId로 단원 metaId 조회 */
+                                select
+                                    b.parent_id
+                                from aidt_lcms.meta a
+                                         inner join aidt_lcms.meta b
+                                                    on a.`code` = b.description
+                                                        and b.is_active = 1
+                                                        and b.name = 'studyMap1'
+                                         inner join aidt_lcms.meta c
+                                                    on c.id = b.parent_id
+                                                        and c.is_active = 1
+                                         left join aidt_lcms.meta_extension d
+                                                   on b.meta_extension_id = d.meta_extension_id
+                                where 1=1
+                                  and a.parent_id = (
+                                            select curriBook from aidt_lcms.textbook where id = #{textbk_id}
+                                        )
+                                  and a.is_active = 1
+                                  and ifnull(d.val1,'1') = '1'
+                                limit 1
+                            )
+            )
+        select
+            null as id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            content_area_id,
+            content_area_nm,
+            max(std_at) as std_at,
+            round(avg(usd_scr),2) as usd_scr,
+            'system' as rgtr,
+            now() as reg_dt,
+            'system' as mdfr,
+            now() as mdfy_dt
+        from (
+                 select
+                     u.std_dt,
+                     u.cla_id,
+                     u.stdt_id,
+                     u.textbk_id,
+                     m.content_area_id,
+                     m.content_area_nm,
+                     if(count(case when u.std_at = 'Y' then 1 end) > 0, 'Y', 'N') as std_at,
+                     if(count(case when u.std_at = 'Y' then 1 end) > 0,
+                     ifnull(round(
+                                   (sum(
+                                        /* 상 */
+                                            (u.gd_gnrl_rgt_asw_cnt * 6)
+                                                + (u.gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                                + (u.gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                                + (u.gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                                + (u.gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                                + (u.gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                                /* 중상(6) */
+                                                + (u.av_up_gnrl_rgt_asw_cnt * 6)
+                                                + (u.av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                                + (u.av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                                + (u.av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                                + (u.av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                                + (u.av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                                /* 중(5) */
+                                                + (u.av_gnrl_rgt_asw_cnt * 4)
+                                                + (u.av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                                + (u.av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                                + (u.av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                                + (u.av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                                + (u.av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                                /* 중하(3) */
+                                                + (u.av_lw_gnrl_rgt_asw_cnt * 3)
+                                                + (u.av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                                + (u.av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                                + (u.av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                                + (u.av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                                + (u.av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                                /* 하(2) */
+                                                + (u.bd_gnrl_rgt_asw_cnt * 2)
+                                                + (u.bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                                + (u.bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                                + (u.bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                                + (u.bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                                + (u.bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                                /* 난이도 없는 활동 */
+                                                + (u.nd_gnrl_rgt_asw_cnt * 1)
+                                                + (u.nd_gnrl_pat_asw_cnt * 0.5)
+                                                + (u.nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                                + (u.nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                                + (u.nd_sm_exm_rgt_asw_cnt * 0.5)
+                                                + (u.nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                                    ) / sum(
+                                            u.gd_exm_num * 6
+                                                + u.av_up_exm_num * 6
+                                                + u.av_exm_num * 4
+                                                + u.av_lw_exm_num * 3
+                                                + u.bd_exm_num * 2
+                                                + u.nd_exm_num
+                                        )) * 100, 2), 0), 0) as usd_scr
+                 from
+                     aidt_lms.usd_cac_src_info u
+                         join (
+                         -- 내용영역 매핑 정보 + 특별 케이스 처리
+                         select
+                             s.meta_id,
+                             s.kwg_main_id,
+                             case
+                                 -- 특별 케이스: 중2 교과서(6993)에서 1단원의 "식의계산"은 2단원으로 처리
+                                 when s.textbk_id = 6993
+                                     and s.meta_id = 45587  -- 1단원 ID
+                                     and exists (
+                                         select 1 from aidt_lcms.meta m
+                                         where m.id = s.kwg_main_id
+                                           and m.code like 'mathMap14-A01-B02%'  -- 식의계산 코드 패턴
+                                     )
+                                     then (
+                                     -- 2단원의 내용영역 정보 사용
+                                     select content_area_id from content_area_info where meta_id = 45595
+                                 )
+                                 else ca.content_area_id
+                                 end as content_area_id,
+                             case
+                                 -- 특별 케이스: 중2 교과서(6993)에서 1단원의 "식의계산"은 2단원으로 처리
+                                 when s.textbk_id = 6993
+                                     and s.meta_id = 45587  -- 1단원 ID
+                                     and exists (
+                                         select 1 from aidt_lcms.meta m
+                                         where m.id = s.kwg_main_id
+                                           and m.code like 'mathMap14-A01-B02%'  -- 식의계산 코드 패턴
+                                     )
+                                     then (
+                                     -- 2단원의 내용영역명 사용
+                                     select content_area_nm from content_area_info where meta_id = 45595
+                                 )
+                                 else ca.content_area_nm
+                             end as content_area_nm
+                         from (
+                                  -- 단원 및 지식요인 정보 조회
+                                  select
+                                      u.textbk_id,
+                                      u.meta_id,
+                                      u.kwg_main_id
+                                  from aidt_lms.usd_cac_src_info u
+                                  where u.std_dt = #{stdDt}
+                                    and u.textbk_id = #{textbk_id}
+                                    and u.cla_id = #{cla_id}
+                                  group by u.textbk_id, u.meta_id, u.kwg_main_id
+                              ) s
+                                  join content_area_info ca on s.meta_id = ca.meta_id
+                     ) m on u.meta_id = m.meta_id and u.kwg_main_id = m.kwg_main_id
+                 where 1=1
+                   and u.std_dt = #{stdDt}
+                   and u.textbk_id = #{textbk_id}
+                   and u.cla_id = #{cla_id}
+                 group by
+                     u.std_dt,
+                     u.cla_id,
+                     u.stdt_id,
+                     u.textbk_id,
+                     m.content_area_id,
+                     m.content_area_nm
+             ) t
+        group by
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            content_area_id,
+            content_area_nm
+    </insert>
+
+    <insert id="insertStdUsdNotStdtUnitDayHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdNotStdtUnitDayHist */
+        insert into aidt_lms.std_usd_notstdt_unit_day_hist (
+            id,
+            std_dt,
+            cla_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            std_dt,
+            cla_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            max(std_at) as std_at,
+            round(avg(usd_scr),2) as usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        from (
+                 select
+                     std_dt,
+                     stdt_id,
+                     cla_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+                     if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+                     'system' as rgtr,
+                     now() as reg_dt,
+                     'system' as mdfr,
+                     now() as mdfy_dt
+                 from (
+                          select
+                              std_dt,
+                              stdt_id,
+                              cla_id,
+                              textbk_id,
+                              unit_num,
+                              meta_id,
+                              ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                              sum(
+                                  /* 상 */
+                                      (gd_gnrl_rgt_asw_cnt * 6)
+                                          + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                          + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                          + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                          + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          /* 중상(6) */
+                                          + (av_up_gnrl_rgt_asw_cnt * 6)
+                                          + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                          + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                          + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                          + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          /* 중(5) */
+                                          + (av_gnrl_rgt_asw_cnt * 4)
+                                          + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                          + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                          + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                          + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                          + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                          /* 중하(3) */
+                                          + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                          + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                          + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                          + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                          + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                          + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                          /* 하(2) */
+                                          + (bd_gnrl_rgt_asw_cnt * 2)
+                                          + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                          + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                          + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                          + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                          + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                          /* 난이도 없는 활동 */
+                                          + (nd_gnrl_rgt_asw_cnt * 1)
+                                          + (nd_gnrl_pat_asw_cnt * 0.5)
+                                          + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                          + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                          + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                          + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                              ) as x1,
+                              sum(
+                                      gd_exm_num * 6
+                                          + av_up_exm_num * 6
+                                          + av_exm_num * 4
+                                          + av_lw_exm_num * 3
+                                          + bd_exm_num * 2
+                                          + nd_exm_num
+                              ) as x2
+                          from
+                              aidt_lms.usd_cac_src_info
+                          where 1=1
+                            and std_dt = #{stdDt} /* 오늘날짜 */
+                            and textbk_id = #{textbk_id} /* 교과서 ID */
+                            and cla_id = #{cla_id}
+                            and (
+                                    gd_exm_num
+                                        + av_up_exm_num
+                                        + av_exm_num
+                                        + av_lw_exm_num
+                                        + bd_exm_num
+                                    ) > 0  /* 방어코드 추가 */
+                          group by
+                              std_dt,
+                              stdt_id,
+                              cla_id,
+                              textbk_id,
+                              unit_num,
+                              meta_id
+                      ) A
+             ) B
+        group by
+            std_dt,
+            cla_id,
+            textbk_id,
+            unit_num,
+            meta_id
+    </insert>
+
+    <insert id="insertStdUsdUnitDayHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdUnitDayHist */
+        insert into aidt_lms.std_usd_unit_day_hist (
+            id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+            if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+            'system' as rgtr,
+            now() as reg_dt,
+            'system' as mdfr,
+            now() as mdfy_dt
+        from (
+                 select
+                     std_dt,
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                     sum(
+                         /* 상 */
+                             (gd_gnrl_rgt_asw_cnt * 6)
+                                 + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중상(6) */
+                                 + (av_up_gnrl_rgt_asw_cnt * 6)
+                                 + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                 + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중(5) */
+                                 + (av_gnrl_rgt_asw_cnt * 4)
+                                 + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 /* 중하(3) */
+                                 + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                 + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 /* 하(2) */
+                                 + (bd_gnrl_rgt_asw_cnt * 2)
+                                 + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 /* 난이도 없는 활동 */
+                                 + (nd_gnrl_rgt_asw_cnt * 1)
+                                 + (nd_gnrl_pat_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                 + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                 + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                     ) as x1,
+                     sum(
+                             gd_exm_num * 6
+                                 + av_up_exm_num * 6
+                                 + av_exm_num * 4
+                                 + av_lw_exm_num * 3
+                                 + bd_exm_num * 2
+                                 + nd_exm_num
+                     ) as x2
+                 from
+                     aidt_lms.usd_cac_src_info
+                 where 1=1
+                   and std_dt = #{stdDt}
+                   and textbk_id = #{textbk_id} /* 교과서 ID */
+                   and cla_id =#{cla_id}
+                   and (
+                           gd_exm_num
+                               + av_up_exm_num
+                               + av_exm_num
+                               + av_lw_exm_num
+                               + bd_exm_num
+                           ) > 0  /* 방어코드 추가 */
+                 group by
+                     std_dt,
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id
+             ) A
+    </insert>
+
+    <insert id="insertStdUsdUnitKwgDayHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdUnitKwgDayHist */
+        insert into aidt_lms.std_usd_unit_kwg_day_hist (
+            id,
+            std_dt,
+            cla_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            std_dt,
+            cla_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            max(std_at) as std_at,
+            kwg_main_id,
+            round(avg(usd_scr),2) as usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        from (
+                 select
+                     std_dt,
+                     stdt_id,
+                     cla_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+                     kwg_main_id,
+                     if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+                     'system' as rgtr,
+                     now() as reg_dt,
+                     'system' as mdfr,
+                     now() as mdfy_dt
+                 from (
+                          select
+                              std_dt,
+                              stdt_id,
+                              cla_id,
+                              textbk_id,
+                              unit_num,
+                              meta_id,
+                              kwg_main_id,
+                              ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                              sum(
+                                  /* 상 */
+                                      (gd_gnrl_rgt_asw_cnt * 6)
+                                          + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                          + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                          + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                          + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          /* 중상(6) */
+                                          + (av_up_gnrl_rgt_asw_cnt * 6)
+                                          + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                          + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                          + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                          + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                          /* 중(5) */
+                                          + (av_gnrl_rgt_asw_cnt * 4)
+                                          + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                          + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                          + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                          + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                          + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                          /* 중하(3) */
+                                          + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                          + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                          + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                          + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                          + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                          + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                          /* 하(2) */
+                                          + (bd_gnrl_rgt_asw_cnt * 2)
+                                          + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                          + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                          + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                          + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                          + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                          /* 난이도 없는 활동 */
+                                          + (nd_gnrl_rgt_asw_cnt * 1)
+                                          + (nd_gnrl_pat_asw_cnt * 0.5)
+                                          + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                          + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                          + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                          + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                              ) as x1,
+                              sum(
+                                      gd_exm_num * 6
+                                          + av_up_exm_num * 6
+                                          + av_exm_num * 4
+                                          + av_lw_exm_num * 3
+                                          + bd_exm_num * 2
+                                          + nd_exm_num
+                              ) as x2
+                          from
+                              aidt_lms.usd_cac_src_info
+                          where 1=1
+                            and std_dt = #{stdDt} /* 오늘날짜*/
+                            and textbk_id = #{textbk_id}
+                            and cla_id =#{cla_id}
+                            and (
+                                    gd_exm_num
+                                        + av_up_exm_num
+                                        + av_exm_num
+                                        + av_lw_exm_num
+                                        + bd_exm_num
+                                    ) > 0  /* 방어코드 추가 */
+                          group by
+                              std_dt,
+                              stdt_id,
+                              cla_id,
+                              textbk_id,
+                              unit_num,
+                              meta_id,
+                              kwg_main_id
+                      ) A
+             ) B
+        group by
+            std_dt,
+            cla_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            kwg_main_id
+    </insert>
+
+    <insert id="insertStdUsdStdtUnitKwgDayHist" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdStdtUnitKwgDayHist */
+        insert into aidt_lms.std_usd_stdt_unit_kwg_day_hist (
+            id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            std_dt,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+            kwg_main_id,
+            if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+            'system' as rgtr,
+            now() as reg_dt,
+            'system' as mdfr,
+            now() as mdfy_dt
+        from (
+                 select
+                     std_dt,
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     kwg_main_id,
+                     ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                     sum(
+                         /* 상 */
+                             (gd_gnrl_rgt_asw_cnt * 6)
+                                 + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중상(6) */
+                                 + (av_up_gnrl_rgt_asw_cnt * 6)
+                                 + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                 + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중(5) */
+                                 + (av_gnrl_rgt_asw_cnt * 4)
+                                 + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 /* 중하(3) */
+                                 + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                 + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 /* 하(2) */
+                                 + (bd_gnrl_rgt_asw_cnt * 2)
+                                 + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 /* 난이도 없는 활동 */
+                                 + (nd_gnrl_rgt_asw_cnt * 1)
+                                 + (nd_gnrl_pat_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                 + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                 + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                     ) as x1,
+                     sum(
+                             gd_exm_num * 6
+                                 + av_up_exm_num * 6
+                                 + av_exm_num * 4
+                                 + av_lw_exm_num * 3
+                                 + bd_exm_num * 2
+                                 + nd_exm_num
+                     ) as x2
+                 from
+                     aidt_lms.usd_cac_src_info
+                 where 1=1
+                   and std_dt = #{stdDt} /* 오늘날짜*/
+                   and textbk_id = #{textbk_id} /* 교과서 ID */
+                   AND cla_id = #{cla_id}
+                   and (
+                           gd_exm_num
+                               + av_up_exm_num
+                               + av_exm_num
+                               + av_lw_exm_num
+                               + bd_exm_num
+                           ) > 0  /* 방어코드 추가 */
+                 group by
+                     std_dt,
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     kwg_main_id
+             ) A
+    </insert>
+
+    <insert id="insertStdUsdInfo" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdInfo */
+        insert into aidt_lms.std_usd_info(
+            id,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            kwg_main_id,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+            kwg_main_id,
+            if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+            'system' as rgtr,
+            now() as reg_dt,
+            'system' as mdfr,
+            now() as mdfy_dt
+        from (
+                 select
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     kwg_main_id,
+                     ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                     sum(
+                         /* 상 */
+                             (gd_gnrl_rgt_asw_cnt * 6)
+                                 + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중상(6) */
+                                 + (av_up_gnrl_rgt_asw_cnt * 6)
+                                 + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                 + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중(5) */
+                                 + (av_gnrl_rgt_asw_cnt * 4)
+                                 + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 /* 중하(3) */
+                                 + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                 + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 /* 하(2) */
+                                 + (bd_gnrl_rgt_asw_cnt * 2)
+                                 + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 /* 난이도 없는 활동 */
+                                 + (nd_gnrl_rgt_asw_cnt * 1)
+                                 + (nd_gnrl_pat_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                 + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                 + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                     ) as x1,
+                     sum(
+                             gd_exm_num * 6
+                                 + av_up_exm_num * 6
+                                 + av_exm_num * 4
+                                 + av_lw_exm_num * 3
+                                 + bd_exm_num * 2
+                                 + nd_exm_num
+                     ) as x2
+                 from
+                     aidt_lms.usd_cac_src_info
+                 where 1=1
+                   and std_dt = #{stdDt}
+                   and textbk_id = #{textbk_id}
+                   and cla_id = #{cla_id}
+                   and (
+                           gd_exm_num
+                               + av_up_exm_num
+                               + av_exm_num
+                               + av_lw_exm_num
+                               + bd_exm_num
+                           ) > 0  /* 방어코드 추가 */
+                 group by
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     kwg_main_id
+             ) A
+                ON DUPLICATE KEY UPDATE
+            textbk_id = values(textbk_id),
+            unit_num = values(unit_num),
+            std_at = values(std_at),
+            usd_scr = values(usd_scr),
+            mdfy_dt = values(mdfy_dt)
+    </insert>
+
+    <insert id="insertStdUsdUnitInfo" parameterType="map" >
+        /* StdUsdCalculateMapper.insertStdUsdUnitInfo */
+        insert into aidt_lms.std_usd_unit_info (
+            id,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            std_at,
+            usd_scr,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        select
+            null as id,
+            cla_id,
+            stdt_id,
+            textbk_id,
+            unit_num,
+            meta_id,
+            if(std_cnt <![CDATA[>]]> 0,'Y','N') as std_at,
+            if(std_cnt <![CDATA[>]]> 0, ifnull(round((x1/x2) * 100,2),0),0) as usd_scr,
+            'system' as rgtr,
+            now() as reg_dt,
+            'system' as mdfr,
+            now() as mdfy_dt
+        from (
+                 select
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id,
+                     ifnull(count(case when std_at = 'Y' then 1 end),0) as std_cnt,
+                     sum(
+                         /* 상 */
+                             (gd_gnrl_rgt_asw_cnt * 6)
+                                 + (gd_gnrl_pat_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (gd_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (gd_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중상(6) */
+                                 + (av_up_gnrl_rgt_asw_cnt * 6)
+                                 + (av_up_gnrl_pat_asw_cnt * 0.5 * 6)
+                                 + (av_up_hnt_gnrl_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_hnt_gnrl_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 + (av_up_sm_exm_rgt_asw_cnt * 6 * 0.5)
+                                 + (av_up_sm_exm_pat_asw_cnt * 6 * 0.5 * 0.5)
+                                 /* 중(5) */
+                                 + (av_gnrl_rgt_asw_cnt * 4)
+                                 + (av_gnrl_pat_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_hnt_gnrl_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 + (av_sm_exm_rgt_asw_cnt * 4 * 0.5)
+                                 + (av_sm_exm_pat_asw_cnt * 4 * 0.5 * 0.5)
+                                 /* 중하(3) */
+                                 + (av_lw_gnrl_rgt_asw_cnt * 3)
+                                 + (av_lw_gnrl_pat_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_hnt_gnrl_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 + (av_lw_sm_exm_rgt_asw_cnt * 3 * 0.5)
+                                 + (av_lw_sm_exm_pat_asw_cnt * 3 * 0.5 * 0.5)
+                                 /* 하(2) */
+                                 + (bd_gnrl_rgt_asw_cnt * 2)
+                                 + (bd_gnrl_pat_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_hnt_gnrl_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 + (bd_sm_exm_rgt_asw_cnt * 2 * 0.5)
+                                 + (bd_sm_exm_pat_asw_cnt * 2 * 0.5 * 0.5)
+                                 /* 난이도 없는 활동 */
+                                 + (nd_gnrl_rgt_asw_cnt * 1)
+                                 + (nd_gnrl_pat_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_rgt_asw_cnt * 0.5)
+                                 + (nd_hnt_gnrl_pat_asw_cnt * 0.5 * 0.5)
+                                 + (nd_sm_exm_rgt_asw_cnt * 0.5)
+                                 + (nd_sm_exm_pat_asw_cnt * 0.5 * 0.5)
+                     ) as x1,
+                     sum(
+                             gd_exm_num * 6
+                                 + av_up_exm_num * 6
+                                 + av_exm_num * 4
+                                 + av_lw_exm_num * 3
+                                 + bd_exm_num * 2
+                                 + nd_exm_num
+                     ) as x2
+                 from
+                     aidt_lms.usd_cac_src_info
+                 where 1=1
+                   and std_dt = #{stdDt}
+                   and textbk_id = #{textbk_id}
+                   and cla_id = #{cla_id}
+                   and (
+                           gd_exm_num
+                               + av_up_exm_num
+                               + av_exm_num
+                               + av_lw_exm_num
+                               + bd_exm_num
+                           ) > 0  /* 방어코드 추가 */
+                 group by
+                     cla_id,
+                     stdt_id,
+                     textbk_id,
+                     unit_num,
+                     meta_id
+             ) A
+            ON DUPLICATE KEY UPDATE
+             textbk_id = values(textbk_id),
+             unit_num = values(unit_num),
+             std_at = values(std_at),
+             usd_scr = values(usd_scr),
+             mdfy_dt = values(mdfy_dt)
+    </insert>
+
+    <delete id="deleteMvStdUsdTarget_1" parameterType="map">
+        /* StdUsdCalculateMapper.deleteMvStdUsdTarget_1 */
+        delete from aidt_lms.mv_lms_usd_cac_src_info
+        where 1=1
+          and trgt_se_cd = #{trgtSeCd}
+            <if test="tabId != null and tabId != ''">
+                and tab_id = #{tabId}
+            </if>
+          and trgt_id = #{trgtId}
+        <if test="articleId != null and articleId != ''">
+          and article_id = #{articleId}
+        </if>
+        <if test="subId != null and subId != ''">
+          and sub_id = #{subId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </delete>
+
+    <delete id="deleteStdUsdUnitTarget_2" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdUnitTarget_2 */
+        delete
+        from aidt_lms.std_usd_unit_info
+        where cla_id =  #{claId}
+          and textbk_id = #{textbookId}
+        <if test="articleId != null and articleId != ''">
+            and meta_id = (select meta_id from aidt_lcms.article_meta_map where article_id = #{articleId}
+                                                                            <if test="subId != null and subId != ''">
+                                                                            and sub_id = #{subId}
+                                                                            </if>
+                                                                            and meta_name = 'studyMap1')
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </delete>
+    <delete id="deleteStdUsdInfoTarget_3" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdInfoTarget_3 */
+        delete
+        from aidt_lms.std_usd_info
+        where cla_id =  #{claId}
+        and textbk_id = #{textbookId}
+        <if test="articleId != null and articleId != ''">
+            and meta_id = (select meta_id from aidt_lcms.article_meta_map where article_id = #{articleId}
+                                                                        <if test="subId != null and subId != ''">
+                                                                            and sub_id = #{subId}
+                                                                        </if>
+                                                                            and meta_name = 'studyMap1')
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        and kwg_main_id = #{kwgMainId};
+    </delete>
+
+    <delete id="deleteStdUsdUnitDayHistTarget_4" parameterType="map">
+        /* StdUsdCalculateMapper.deleteStdUsdTarget_5 */
+        delete from aidt_lms.std_usd_unit_day_hist suudh
+        where 1=1
+        and std_dt = #{stdDt}
+        and cla_id = #{claId}
+        and textbk_id = #{textbookId}
+        <if test="articleId != null and articleId != ''">
+            and meta_id = (select meta_id from aidt_lcms.article_meta_map where article_id = #{articleId}
+                                                                        <if test="subId != null and subId != ''">
+                                                                            and sub_id = #{subId}
+                                                                        </if>
+                                                                            and meta_name = 'studyMap1')
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </delete>
+</mapper>

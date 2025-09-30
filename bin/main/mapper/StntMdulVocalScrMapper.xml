@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.engvocal.mapper.StntMdulVocalScrMapper">
+    <insert id="createVocalEvlScrInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntMdulVocalScrMapper.createVocalEvlScrInfo */
+        INSERT INTO aidt_lms.vocal_evl_scr_info
+        VALUES
+            (
+                null,
+                #{menuSeCd},
+                #{stdCd},
+                #{trgtId},
+                #{libTextId},
+                #{acoustic},
+                #{EN_HOLISTIC},
+                #{EN_INTONATION},
+                #{EN_SEGMENT},
+                #{EN_PITCH},
+                #{EN_STRESS},
+                'system',
+                now(),
+                'system',
+                now()
+            )
+    </insert>
+
+    <insert id="createVocalEvlScrDetail" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntMdulVocalScrMapper.createVocalEvlScrDetail */
+        INSERT INTO aidt_lms.vocal_evl_info_detail
+        VALUES
+            (
+                null
+               , #{vocal_evl_scr_id}
+               , #{word}
+               , #{intonation_difference}
+               , #{xPosition_reference}
+               , #{xPosition_user}
+               , #{yPosition_reference}
+               , #{yPosition_user}
+               , #{stress_difference}
+               , #{stress_reference}
+               , #{stress_user}
+               , #{word_index}
+               , #{start_time_sec}
+               , #{end_time_sec}
+               , #{word_stress}
+               , #{acoustic_score}
+               , 'system'
+               , now()
+               , 'system'
+               , now()
+            )
+    </insert>
+
+    <insert id="createVocalEvlScrColor" parameterType="map">
+        /* StntMdulVocalScrMapper.createVocalEvlScrDetail */
+        INSERT INTO aidt_lms.vocal_evl_info_color_letter
+        VALUES
+        <foreach item="item" collection="vocalColorList" separator=",">
+            (
+              null
+            , #{item.vocal_detail_id}
+            , #{item.letter}
+            , #{item.position}
+            , #{item.color}
+            , 'system'
+            , now()
+            , 'system'
+            , now()
+            )
+        </foreach>
+    </insert>
+
+    <insert id="createVocalEvlPhoneLevel" parameterType="map">
+        /* StntMdulVocalScrMapper.createVocalEvlScrDetail */
+        INSERT INTO aidt_lms.vocal_evl_info_phone_level
+        VALUES
+        <foreach item="item" collection="vocalPhoneList" separator=",">
+            (
+            null
+            , #{item.vocal_evl_scr_id}
+            , #{item.vocal_group_id}
+            , #{item.word_index}
+            , #{item.phone_index}
+            , #{item.text}
+            , #{item.ipa}
+            , #{item.scr}
+            , #{item.start_time_sec}
+            , #{item.end_time_sec}
+            , 'system'
+            , now()
+            , 'system'
+            , now()
+            )
+        </foreach>
+    </insert>
+
+    <delete id="removeVocalEvlScrInfo" parameterType="map">
+        /* StntMdulVocalScrMapper.removeVocalEvlScrInfo */
+        DELETE a, b, c,d
+        FROM aidt_lms.vocal_evl_scr_info a
+        inner join aidt_lms.vocal_evl_info_phone_level d on a.id = d.vocal_evl_scr_id
+        inner join aidt_lms.vocal_evl_info_detail b on a.id = b.vocal_evl_scr_id
+        inner join aidt_lms.vocal_evl_info_color_letter c on c.vocal_detail_id  = b.id
+        WHERE 1=1
+          AND a.menu_se_cd = #{menuSeCd}
+          AND a.std_cd = #{stdCd}
+          AND a.trgt_id = #{trgtId}
+    </delete>
+</mapper>

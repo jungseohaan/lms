@@ -1,0 +1,977 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.kafka.mapper.KafkaEngMapper">
+    <select id="getBrandId" parameterType="map" resultType="string">
+        select
+            brand_id
+        from aidt_lcms.textbook
+        where id = #{textbk_id}
+    </select>
+    <select id="finalTableChk" parameterType="map" resultType="java.lang.Integer">
+        select count(1)
+        from aidt_lms.mv_lms_usd_cac_src_info
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+          and exists_yn = 'N'
+    </select>
+
+    <select id="finalTableEngChk" parameterType="map" resultType="java.lang.Integer">
+        SELECT
+            (SELECT COUNT(1)
+             FROM aidt_lms.mv_lms_usd_ach_src2_kwg
+             WHERE cla_id = #{claId}
+               AND textbk_id = #{textbookId}
+               AND exists_yn = 'N') +
+
+            (SELECT COUNT(1)
+             FROM aidt_lms.mv_lms_ach_cac_src_info
+             WHERE cla_id = #{claId}
+               AND textbk_id = #{textbookId}
+               AND exists_yn = 'N') +
+
+            (SELECT COUNT(1)
+             FROM aidt_lms.mv_lms_usd_ach_src2_detail
+             WHERE cla_id = #{claId}
+               AND textbk_id = #{textbookId}
+               AND exists_yn = 'N') +
+
+            (SELECT COUNT(1)
+             FROM aidt_lms.mv_lms_usd_ach_src2_info
+             WHERE cla_id = #{claId}
+               AND textbk_id = #{textbookId}
+               AND exists_yn = 'N') AS total_count
+    </select>
+    <select id="getLastLearningDate" resultType="java.lang.String">
+        /* KafkaEngMapper.getLastLearningDate */
+        select max(a.ed_dt) as ed_dt
+        from (
+            /* 학습자료 */
+            select  DATE_FORMAT(sdrd.eak_ed_dt, '%Y-%m-%d') as ed_dt
+            from    aidt_lms.tab_info ti
+                inner join aidt_lms.std_dta_result_info sdri
+                    on ti.id = sdri.textbk_tab_id
+                inner join aidt_lms.std_dta_result_detail sdrd
+                    on sdri.id = sdrd.dta_result_id
+                          -- and sdrd.eak_stts_cd = 5                 /* 응시 상태 */
+                           and sdrd.eak_at = 'Y'                    /* 응시 여부 */
+                           and sdrd.mrk_ty <![CDATA[<>]]> 3         /* 채첨 불가 항목(3) 제외 */
+            where ti.cla_id = #{claId}
+
+            union
+
+            /* 평가 */
+            select  DATE_FORMAT(max(ei.evl_cp_dt), '%Y-%m-%d') as ed_dt
+            from    aidt_lms.evl_info ei
+                join aidt_lms.evl_result_info eri
+                    on ei.id = eri.evl_id
+                           and ei.evl_stts_cd = 5                  /* 채점완료 */
+                           and eri.mrk_cp_at = 'Y'                  /* 채점 완료 여부 */
+                           and ei.rpt_othbc_at = 'Y'
+                join aidt_lms.evl_result_detail erd
+                    on eri.id = erd.evl_result_id
+                           and erd.eak_at = 'Y'                     /* 응시 여부 */
+                           and erd.mrk_ty <![CDATA[<>]]> 3          /* 채첨 불가 항목(3) 제외 */
+            where ei.cla_id = #{claId}
+
+            union
+
+            /* 과제 */
+            select  DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d') as ed_dt
+            from    aidt_lms.task_info ti
+                join aidt_lms.task_result_info tri
+                    on ti.id = tri.task_id
+                        and ti.task_stts_cd = 5
+                        and tri.subm_at = 'Y'                    /* 제출 여부 */
+                        and ti.rpt_othbc_at = 'Y'
+                join aidt_lms.task_result_detail trd
+                    on tri.id = trd.task_result_id
+                           and trd.eak_at = 'Y'                     /* 응시 여부 */
+                           and trd.mrk_ty <![CDATA[<>]]> 3          /* 채첨 불가 항목(3) 제외 */
+                           and trd.mrk_cp_at = 'Y'                  /* 채점 완료 여부 */
+            where ti.cla_id = #{claId}
+
+            union
+
+            /* 자기주도학습 (선택학습/AI학습) */
+            select  DATE_FORMAT(ssri.std_ed_dt, '%Y-%m-%d') as ed_dt
+            from    aidt_lms.slf_std_info ssi
+                join aidt_lms.slf_std_result_info ssri
+                    on ssi.id = ssri.std_id
+                           and ssri.std_at = 'Y'                    /* 학습 여부 */
+                           and ssri.mrk_cp_at = 'Y'                 /* 채점 완료 여부 */
+            where ssi.cla_id = #{claId}
+        ) a
+    </select>
+
+    <update id="finalTableExistsYnUpdate" parameterType="map">
+        update aidt_lms.mv_lms_usd_cac_src_info
+        set exists_yn = 'Y'
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </update>
+
+    <update id="finalTableExistsYnUpdate_1" parameterType="map">
+        update aidt_lms.mv_lms_usd_ach_src2_kwg
+        set exists_yn = 'Y'
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </update>
+
+
+    <update id="finalTableExistsYnUpdate_2" parameterType="map">
+        update aidt_lms.mv_lms_usd_ach_src2_info
+        set exists_yn = 'Y'
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </update>
+
+    <update id="finalTableExistsYnUpdate_3" parameterType="map">
+        update aidt_lms.mv_lms_usd_ach_src2_detail
+        set exists_yn = 'Y'
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </update>
+
+    <update id="finalTableExistsYnUpdate_4" parameterType="map">
+        update aidt_lms.mv_lms_ach_cac_src_info
+        set exists_yn = 'Y'
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </update>
+
+     <insert id="insertEngUsdAchSrc2Info" parameterType="map">
+        /* StdUsdCalculateMapper.insertEngUsdAchSrc2Info */
+        <![CDATA[
+        insert into aidt_lms.usd_ach_src2_info (
+                textbk_id
+            ,   usd_clsf_cd
+            ,   usd_tg_id
+            ,   std_dt
+            ,   tab_id
+            ,   cla_id
+            ,   stdt_id
+            ,   unit_num
+            ,   meta_id
+            ,   std_at
+            ,   usd_ach_id
+            ,   usd_ach_scr
+            ,   dfclt_lvl_ty
+            ,   rflt_actv_cnt
+            ,   article_list
+            ,   rgtr
+            ,   reg_dt
+            ,   mdfr
+            ,   mdfy_dt
+        )
+        select  #{textbk_id} as textbk_id
+        ,       Z.trgt_se_cd as usd_clsf_cd
+        ,       Z.trgt_id as usd_tg_id
+        ,       #{stdDt} as std_dt
+        ,       tab_id
+        ,       cla_id
+        ,       stdt_id
+        ,       ifnull((   select
+                               t.unit_num
+                           from(
+                                   select row_number() over () as unit_num, b.id as meta_id
+                                   from aidt_lcms.meta a
+                                            inner join aidt_lcms.meta b on a.`code` = b.description and b.is_active = 1 and b.name = 'studyMap1'
+                                            inner join aidt_lcms.meta c on c.id = b.parent_id and c.is_active = 1
+                                            left join aidt_lcms.meta_extension d on b.meta_extension_id = d.meta_extension_id
+                                   where 1=1
+                                     and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbk_id})
+                                     and a.is_active = 1
+                                     and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+                               ) as t
+                           where t.meta_id = Z.studyMap1
+                       ),0) as unit_num
+        ,       Z.studyMap1 as meta_id
+        ,       (case when studyCnt > 0 then 'Y' else 'N' end) as std_at
+        ,       Z.evaluationArea_cd as usd_ach_id
+        ,       Z.mudlSum as usd_ach_scr
+        ,       (case when round((mudlSum/mudlCnt)*100,2) >= 80 then 1 when round((mudlSum/mudlCnt)*100,2) > 50 then 2 else 3 end) as dfclt_lvl_ty
+        ,       mudlCnt as rflt_actv_cnt
+        ,       mudlList as article_list
+        ,       'system' as rgtr
+        ,       now() as reg_dt
+        ,       'system' as mdfr
+        ,       now() as mdfy_dt
+        from    (
+                select  X.trgt_id               /* 대상 ID */
+                ,       X.trgt_se_cd            /* 대상구분 */
+                ,       X.tab_id
+                ,       X.cla_id                /* 학급 ID */
+                ,       X.stdt_id               /* 학생 ID */
+                ,       X.studyMap1             /* 단원 */
+                ,       X.evaluationArea_id     /* 영역별 아이디 */
+                ,       (select `code` from aidt_lcms.meta where id = X.evaluationArea_id) as evaluationArea_cd     /* 영역별 코드 */
+                ,       sum(X.is_study) as studyCnt
+                ,       count(X.article_id) as mudlCnt
+                ,       sum(case X.errata when '1' then 1 when '3' then 0.5 else 0 end) as mudlSum
+                ,       group_concat(concat(X.article_id,'-', sub_id) order by X.trgt_se_cd, X.sub_id)  as mudlList
+                from    (
+                            select
+                                trgt_se_cd,
+                                trgt_id,
+                                tab_id,
+                                cla_id,
+                                stdt_id,
+                                studyMap1,
+                                evaluationArea_id,
+                                is_study,
+                                article_id,
+                                sub_id,
+                                errata,
+                                textbk_id,
+                                wrter_id,
+                                curriSubject
+                            from aidt_lms.mv_lms_usd_ach_src2_info
+                            where 1=1
+                            and cla_id = #{cla_id}
+                            and textbk_id = #{textbk_id}
+                            and reg_dt is not null
+                            and reg_dt != ''
+                            and (
+                                                CASE
+                                                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                                                        DATE(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00')) <= #{stdDt}
+                                WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                                SUBSTRING(reg_dt, 1, 10) <= #{stdDt}
+                                ELSE FALSE
+                                END
+                                )
+                        ) X
+                where   X.studyMap1 is not null
+                and     X.evaluationArea_id is not null
+                and     X.curriSubject = 'english' /* 교과목이 (영어)인 아티클만 대상으로 처리 */
+                group by X.trgt_se_cd, X.trgt_id, X.cla_id, X.tab_id, X.stdt_id, X.studyMap1, X.evaluationArea_id
+        ) Z
+        where   Z.studyMap1 > 0     /* 단원 정보가 설정되어 있지 않는 아티클은 제외 */
+        and     Z.evaluationArea_id > 0
+        order by Z.trgt_se_cd, Z.cla_id, Z.stdt_id, Z.studyMap1, Z.evaluationArea_id
+        ]]>
+    </insert>
+
+    <insert id="insertEngUsdAchSrc2Detail" parameterType="map">
+        /* StdUsdCalculateMapper.insertEngUsdAchSrc2Detail */
+        <![CDATA[
+        insert into aidt_lms.usd_ach_src2_detail (
+                usd_ach_src_id
+            ,   std_dt
+            ,   iem_id
+            ,   iem_cd
+            ,   usd_ach_scr
+            ,   dfclt_lvl_ty
+            ,   rflt_actv_cnt
+            ,   article_list
+            ,   rgtr
+            ,   reg_dt
+            ,   mdfr
+            ,   mdfy_dt
+        )
+        select  ifnull((select id from aidt_lms.usd_ach_src2_info where usd_clsf_cd = Z.trgt_se_cd and usd_tg_id = Z.trgt_id and cla_id = Z.cla_id and stdt_id = Z.stdt_id and meta_id = Z.studyMap1 and (Z.evaluationArea_cd like concat(usd_ach_id, '%') and date_format(std_dt, '%Y-%m-%d') = left(#{stdDt}, 10) or Z.evaluationArea_cd like concat(usd_ach_id, '%') and  date_format(std_dt, '%Y%m%d') = #{stdDt}) order by std_dt desc, reg_dt desc limit 1), 0) as usd_ach_src_id
+        ,       #{stdDt} as std_dt
+        ,       Z.evaluationArea_id as iem_id
+        ,       Z.evaluationArea_nm as iem_cd
+        ,       (case when Z.evaluationArea_cd = 'pronunciation' then Z.totScr else Z.mudlSum end) as usd_ach_scr
+        ,       (case when Z.evaluationArea_cd = 'pronunciation' then (case when round((Z.totScr/Z.mudlCnt),2) >= 80 then 1 when round((Z.totScr/Z.mudlCnt),2) > 50 then 2 else 3 end) else (case when round((Z.mudlSum/Z.mudlCnt)*100,2) >= 80 then 1 when round((Z.mudlSum/Z.mudlCnt)*100,2) > 50 then 2 else 3 end) end) as dfclt_lvl_ty
+        ,       Z.mudlCnt as rflt_actv_cnt
+        ,       mudlList as article_list
+        ,       'system' as rgtr
+        ,       now() as reg_dt
+        ,       #{serverInfo} as mdfr
+        ,       now() as mdfy_dt
+        from    (
+                select  X.trgt_id               /* 대상 ID */
+                ,       X.trgt_se_cd            /* 대상구분 */
+                ,       X.cla_id                /* 학급 ID */
+                ,       X.stdt_id               /* 학생 ID */
+                ,       X.studyMap1             /* 단원 */
+                ,       X.evaluationArea_id     /* 영역별 아이디 */
+                ,       X.evaluationArea_cd     /* 영역별 코드 */
+                ,       X.evaluationArea_nm     /* 영역별 명 */
+                ,       count(X.article_id) as mudlCnt
+                ,       sum(case X.errata when '1' then 1 when '3' then 0.5 else 0 end) as mudlSum
+                ,       group_concat(concat(X.article_id,'-', sub_id) order by X.trgt_se_cd, X.sub_id)  as mudlList
+                ,       sum(cast(tot_scr as decimal(10,1))) as totScr
+
+                from    (
+                            select
+                                trgt_se_cd,
+                                trgt_id,
+                                cla_id,
+                                stdt_id,
+                                article_id,
+                                sub_id,
+                                is_study,
+                                errata,
+                                hnt_use_at,
+                                sm_exm_at,
+                                studyMap1,
+                                evaluationArea_id,
+                                evaluationArea_cd,
+                                evaluationArea_nm,
+                                difficulty,
+                                curriSubject,
+                                tot_scr,
+                                textbk_id,
+                                wrter_id
+                            from aidt_lms.mv_lms_usd_ach_src2_detail
+                            where 1=1
+                              and cla_id = #{cla_id}
+                              and textbk_id = #{textbk_id}
+                              and errata is not null
+                              and reg_dt is not null
+                              and reg_dt != ''
+                              and (
+                                                CASE
+                                                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                                                        DATE(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00')) <= #{stdDt}
+                                WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                                SUBSTRING(reg_dt, 1, 10) <= #{stdDt}
+                                ELSE FALSE
+                                END
+                                )
+                ) X
+                where   X.studyMap1 is not null
+                and     X.evaluationArea_id is not null
+                and     X.curriSubject = 'english' /* 교과목이 (영어)인 아티클만 대상으로 처리 */
+                and     X.tot_scr > -1 /*  */
+                group by X.trgt_se_cd, X.trgt_id, X.cla_id, X.stdt_id, X.studyMap1, X.evaluationArea_id, X.evaluationArea_cd
+        ) Z
+        where   Z.studyMap1 >  0 /* 단원 정보가 설정되어 있지 않는 아티클은 제외*/
+        and     Z.evaluationArea_id > 0
+        order by Z.trgt_se_cd, Z.cla_id, Z.stdt_id, Z.studyMap1, Z.evaluationArea_cd, Z.trgt_id
+        ]]>
+    </insert>
+
+    <insert id="insertEngUsdAchSrc2Kwg" parameterType="map">
+        /* StdUsdCalculateMapper.insertEngUsdAchSrc2Kwg */
+        <![CDATA[
+        insert into aidt_lms.usd_ach_src2_kwg (
+                textbk_id
+            ,   usd_clsf_cd
+            ,   usd_tg_id
+            ,   std_dt
+            ,   cla_id
+            ,   stdt_id
+            ,   unit_num
+            ,   meta_id
+            ,   std_at
+            ,   kwg_main_cd
+            ,   kwg_main_id
+            ,   kwg_main_tot_exm_num
+            ,   kwg_ach_num
+            ,   dfclt_lvl_ty
+            ,   article_list
+            ,   rgtr
+            ,   reg_dt
+            ,   mdfr
+            ,   mdfy_dt
+        )
+        select  #{textbk_id} as textbk_id
+        ,       Z.trgt_se_cd as usd_clsf_cd
+        ,       Z.trgt_id as usd_tg_id
+        ,       #{stdDt} as std_dt
+        ,       cla_id
+        ,       stdt_id
+        ,       ifnull((   select
+                               t.unit_num
+                           from(
+                                   select row_number() over () as unit_num, b.id as meta_id
+                                   from aidt_lcms.meta a
+                                            inner join aidt_lcms.meta b on a.`code` = b.description and b.is_active = 1 and b.name = 'studyMap1'
+                                            inner join aidt_lcms.meta c on c.id = b.parent_id and c.is_active = 1
+                                            left join aidt_lcms.meta_extension d on b.meta_extension_id = d.meta_extension_id
+                                   where 1=1
+                                     and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbk_id})
+                                     and a.is_active = 1
+                                     and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+                               ) as t
+                           where t.meta_id = Z.studyMap1
+                       ),0) as unit_num
+        ,       Z.studyMap1 as meta_id
+        ,       (case when studyCnt > 0 then 'Y' else 'N' end) as std_at
+        ,       Z.studyMap_cd as kwg_main_cd
+        ,       Z.studyMap_1 as kwg_main_id
+        ,       mudlCnt as kwg_main_tot_exm_num
+        ,       Z.mudlSum as kwg_ach_num
+        ,       (case when round((mudlSum/mudlCnt)*100,2) >= 80 then 1 when round((mudlSum/mudlCnt)*100,2) > 50 then 2 else 3 end) as dfclt_lvl_ty
+
+        ,       mudlList as article_list
+
+        ,       'system' as rgtr
+        ,       now() as reg_dt
+        ,       'system' as mdfr
+        ,       now() as mdfy_dt
+        from    (
+                select  X.trgt_id           /* 대상 ID */
+                ,       X.trgt_se_cd        /* 대상구분 */
+                ,       X.cla_id            /* 학급 ID */
+                ,       X.stdt_id           /* 학생 ID */
+                ,       X.studyMap1         /* 단원 */
+                ,       X.studyMap_1        /* 영역별 아이디 */
+                ,       X.studyMap_cd       /* 영역별 코드 */
+                ,       sum(X.is_study) as studyCnt
+                ,       count(X.article_id) as mudlCnt
+                ,       sum(case X.errata when '1' then 1 when '3' then 0.5 else 0 end) as mudlSum
+                ,       group_concat(concat(X.article_id,'-', sub_id) order by X.trgt_se_cd, X.sub_id)  as mudlList
+                from    (
+                            select
+                                trgt_se_cd,
+                                trgt_id,
+                                cla_id,
+                                stdt_id,
+                                article_id,
+                                sub_id,
+                                is_study,
+                                errata,
+                                hnt_use_at,
+                                sm_exm_at,
+                                studyMap1,
+                                studyMap_1,
+                                studyMap_cd,
+                                difficulty,
+                                curriSubject,
+                                textbk_id,
+                                wrter_id
+                            from aidt_lms.mv_lms_usd_ach_src2_kwg
+                            where 1=1
+                              and cla_id = #{cla_id}
+                              and textbk_id = #{textbk_id}
+                              and errata is not null
+                              and reg_dt is not null
+                              and reg_dt != ''
+                              and (
+                                                CASE
+                                                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                                                        DATE(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00')) <= #{stdDt}
+                                WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                                SUBSTRING(reg_dt, 1, 10) <= #{stdDt}
+                                ELSE FALSE
+                                END
+                                )
+                ) X
+                where   X.studyMap1 is not null
+                and     X.studyMap_1 is not null
+                and     X.curriSubject = 'english' /* 교과목이 (영어)인 아티클만 대상으로 처리 */
+                group by X.trgt_se_cd, X.trgt_id, X.cla_id, X.stdt_id, X.studyMap1, X.studyMap_1
+        ) Z
+        where   Z.studyMap1 > 0 /* 학습맵 정보가 설정되어 있지 않는 아티클은 제외 */
+        and     Z.studyMap_1 > 0
+        order by Z.trgt_se_cd, Z.cla_id, Z.stdt_id, Z.studyMap1, Z.studyMap_1
+        ]]>
+    </insert>
+
+    <update id="updateEngUsdAchSrc2Info">
+        /* StdUsdCalculateMapper.updateEngUsdAchSrc2Info */
+        <![CDATA[
+        update aidt_lms.usd_ach_src2_info x, (
+            select  a.id
+            ,       sum(b.usd_ach_scr) as usd_ach_scr
+            ,       count(b.id) as rflt_actv_cnt
+            ,       (case when round((sum(b.usd_ach_scr)/count(*))*100,2) >= 80 then 1 when round((sum(b.usd_ach_scr)/count(*))*100,2) > 50 then 2 else 3 end) as dfclt_lvl_ty
+            from    aidt_lms.usd_ach_src2_info a
+            inner join aidt_lms.usd_ach_src2_detail b on a.id = b.usd_ach_src_id
+            where   a.id = b.usd_ach_src_id
+            and   date_format(a.std_dt, '%Y-%m-%d') = left(#{stdDt}, 10)
+            and   a.textbk_id = #{textbk_id}
+            and   a.cla_id = #{cla_id}
+            /*  and   a.usd_ach_id = 'pronunciation' */    /* pronunciation이외 vocabulary, grammar도 적용 */
+            group by a.id
+            ) y
+        set x.usd_ach_scr = y.usd_ach_scr
+                ,   x.rflt_actv_cnt = y.rflt_actv_cnt
+                ,   x.dfclt_lvl_ty = y.dfclt_lvl_ty
+        where x.id = y.id
+        ]]>
+    </update>
+
+
+    <insert id="insertAchCacSrcInfo" parameterType="map">
+        <![CDATA[
+        insert into aidt_lms.ach_cac_src_info
+            select
+                null as id,
+                X.textbk_id as textbk_id,
+                X.cla_id,
+                X.trgt_se_cd,
+                X.std_cd,
+                X.trgt_id,
+                date_format(#{stdDt},'%Y-%m-%d') as std_dt,	/* 학습날짜 (배치 실행시점에 구해놓은 날짜값) */
+                X.stdt_id,
+                X.article_id,
+                X.sub_id,
+                X.errata,
+                X.hnt_use_at,
+                X.sm_exm_at,
+                X.thumbnail,
+                X.studyMap1 as meta_id,
+                X.studyMap_1 as kwg_main_id,
+                X.studyMap_cd,
+                'system' as rgtr,
+                now() as reg_dt,
+                'system' as mdfr,
+                date_format(#{stdDt},'%Y-%m-%d') as mdfy_dt
+            from    (
+                        select
+                            a.trgt_se_cd,
+                            a.std_cd,
+                            a.trgt_id,
+                            a.cla_id ,
+                            a.stdt_id,
+                            a.article_id,
+                            a.sub_id,
+                            a.errata,
+                            a.hnt_use_at,
+                            a.sm_exm_at,
+                            IFNULL(
+                                    case
+                                        when trgt_se_cd = 4 then a.thumbnail
+                                        else (select thumbnail
+                                              from aidt_lcms.setsummary
+                                              where set_id = a.sets_id
+                                                and article_id = a.article_id
+                                                and sub_id = a.sub_id)
+                                        END,
+                                    a.thumbnail
+                            ) as thumbnail,
+                            a.studyMap1,
+                            a.studyMap_1,
+                            a.studyMap_cd,
+                            a.articleCategory,
+                            a.ai_yn,
+                            a.textbk_id,
+                            a.curriSubject,
+                            a.wrter_id
+                        from aidt_lms.mv_lms_ach_cac_src_info a
+                        where 1=1
+                          and a.cla_id = #{cla_id}
+                          and a.textbk_id = #{textbk_id}
+                          and errata is not null
+                          and reg_dt is not null
+                          and reg_dt != ''
+                          and (
+                                                CASE
+                                                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                                                        DATE(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00')) <= #{stdDt}
+                            WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                            SUBSTRING(reg_dt, 1, 10) <= #{stdDt}
+                            ELSE FALSE
+                            END
+                            )
+                      ) X
+                where
+                    1=1
+                  and X.studyMap1 is not null
+                  and X.studyMap_1 is not null
+                  and X.curriSubject = 'english' /* 교과목이 (영어)인 아티클만 대상으로 처리 */
+                order by
+                    X.articleCategory
+                    , case X.trgt_se_cd
+                            when 1 then 1
+                            when X.trgt_se_cd = 4 and X.ai_yn = 'Y' then 2
+                            when 2 then 3
+                            when 3 then 4
+                       else 5
+                       end
+                    , X.article_id
+        ]]>
+    </insert>
+
+    <delete id="deleteEngStdUsdTarget_1" parameterType="map">
+        /* StdUsdCalculateMapper.deleteEngStdUsdTarget_1 */
+        delete from aidt_lms.usd_ach_src2_info
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+        and cla_id =#{cla_id}
+        and textbk_id = #{textbk_id}
+    </delete>
+    <delete id="deleteEngStdUsdTarget_2" parameterType="map">
+        /* StdUsdCalculateMapper.deleteEngStdUsdTarget_2 */
+        delete from aidt_lms.usd_ach_src2_detail
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+        and usd_ach_src2_detail.std_dt = #{stdDt}
+        </if>
+            and usd_ach_src_id in (
+            select a2_1.`id`
+            from  aidt_lms.usd_ach_src2_info a2_1
+            where 1=1
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+            and cla_id =#{cla_id}
+            and textbk_id = #{textbk_id}
+            )
+    </delete>
+    <delete id="deleteEngStdUsdTarget_3" parameterType="map">
+        /* StdUsdCalculateMapper.deleteEngStdUsdTarget_3 */
+        delete from aidt_lms.usd_ach_src2_kwg
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+        and std_dt = #{stdDt}
+        </if>
+        and cla_id =#{cla_id}
+        and textbk_id = #{textbk_id}
+    </delete>
+    <delete id="deleteEngStdUsdTarget_4" parameterType="map">
+        /* StdUsdCalculateMapper.deleteEngStdUsdTarget_3 */
+        delete from aidt_lms.ach_cac_src_info
+        where 1=1
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+        and cla_id = #{cla_id}
+        and textbk_id = #{textbk_id}
+    </delete>
+
+    <select id="selectTchMdulQstnResetSDRHist" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.selectTchMdulQstnResetSDRHist */
+        select distinct
+            ti.cla_id,
+            ti.textbk_id as textbook_id,
+            ti.wrter_id,
+            ti.id as tab_id,
+            ti.crcul_id as trgt_id,
+            sdrh.dta_iem_id as article_id,
+            max(date_format(sdrh.eak_ed_dt, '%Y-%m-%d')) as std_dt
+        from aidt_lms.tab_info ti
+                 join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+                 join aidt_lms.std_dta_result_hist sdrh on sdri.id = sdrh.dta_result_id
+                 join aidt_lms.tc_cla_mb_info tcmi on tcmi.stdt_id = sdri.mamoym_id and tcmi.actvtn_at = 'Y'
+        where sdrh.dta_iem_id = #{articleId}
+          and sdrh.sub_id = #{subId}
+          and sdri.sets_id = #{setsId}
+          and tcmi.cla_id = #{claId}
+        <if test="stdtId != null and stdtId.size() > 0">
+            and sdri.mamoym_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </select>
+
+    <select id="selectEvaluationHistoryRecord" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.selectEvaluationHistoryRecord */
+        select distinct
+            ei.cla_id,
+            ei.textbook_id,
+            ei.wrter_id,
+            ei.id as trgt_id,
+            date_format(ei.evl_cp_dt, '%Y-%m-%d') as std_dt
+        from aidt_lms.evl_info ei
+             join aidt_lms.evl_result_info eri on ei.id = eri.evl_id
+             join aidt_lms.evl_result_hist erh on erh.evl_result_id = eri.id
+        where ei.id = #{evlId}
+    </select>
+
+    <select id="selectMvLmsUsdAchSrc2Info" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.selectMvLmsUsdAchSrc2Info */
+        select distinct
+            tab_id,
+            trgt_id,
+            article_id,
+            CASE
+                WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                -- UTC 기준으로 날짜 포맷팅
+                    DATE_FORMAT(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00'), '%Y%m%d')
+                WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                    DATE_FORMAT(STR_TO_DATE(SUBSTRING(reg_dt, 1, 10), '%Y-%m-%d'), '%Y%m%d')
+                ELSE reg_dt
+            END as reg_dt
+        from aidt_lms.mv_lms_usd_ach_src2_info
+        where 1=1
+        <if test="trgtSeCd != null and trgtSeCd != ''">
+            and trgt_se_cd = #{trgtSeCd}
+        </if>
+        <if test="articleId != null and articleId != ''">
+            and article_id = #{articleId}
+        </if>
+        <if test="trgtId != null and trgtId != ''">
+            and trgt_id = #{trgtId}
+        </if>
+        <if test="tabId != null and tabId != ''">
+            and tab_id = #{tabId}
+        </if>
+        <if test="wrterId != null and wrterId != ''">
+            and wrter_id = #{wrterId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </select>
+
+    <select id="selectLoopMvLmsUsdAchSrc2Info" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.selectMvLmsUsdAchSrc2Info */
+        with processed_data as (
+            select distinct
+                tab_id,
+                trgt_id,
+                article_id,
+                cla_id,
+                CASE
+                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                        -- UTC 기준으로 날짜 포맷팅
+                        DATE_FORMAT(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00'), '%Y%m%d')
+                    WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                        DATE_FORMAT(STR_TO_DATE(SUBSTRING(reg_dt, 1, 10), '%Y-%m-%d'), '%Y%m%d')
+                    ELSE reg_dt
+                    END as reg_dt
+            from aidt_lms.mv_lms_usd_ach_src2_info
+            where 1=1
+            and cla_id = #{claId}
+            and textbk_id = #{textbookId}
+        ), min_dates as (
+        select
+                tab_id,
+                trgt_id,
+                article_id,
+                MIN(reg_dt) as min_reg_dt
+            from processed_data
+            where reg_dt is not null
+              and reg_dt != ''
+              and reg_dt != '0'
+            group by tab_id, trgt_id, article_id
+        )
+        select
+            distinct
+            p.reg_dt as reg_dt
+        from processed_data p
+                 join min_dates m on
+            p.tab_id = m.tab_id and
+            p.trgt_id = m.trgt_id and
+            p.article_id = m.article_id and
+            p.reg_dt = m.min_reg_dt
+        order by p.reg_dt
+    </select>
+
+    <select id="selectMvLmsUsdCacSrcInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.selectMvLmsUsdCacSrcInfo */
+        select distinct
+            tab_id,
+            trgt_id,
+            article_id,
+            studyMap_1 as kwg_main_id,
+            CASE
+                WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                -- UTC 기준으로 날짜 포맷팅
+                    DATE_FORMAT(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00'), '%Y%m%d')
+                WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                    DATE_FORMAT(STR_TO_DATE(SUBSTRING(reg_dt, 1, 10), '%Y-%m-%d'), '%Y%m%d')
+                ELSE reg_dt
+            END as reg_dt
+        from aidt_lms.mv_lms_usd_cac_src_info
+        where 1=1
+        <if test="trgtSeCd != null and trgtSeCd != ''">
+          and trgt_se_cd = #{trgtSeCd}
+        </if>
+        <if test="articleId != null and articleId != ''">
+            and article_id = #{articleId}
+        </if>
+        <if test="trgtId != null and trgtId != ''">
+          and trgt_id = #{trgtId}
+        </if>
+        <if test="tabId != null and tabId != ''">
+            and tab_id = #{tabId}
+        </if>
+        <if test="wrterId != null and wrterId != ''">
+          and wrter_id = #{wrterId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+          and cla_id = #{claId}
+          and textbk_id = #{textbookId}
+    </select>
+
+    <select id="selectLoopMvLmsUsdCacSrcInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.selectMvLmsUsdCacSrcInfo */
+        with processed_data as (
+            select distinct
+                tab_id,
+                trgt_id,
+                article_id,
+                cla_id,
+                CASE
+                    WHEN reg_dt REGEXP '^[0-9]+$' THEN
+                        -- UTC 기준으로 날짜 포맷팅
+                        DATE_FORMAT(CONVERT_TZ(FROM_UNIXTIME(reg_dt / 1000), @@session.time_zone, '+00:00'), '%Y%m%d')
+                    WHEN reg_dt REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*' THEN
+                        DATE_FORMAT(STR_TO_DATE(SUBSTRING(reg_dt, 1, 10), '%Y-%m-%d'), '%Y%m%d')
+                    ELSE reg_dt
+                    END as reg_dt
+            from aidt_lms.mv_lms_usd_cac_src_info
+            where 1=1
+            and cla_id = #{claId}
+            and textbk_id = #{textbookId}
+        ), min_dates as (
+        select
+                tab_id,
+                trgt_id,
+                article_id,
+                MIN(reg_dt) as min_reg_dt
+            from processed_data
+            where reg_dt is not null
+              and reg_dt != ''
+              and reg_dt != '0'
+            group by tab_id, trgt_id, article_id
+        )
+        select
+            distinct
+            p.reg_dt as reg_dt
+        from processed_data p
+                 join min_dates m on
+            p.tab_id = m.tab_id and
+            p.trgt_id = m.trgt_id and
+            p.article_id = m.article_id and
+            p.reg_dt = m.min_reg_dt
+        order by p.reg_dt
+    </select>
+
+    <delete id="deleteMvEngStdUsdTarget_1" parameterType="map">
+        /* StdUsdCalculateMapper.deleteMvEngStdUsdTarget_1 */
+        delete from aidt_lms.mv_lms_usd_ach_src2_info
+        where 1=1
+        <if test="trgtSeCd != null and trgtSeCd != ''">
+            and trgt_se_cd = #{trgtSeCd}
+        </if>
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+        <if test="tabId != null and tabId != ''">
+            and tab_id = #{tabId}
+        </if>
+        <if test="trgtId != null and trgtId != ''">
+            and trgt_id = #{trgtId}
+        </if>
+        <if test="articleId != null and articleId != ''">
+            and article_id = #{articleId}
+        </if>
+        <if test="(articleId != null and articleId != '') and (subId !=null and subId !='')">
+            and evaluationArea_id in (select meta_id from aidt_lcms.article_meta_map where article_id =  #{articleId} and sub_id = #{subId} and meta_name = 'evaluationArea')
+        </if>
+        <if test="subId != null and subId != ''">
+            and sub_Id = #{subId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        and cla_id = #{claId}
+        and textbk_id = #{textbookId}
+    </delete>
+    <delete id="deleteMvEngStdUsdTarget_2" parameterType="map">
+        /* StdUsdCalculateMapper.deleteMvEngStdUsdTarget_2 */
+        delete from aidt_lms.mv_lms_usd_ach_src2_detail
+        where 1=1
+        <if test="trgtSeCd != null and trgtSeCd != ''">
+            and trgt_se_cd = #{trgtSeCd}
+        </if>
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+        <if test="trgtId != null and trgtId != ''">
+            and trgt_id = #{trgtId}
+        </if>
+        <if test="articleId != null and articleId != ''">
+            and article_id = #{articleId}
+        </if>
+        <if test="(articleId != null and articleId != '') and (subId !=null and subId !='')">
+            and evaluationArea_id in (select meta_id from aidt_lcms.article_meta_map where article_id =  #{articleId} and sub_id = #{subId} and meta_name = 'evaluationArea')
+        </if>
+        <if test="subId != null and subId != ''">
+            and sub_Id = #{subId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        and cla_id = #{claId}
+        and textbk_id = #{textbookId}
+    </delete>
+    <delete id="deleteMvEngStdUsdTarget_3" parameterType="map">
+        /* StdUsdCalculateMapper.deleteMvEngStdUsdTarget_3 */
+        delete from aidt_lms.mv_lms_usd_ach_src2_kwg
+        where 1=1
+        <if test="trgtSeCd != null and trgtSeCd != ''">
+            and trgt_se_cd = #{trgtSeCd}
+        </if>
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+        <if test="trgtId != null and trgtId != ''">
+            and trgt_id = #{trgtId}
+        </if>
+        <if test="articleId != null and articleId != ''">
+            and article_id = #{articleId}
+        </if>
+        <if test="(articleId != null and articleId != '') and (subId !=null and subId !='')">
+            and studyMap_1 in (select meta_id from aidt_lcms.article_meta_map where article_id =   #{articleId} and sub_id = #{subId} and meta_name = 'studyMap_1')
+        </if>
+        <if test="subId != null and subId != ''">
+            and sub_Id = #{subId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        and cla_id = #{claId}
+        and textbk_id = #{textbookId}
+    </delete>
+    <delete id="deleteMvEngStdUsdTarget_4" parameterType="map">
+        /* StdUsdCalculateMapper.deleteMvEngStdUsdTarget_4 */
+        delete from aidt_lms.mv_lms_ach_cac_src_info
+        where 1=1
+        <if test="trgtSeCd != null and trgtSeCd != ''">
+            and trgt_se_cd = #{trgtSeCd}
+        </if>
+        <if test="stdDt != null and stdDt != ''">
+            and std_dt = #{stdDt}
+        </if>
+        <if test="trgtId != null and trgtId != ''">
+            and trgt_id = #{trgtId}
+        </if>
+        <if test="articleId != null and articleId != ''">
+            and article_id = #{articleId}
+        </if>
+        <if test="(articleId != null and articleId != '') and (subId !=null and subId !='')">
+            and studyMap_1 in (select meta_id from aidt_lcms.article_meta_map where article_id =   #{articleId} and sub_id = #{subId} and meta_name = 'studyMap_1')
+        </if>
+        <if test="subId != null and subId != ''">
+            and sub_Id = #{subId}
+        </if>
+        <if test="stdtId != null and stdtId.size() > 0">
+            and stdt_id in
+            <foreach collection="stdtId" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+        and cla_id = #{claId}
+        and textbk_id = #{textbookId}
+    </delete>
+</mapper>

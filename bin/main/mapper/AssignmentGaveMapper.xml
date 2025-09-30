@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.mq.mapper.bulk.AssignmentGaveMapper">
+
+    <insert id="insertBulkTaskMqTrnLog" parameterType="com.visang.aidt.lms.api.mq.dto.assignment.AssignmentGaveSaveDto">
+        INSERT INTO aidt_lms.bulk_task_mq_trn_log (
+            `task_gb_cd`,
+            `task_id`,
+            `task_reg_dt`,
+            `stnt_id`,
+            `rgtr`,
+            `cla_id`
+        )
+        SELECT
+            #{taskGbCd},    /* task_gb_cd 값 */
+            ti.id,          /* task_id 값 */
+            ti.reg_dt,      /* task_reg_dt 값 */
+            '' as stnt_id,   /* stnt_id 값 */
+            ti.wrter_id,    /* rgtr 값 */
+            ti.cla_id       /* cla_id 값 */
+        FROM aidt_lms.task_info ti
+            LEFT JOIN aidt_lms.bulk_task_mq_trn_log btmtl
+                ON ti.id = btmtl.task_id
+        WHERE ti.id = #{taskId}
+          and btmtl.id is null      /* bulk_task_mq_trn_log 테이블에 이미 들어간 task_id는 insert 방지 */
+    </insert>
+
+    <select id="findAssignmentRegistrationInfo" parameterType="com.visang.aidt.lms.api.mq.dto.real.RealMqReqDto" resultType="com.visang.aidt.lms.api.mq.dto.assignment.AssignmentRegistInfoDto">
+    /*findAssignmentRegistrationInfo*/
+    SELECT
+        sets_id as setsId,
+        wrter_id as wrterId,
+        task_id as taskId,
+        task_reg_dt as taskRegDt,
+        GROUP_CONCAT(DISTINCT standardId ORDER BY standardId) AS standardIds
+    FROM (
+             SELECT
+                 a.sets_id,
+                 a.wrter_id,
+                 a.task_id,
+                 a.task_reg_dt,
+                 SUBSTRING_INDEX (SUBSTRING_INDEX(a.val1,',',numbers.n),',',-1) as standardId
+             from
+                 (
+                     WITH RECURSIVE cte AS (
+                         SELECT 1 AS n
+                         UNION ALL
+                         SELECT n + 1 FROM cte WHERE n <![CDATA[<]]> 10
+                     )
+                     select n from cte
+                 ) numbers
+                     inner join (
+                     select
+                         distinct
+                         bulk.task_id,
+                         ti.sets_id,
+                         ti.wrter_id,
+                         bulk.task_reg_dt,
+                         bulk.stnt_id,
+                         ifnull(replace(d.val1,'#^|',','), -1) as val1
+                     from
+                         aidt_lms.bulk_task_mq_trn_log bulk
+                             INNER JOIN aidt_lms.task_info ti
+                                        on bulk.task_id = ti.id
+                                                and bulk.trn_at = 'N' /* 전송여부 */
+                             inner join aidt_lms.task_result_info tri
+                                        on ti.id = tri.task_id
+                             left join aidt_lcms.setsummary a
+                                        on ti.sets_id = a.set_id
+                             left join aidt_lcms.article_meta_map b
+                                        on a.article_id = b.article_id
+                                            and a.sub_id = b.sub_id
+                                            and b.meta_name = 'studyMap_1' /* 지식요인 */
+                             left join aidt_lcms.meta c
+                                        on b.meta_id = c.id
+                             left join aidt_lcms.meta_extension d
+                                        on c.meta_extension_id = d.meta_extension_id
+                     where 1=1
+                       and bulk.task_gb_cd = '1' /*과제 등록*/
+                       <if test="wrterId != null and wrterId != ''">
+                            and ti.wrter_id = #{wrterId}
+                       </if>
+                     order by ti.wrter_id
+                 ) a
+                                ON CHAR_LENGTH(a.val1) - CHAR_LENGTH(REPLACE(a.val1,',','')) <![CDATA[>=]]> numbers.n-1
+             where 1=1
+                <if test="startTime != null and startTime != ''">
+                    and a.task_reg_dt <![CDATA[>=]]> #{startTime}
+                </if>
+                <if test="endTime != null and endTime != ''">
+                    and a.task_reg_dt <![CDATA[<]]> #{endTime}
+                </if>
+         ) AS subquery
+    GROUP BY sets_id, wrter_id, task_id, task_reg_dt
+    ORDER BY sets_id, wrter_id, task_id, task_reg_dt
+    </select>
+
+    <update id="updateBulkTaskMqTrnLog">
+    /*updateBulkTaskMqTrnLog*/
+        UPDATE aidt_lms.bulk_task_mq_trn_log
+            SET trn_at = 'Y'
+              , mdfy_dt = now()
+        WHERE trn_at = 'N'
+          AND task_gb_cd = 1 /*과제 등록*/
+    </update>
+
+    <select id="findCurriculumStandardIds" resultType="String">
+    /* 과제의 셋트지 ID에 속한 아티클의 표준체계 ID 조회 */
+    select distinct ifnull(d.val1, -1) as curriculumStandardId
+    from aidt_lcms.setsummary a
+             left join aidt_lcms.article_meta_map b
+                       on a.article_id = b.article_id
+                           and a.sub_id = b.sub_id
+                           and b.meta_name = 'studyMap_1' /* 지식요인 */
+             left join aidt_lcms.meta c
+                       on b.meta_id = c.id
+             left join aidt_lcms.meta_extension d
+                       on c.meta_extension_id = d.meta_extension_id
+    where a.set_id = (select sets_id from aidt_lms.task_info where id = #{taskId})
+    </select>
+
+    <select id="getUserInfo" resultType="camelHashMap" parameterType="String">
+        select
+            COALESCE(ptn_id, '') AS ptn_id
+        from aidt_lms.user
+        where user_id = #{userId}
+    </select>
+
+
+</mapper>

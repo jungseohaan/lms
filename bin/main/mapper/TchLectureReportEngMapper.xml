@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.TchLectureReportEngMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+<!--    <select id="getTchLectureReportStdDtaInfo_mdulDtaInfo" parameterType="map" resultType="camelHashMap">-->
+<!--        /* TchLectureReportEngMapper.getTchLectureReportStdDtaInfo_mdulDtaInfo */-->
+<!--        /*  20240723 사용안하는 것으로 확인돼 주석처리 - 문제 없으면 나중에 삭제 할 것-->
+<!--        select 	a.id as dta_iem_id-->
+<!--                , a.thumbnail-->
+<!--                , count(DISTINCT sdri.mamoym_id ) AS targetCnt-->
+<!--                , (select count(1)-->
+<!--                        from aidt_lms.std_dta_result_detail sdrd-->
+<!--                        , aidt_lms.std_dta_eng_temp_result_info sdetri-->
+<!--                        where 	sdrd.dta_result_id = sdri.id-->
+<!--                        and 	sdetri.dta_result_detail_id = sdrd.id-->
+<!--                        and 	sdetri.subm_at = 'Y'-->
+<!--                    ) as submitCnt-->
+<!--		        , sdri.id as dtaResultInfoId-->
+<!--        from 	aidt_lms.tab_info ti-->
+<!--                join aidt_lcms.`sets` s on ti.sets_id = s.id-->
+<!--                join aidt_lcms.sets_article_map sam on sam.sets_id = s.id-->
+<!--                join aidt_lcms.article a on sam.article_id = a.id-->
+<!--                join aidt_lms.std_dta_result_info sdri on sdri.sets_id = s.id-->
+<!--        where 	1=1-->
+<!--        and 	ti.crcul_id = #{crculId}-->
+<!--        and 	ti.id = #{tabId}-->
+<!--        and 	a.id = #{dtaIemId}-->
+<!--        group by a.id-->
+<!--         */-->
+<!--    </select>-->
+
+    <select id="getTchLectureReportStdDtaInfo_mdulInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportEngMapper.getTchLectureReportStdDtaInfo_mdulInfo */
+        select  F_META_VAL(`curriYear`, curriYear) as curriYear
+                , F_META_VAL(`curriSchool`, curriSchool) as curriSchool
+                , F_META_VAL(`curriSubject`, curriSubject) as curriSubject
+                , F_META_VAL(`curriGrade`, curriGrade) as curriGrade
+        FROM 	aidt_lcms.article va
+        where 	va.id = #{dtaIemId}
+    </select>
+
+
+
+    <select id="findTchLectureReportStntDtaErrataInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportEngMapper.findTchLectureReportStntDtaErrataInfoList */
+        select 	sdri.mamoym_id as userId
+             , ifnull(MAX((select sri.flnm from aidt_lms.stdt_reg_info sri where sdri.mamoym_id = sri.user_id )), sdri.mamoym_id) as flnm
+             , SUM(CASE WHEN sdetrd.errata = 1 THEN 1 ELSE 0 END) as anwNum /* 정담수 */
+             , SUM(CASE WHEN sdetrd.errata = 2 THEN 1 ELSE 0 END) as wrngNum /* 오답수 */
+             , SUM(CASE WHEN sdetrd.errata = 3 THEN 1 ELSE 0 END) as triNum /* 세모수 */
+             , sdri.subm_at
+        from 	aidt_lms.tab_info ti
+                    join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+                    left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+                    left join aidt_lms.std_dta_eng_temp_result_info sdetri on sdetri.dta_result_detail_id = sdrd.id
+                    left join aidt_lms.std_dta_eng_temp_result_detail sdetrd on sdetrd.dta_eng_temp_result_id = sdetri.id
+        where 	1=1
+          and 	ti.id = #{tabId}
+        group by sdri.mamoym_id
+    </select>
+
+
+    <select id="getTchLectureReportStdDtaInfo_subMdulInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportEngMapper.getTchLectureReportStdDtaInfo_subMdulInfo */
+        select 	(@rownum := @rownum + 1) AS seq
+             , sdetri.eng_temp_id
+             , e.type_1 as tempType
+             , e.url
+             , sdetrd.article_id /* 서브 article_id */
+             , a.image
+             , sdetrd.id as engResultDetailId
+        from 	aidt_lms.std_dta_result_detail sdrd
+                    join aidt_lms.std_dta_eng_temp_result_info sdetri on sdetri.dta_result_detail_id = sdrd.id
+                    join aidt_lcms.engtemp e on e.id = sdetri.eng_temp_id
+                    join aidt_lms.std_dta_eng_temp_result_detail sdetrd on sdetrd.dta_eng_temp_result_id = sdetri.id
+                    join aidt_lcms.article a on a.id = sdetrd.article_id
+                    JOIN (SELECT @rownum := 0) r
+        where 	1=1
+          and 	sdrd.dta_result_id = #{dtaResultId}
+          and 	sdrd.dta_iem_id = #{dtaIemId} /* 메인 article id */
+        order by sdetri.eng_temp_id, sdetrd.article_id
+    </select>
+
+    <select id="getTchLectureReportStdDtaInfo_classAnalysys" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportEngMapper.getTchLectureReportStdDtaInfo_classAnalysys */
+        select
+            sdetrd.article_id
+             , IFNULL(ROUND(count(case when sdetrd.errata = 1 then 1 end) / count(sdetrd.id) * 100, 2), 0) AS correctRate /* 정답율: errata */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, sdetrd.eak_st_dt, sdetrd.eak_ed_dt)/1000000), 0)),'%H:%i:%s') AS solvSecAvr /* 풀이시간 */
+        from 	aidt_lms.std_dta_result_info sdri
+                    join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+                    join aidt_lms.std_dta_eng_temp_result_info sdetri on sdetri.dta_result_detail_id = sdrd.id
+                    join aidt_lms.std_dta_eng_temp_result_detail sdetrd on sdetrd.dta_eng_temp_result_id = sdetri.id
+        where 	1=1
+          and 	sdri.sets_id = #{setsId}
+        group by sdetrd.article_id
+        order by sdetrd.article_id
+    </select>
+
+
+    <select id="findTchLectureReportMdulDtaInfo_answers" parameterType="map" resultType="java.lang.String">
+        /* TchLectureReportEngMapper.findTchLectureReportMdulDtaInfo_answers */
+        select
+                sdetrd.sub_mit_anw
+        from 	aidt_lms.std_dta_result_info sdri
+                    join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+                    join aidt_lms.std_dta_eng_temp_result_info sdetri on sdetri.dta_result_detail_id = sdrd.id
+                    join aidt_lms.std_dta_eng_temp_result_detail sdetrd on sdetrd.dta_eng_temp_result_id = sdetri.id
+                    join aidt_lcms.article_meta_map amm on amm.article_id = sdetrd.article_id and amm.meta_name = 'questionType'
+                    join aidt_lcms.meta m on amm.meta_id = m.id and m.code in ('scqz', 'mcqz', 'oxqz', 'tfqz') /* 단일선택형/다중선택형/OX형/TF형 일때만 */
+        where 	1=1
+          and 	sdri.sets_id = #{setsId}
+          and 	sdetrd.article_id = #{articleId}
+          and 	TRIM(sdetrd.sub_mit_anw) != ''
+        group by sdetrd.article_id
+        order by sdetrd.article_id
+    </select>
+
+
+    <select id="findTchLectureReportMdulDtaInfo_stntInfos" parameterType="map" resultType="java.lang.String">
+        /* TchLectureReportEngMapper.findTchLectureReportMdulDtaInfo_stntInfos */
+        select
+            sdri.mamoym_id
+             , u.flnm
+             , max(sdri.subm_at) as subm_at
+             , max(sdri.eak_at) as eak_at
+        from 	aidt_lms.std_dta_result_info sdri
+                    join aidt_lms.`user` u on u.user_id = sdri.mamoym_id
+        where 	1=1
+          and 	sdri.sets_id = #{setsId}
+        group by sdri.mamoym_id
+        order by u.flnm
+    </select>
+
+    <select id="findTchLectureReportMdulDtaInfo_errataInfos" parameterType="map" resultType="java.lang.String">
+        /* TchLectureReportEngMapper.findTchLectureReportMdulDtaInfo_errataInfos */
+        select
+            sdetrd.article_id
+             , min(sdetrd.errata) as errata
+        from 	aidt_lms.std_dta_result_info sdri
+                    join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+                    join aidt_lms.std_dta_eng_temp_result_info sdetri on sdetri.dta_result_detail_id = sdrd.id
+                    join aidt_lms.std_dta_eng_temp_result_detail sdetrd on sdetrd.dta_eng_temp_result_id = sdetri.id
+        where 	1=1
+          and 	sdri.sets_id = #{setsId}
+          and 	sdri.mamoym_id = #{stntId}
+        group by sdetrd.article_id
+        order by sdetrd.article_id
+    </select>
+
+
+
+</mapper>
+

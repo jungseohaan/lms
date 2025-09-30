@@ -1,0 +1,518 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.integration.mapper.IntegExamMapper">
+
+    <select id="getExamBoxNewVersion" parameterType="map" resultType="int">
+        /* integExamMapper.getExamBoxNewVersion */
+        WITH RECURSIVE parent_tree AS (
+            SELECT id, parent_id, 1 AS version
+            FROM exam_box
+            WHERE parent_id IS NULL
+            UNION ALL
+            SELECT eb.id, eb.parent_id, pt.version + 1 AS version
+            FROM exam_box eb
+            JOIN parent_tree pt ON eb.parent_id = pt.id
+        )
+        SELECT
+            COALESCE(
+                    (
+                    SELECT version + 1
+                    FROM parent_tree
+                    WHERE id = IFNULL(#{examId}, 0)
+                ), 1) AS version;
+    </select>
+
+    <insert id="insertExamBox" parameterType="map" useGeneratedKeys="true" keyProperty="examId">
+        /* integExamMapper.insertExamBox */
+        INSERT INTO aidt_lms.exam_box (
+            wrter_id,
+            textbk_id,
+            sets_id,
+            exam_nm,
+            parent_id,
+            version,
+            rgtr,
+            reg_dt,
+            mdfy_dt
+        ) VALUES (
+            #{wrterId},
+            #{textbkId},
+            #{setsId},
+            #{examNm},
+            #{parentId},
+            IFNULL(#{version}, 1),
+            #{wrterId},
+            IFNULL(#{regDt}, NOW()),
+            NOW()
+        )
+    </insert>
+
+    <update id="increaseModuleTcUseCnt" parameterType="map">
+        /* integExamMapper.increaseModuleTcUseCnt */
+        INSERT INTO aidt_lcms.module_tc_use_cnt(article_id, sub_id, use_cnt, wrter_id, rgtr, mdfr)
+        SELECT s.article_id, sub_id, 1,  #{wrterId}, #{wrterId}, #{wrterId}
+        FROM aidt_lcms.setsummary s
+        WHERE s.set_id = #{setsId}
+            ON DUPLICATE KEY UPDATE use_cnt = use_cnt + 1, mdfy_dt = NOW()
+    </update>
+
+    <update id="deleteExamBox" parameterType="map">
+        /* integExamMapper.deleteExamBox */
+        UPDATE aidt_lms.exam_box
+           SET del_at = 'Y'
+                , mdfy_dt = NOW()
+         WHERE id = #{examId}
+    </update>
+
+    <select id="getExamBoxRegDt" parameterType="map" resultType="string">
+        SELECT
+            reg_dt
+        FROM aidt_lms.exam_box WHERE id = #{examId}
+    </select>
+
+    <select id="getExamBoxInfo" parameterType="map" resultType="camelHashMap" >
+        /* integExamMapper.getExamBoxInfo */
+        select eb.id as exam_id
+             , eb.exam_nm as name
+             , eb.textbk_id
+             , eb.del_at
+             , eb.wrter_id
+             , eb.version
+             , t.curriBook
+             , ifnull(eb.parent_id, 0) AS exam_parent_id
+             , date_format(eb.reg_dt,'%Y-%m-%d %H:%i:%s') as rdate
+             , date_format(eb.mdfy_dt, '%Y-%m-%d %H:%i:%s') as udate
+             , s.id AS sets_id
+             , (select sets_id from exam_box eb2 where eb2.id = FN_GET_ORIGINAL_PARENT(eb.id)) as originalSetsId
+             , s.description
+             , s.hashTags
+             , if(s.creator_ty = 1 , '저작자', s.creator_name) as creator_name
+             , s.creator_id
+             , s.creator
+             , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = s.setCategory) as setCategoryCd
+             , case when s.setCategory is not null
+                        then (select m.val from aidt_lcms.meta m where s.setCategory = m.id limit 1)
+                    else (select m.val from aidt_lcms.meta m join aidt_lcms.sets_meta_map smm on smm.sets_id = s.id and smm.meta_name = 'setCategory' and smm.meta_id = m.id limit 1)
+                    end as setCategoryNm
+            , (select count(*)
+                from aidt_lcms.setsummary sam
+                where sam.set_id = s.id
+              ) as mdulCnt
+            , (select json_object(
+                        'difyHighMdulCnt', count(case when m.val = '상' then 1 end),
+                        'difyMiddleHighMdulCnt', count(case when m.val = '중상' then 1 end),
+                        'difyMiddleMdulCnt',count(case when m.val = '중' then 1 end),
+                        'difyMiddleLowMdulCnt',count(case when m.val = '중하' then 1 end),
+                        'difyLowMdulCnt',count(case when m.val = '하' then 1 end))
+                from aidt_lcms.setsummary sam
+                join aidt_lcms.article_meta_map amm on amm.article_id = sam.article_id and sam.sub_id = amm.sub_id and amm.meta_name = 'difficulty'
+                join aidt_lcms.meta m on m.id = amm.meta_id and m.name = 'difficulty'
+                where sam.set_id = s.id
+              ) as difyMdulCnt
+            , (select m.val from aidt_lcms.meta m where m.name = 'difficulty' and m.id = s.difficulty) as difyNm
+            , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = s.id and si.scrp_rgtr_id = #{userId} ) as scrapAt
+            , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = s.id) as scrapCnt
+            , ifnull((select sum(ss.points) from aidt_lcms.setsummary ss where ss.set_id = s.id),0) as setTotalScr
+            /* 출제범위 존재여부 */
+            , if((
+                select count(*)
+                from aidt_lcms.setsummary a
+                inner join aidt_lcms.article_meta_map b
+                on a.article_id = b.article_id and a.sub_id = b.sub_id
+                where a.set_id = s.id
+                and b.meta_name like 'studyMap%'
+                and b.meta_name not in ('studyMap','studyMap_2')
+            ) > 0,'Y','N') as exam_scope_exist_yn
+            , m2.val AS curriSchoolVal
+            , m3.id AS curriSubjectId
+            , m3.code AS curriSubject
+            , m3.val AS curriSubjectVal
+            , m4.val AS curriGradeVal
+            , m5.val AS curriSemesterVal
+            , m6.code AS curriBookCd
+            , m6.val AS curriBookNm
+            , eb.wrter_id
+        from aidt_lms.exam_box eb
+        inner join aidt_lcms.sets s ON eb.sets_id = s.id
+        inner join aidt_lcms.textbook t on eb.textbk_id = t.id
+        LEFT JOIN (
+            SELECT t.id
+                , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+                , t.curriBook
+            FROM aidt_lcms.textbook t
+            LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on t.id = t2.id
+        LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+        LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+        LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+        LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+        LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        LEFT JOIN aidt_lcms.meta m6 ON t2.curriBook = m6.id
+        where 1=1
+        and s.is_deleted = FALSE
+        and s.is_active = TRUE
+        and eb.id = #{examId}
+    </select>
+
+    <select id="listExamBoxInfo" parameterType="pagingParam" resultType="camelHashMap" >
+        /* integExamMapper.listExamBoxInfo */
+        select t.*
+            , (select sets_id from exam_box eb2 where eb2.id = FN_GET_ORIGINAL_PARENT(t.exam_id)) as originalSetsId
+            , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+            , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+            , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+            , (SELECT
+                   COUNT(*)
+               FROM aidt_lms.publish_box
+               WHERE exam_id IN (SELECT
+                                     CAST(j.id AS UNSIGNED)
+                                 FROM JSON_TABLE(FN_GET_EXAM_CHILD2(t.exam_id), "$[*]" COLUMNS (id INT PATH "$")) AS j)) as publishCnt
+            , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+            /* 출제범위 존재여부 */
+            , if((
+                select count(*)
+                from aidt_lcms.setsummary a
+                inner join aidt_lcms.article_meta_map b
+                on a.article_id = b.article_id and a.sub_id = b.sub_id
+                where a.set_id = t.id
+                and b.meta_name like 'studyMap%'
+                and b.meta_name not in ('studyMap','studyMap_2')
+            ) > 0,'Y','N') as exam_scope_exist_yn
+            , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.slf_per_sets_mapng spsm where spsm.sets_id = t.id) as slfPerEvlAt
+            , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId}) as scrapAt
+            , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+            , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+            , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+            , count(*) over () as full_count
+            , (
+                select thumbnail from aidt_lcms.article a where a.id = (
+                    select min(sam.article_id) over (order by id)
+                    from aidt_lcms.sets_article_map sam
+                    where sam.sets_id = t.id limit 1
+                )
+            ) as thumbnail
+            , setCategory
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                eb.id AS exam_id,
+                ifnull(eb.parent_id, 0) AS exam_parent_id,
+                eb.textbk_id,
+                eb.exam_nm AS name,
+                eb.reg_dt AS rdate,
+                eb.mdfy_dt AS udate,
+                eb.version,
+                s.id,
+                s.id AS sets_id,
+                s.brand_id,
+                s.hashTags,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.difficulty,
+                t.curriBook,
+                m2.val AS curriSchoolVal,
+                m3.id AS curriSubjectId,
+                m3.code AS curriSubject,
+                m3.val AS curriSubjectVal,
+                m4.val AS curriGradeVal,
+                m5.val AS curriSemesterVal,
+                m6.code AS curriBookCd,
+                m6.val AS curriBookNm,
+                eb.wrter_id
+            from aidt_lms.exam_box eb
+            inner join aidt_lcms.sets s on s.id = eb.sets_id
+            inner join aidt_lcms.textbook t on eb.textbk_id = t.id
+            LEFT JOIN (
+                SELECT t.id
+                    , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                    , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                    , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                    , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                    , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+                    , t.curriBook
+                FROM aidt_lcms.textbook t
+                LEFT JOIN (
+                    SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                    FROM aidt_lcms.meta_meta_map mmm
+                    INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+                ) tmp on t.curriBook  = tmp.meta_id_a
+                group by t.id
+            ) t2 on t.id = t2.id
+            LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+            LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+            LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+            LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+            LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+            LEFT JOIN aidt_lcms.meta m6 ON t2.curriBook = m6.id
+            <if test="param.curriIdList != null and param.curriIdList.size() > 0 ">
+                inner join aidt_lcms.sets_article_map b on b.sets_id = s.id
+                inner join aidt_lcms.article_meta_map c on c.article_id = b.article_id and c.sub_id = 0
+                and c.meta_id in (<foreach item="item" collection="param.curriIdList" separator=",">#{item}</foreach>) /* 학습맵 커리큘럼에서 선택된 값 (교과과정 -> 학습맵으로 변경됨) */
+            </if>
+            where 1=1
+            and eb.wrter_id = #{param.wrterId}
+            and eb.del_at = 'N'
+            <if test="param.textbkIds != null and param.textbkIds.size() > 0 ">
+                and eb.textbk_id in (<foreach item="item" collection="param.textbkIds" separator=",">#{item}</foreach>)
+            </if>
+            <if test="param.textbkId != null and param.textbkId != '' ">
+                and eb.textbk_id = #{param.textbkId}
+            </if>
+            <if test="param.category != null and param.category != '' ">
+                and s.setCategory = (select id from aidt_lcms.meta where name = 'setCategory' and code = #{param.category}) /* 구분 */
+            </if>
+            <if test="param.difyIdList != null and param.difyIdList.size() > 0 ">
+                and s.difficulty in (select id from aidt_lcms.meta where name = 'difficulty' and code in (<foreach item="item" collection="param.difyIdList" separator=",">#{item}</foreach>)) /* 난이도 */
+            </if>
+            <if test="param.keyword != null and param.keyword != '' ">
+                and ( eb.exam_nm like concat('%',#{param.keyword},'%') ) /* 검색어 */
+            </if>
+            <choose>
+                <when test="param.myuid != null and param.myuid != ''">
+                    and s.creator = #{param.myuid}
+                </when>
+                <otherwise>
+                </otherwise>
+            </choose>
+        ) t
+        where 1=1
+        <if test="param.scrapAt != null and param.scrapAt != ''">
+            <choose>
+                <when test=" param.scrapAt == 'Y'.toString() ">
+                    and exists(select 1 from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId})
+                </when>
+                <when test=" param.scrapAt == 'N'.toString() ">
+                    and not exists(select 1 from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId})
+                </when>
+            </choose>
+        </if>
+        <if test="param.sortGbCd != null and param.sortGbCd != ''">
+            order by
+            <choose>
+                <when test="param.sortGbCd == 1">
+                    rdate desc
+                </when>
+                <when test="param.sortGbCd == 2">
+                    udate desc
+                </when>
+                <when test="param.sortGbCd == 3">
+                    -- 조건 1: t.name 오름차순 정렬
+                    CASE
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 48 AND 57 THEN 1  -- 숫자 (0-9)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 65 AND 90 THEN 2  -- 대문자 (A-Z)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 97 AND 122 THEN 3 -- 소문자 (a-z)
+                    ELSE 4
+                    END,
+                    BINARY t.name ASC,
+                    -- 조건 2: 동일한 이름인 경우 regdate 최신순 정렬
+                    regdate desc
+                </when>
+            </choose>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="listExamBoxHist" parameterType="pagingParam" resultType="camelHashMap" >
+        /* integExamMapper.listExamBoxHist */
+        WITH RECURSIVE examHist AS (
+            SELECT *
+            FROM exam_box
+            WHERE id = #{param.examId}
+            UNION ALL
+            SELECT e.*
+            FROM exam_box e
+            INNER JOIN examHist h ON e.id = h.parent_id
+        )
+        SELECT COUNT(*) OVER () AS fullCount
+                , pb.id AS publishId
+	            , a.version
+                , DATE_FORMAT(a.reg_dt , '%Y-%m-%d %H:%i') AS exam_reg_dt
+                , CASE
+                    WHEN pb.publish_type = 1 THEN '클래스'
+                    WHEN pb.publish_type = 2 THEN 'URL'
+                    WHEN pb.publish_type = 3 THEN '출력용'
+                  END AS publish_use
+                , a.exam_nm AS publish_nm
+                , "" AS cla_nm
+                , DATE_FORMAT( pb.reg_dt , '%Y-%m-%d %H:%i') AS publish_reg_dt
+        FROM examHist a
+       INNER JOIN aidt_lms.publish_box pb ON a.id = pb.exam_id
+        LEFT JOIN aidt_lms.tc_cla_info tci ON pb.cla_id = tci.cla_id
+       WHERE 1=1
+        <if test="param.dateFrom != null and param.dateFrom != '' and param.dateTo != null and param.dateTo != ''">
+            AND pb.reg_dt BETWEEN #{param.dateFrom} AND DATE_ADD(#{param.dateTo}, INTERVAL 1 DAY)
+        </if>
+       ORDER BY a.id DESC, pb.reg_dt DESC
+       LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="listTextbkByExamHist" parameterType="map" resultType="camelHashMap" >
+        /* integExamMapper.listTextbkByExamHist */
+        SELECT DISTINCT
+                t2.id AS textbkId
+                , t2.name AS textbkNm
+                , t2.textbookIndex_id AS textbkIdxId
+                , m1.code AS curriYear
+                , m2.code AS curriSchool
+                , m3.code AS curriSubject
+                , m4.code AS curriGrade
+                , m5.code AS curriSemester
+                , m6.code AS curriBook
+                , m6.val AS curriBookNm
+        FROM aidt_lms.exam_box eb
+       INNER JOIN aidt_lcms.sets s on s.id = eb.sets_id
+       INNER JOIN aidt_lcms.textbook t on eb.textbk_id = t.id
+        LEFT JOIN (
+            SELECT t.id
+                 , t.name
+                 , t.textbookIndex_id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+                 , t.curriBook
+            FROM aidt_lcms.textbook t
+            LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on eb.textbk_id = t2.id
+        LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+        LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+        LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+        LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+        LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        LEFT JOIN aidt_lcms.meta m6 ON t2.curriBook = m6.id
+        WHERE eb.wrter_id = #{wrterId}
+          and eb.del_at = 'N'
+    </select>
+
+    <select id="getExamBoxDelAtStatus" parameterType="map" resultType="string">
+        /* integExamMapper.getExamBoxDelAtStatus */
+        SELECT
+            del_at
+        FROM aidt_lms.exam_box
+        WHERE id = #{examId}
+    </select>
+
+    <select id="checkSetSummaryExists" parameterType="map" resultType="int">
+        SELECT COUNT(*)
+        FROM aidt_lcms.setsummary
+        WHERE set_id = #{setsId}
+    </select>
+
+    <select id="findLesnRscList_meta" parameterType="map" resultType="camelHashMap">
+        /* integExamMapper.findLesnRscList_meta */
+        select m.id
+        , m.name
+        , m.code
+        , m.val
+        , m.is_active
+        , smm.sets_id
+        from aidt_lcms.sets_meta_map smm
+        join aidt_lcms.meta m on m.id = smm.meta_id and m.is_active = TRUE
+        where 1=1
+        and smm.sets_id in (
+        <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+        )
+    </select>
+
+    <select id="findLesnRscList_article" parameterType="map" resultType="camelHashMap" >
+        /* integExamMapper.findLesnRscList_article */
+        select
+        sam.article_id as id
+        , sam.sub_id
+        , va.name
+        , ifnull(sam.thumbnail,va.thumbnail) as thumbnail
+        , va.hashTags
+        , va.source
+        , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = va.id and amm.sub_id = sam.sub_id and amm.meta_name = 'questionType') as questionType
+        , if(va.use_evaluation > 0, 'Y', 'N') as slf_per_evl_yn /* 자기동료평가 유무 */
+        , json_extract(va.questionStr, '$."evaluation"') as slf_per_evl_info
+        , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = va.id and amm.sub_id = sam.sub_id and amm.meta_name = 'articleType') as articleType
+        , sam.set_id as sets_id
+        , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = va.id and amm.sub_id = sam.sub_id and amm.meta_name = 'difficulty') as mdulDifyNm
+        , ifnull((select sum(ss.points) from aidt_lcms.setsummary ss where ss.set_id = sam.set_id and ss.article_id = sam.article_id and ss.sub_id = sam.sub_id),0) as mdulScr
+        , ifnull(muc.use_cnt,0) as mdulUseCnt
+        from aidt_lcms.setsummary sam
+        inner join aidt_lcms.article va on va.id = sam.article_id
+        left join aidt_lms.module_use_cnt muc on muc.article_id = sam.article_id and muc.sub_id = sam.sub_id
+        where 1=1
+        and sam.set_id in (
+        <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+        )
+        order by sam.id
+    </select>
+
+    <select id="findLesnRscList_articleType" parameterType="map" resultType="camelHashMap" >
+        /* integExamMapper.findLesnRscList_articleType */
+        select
+        s.set_id as setsId,
+        n.meta_id,
+        (select val from aidt_lcms.meta where id = n.meta_id) as article_type,
+        count(n.meta_id) as article_type_cnt
+        from (
+        select set_id, article_id, min(sub_id) as sub_id from aidt_lcms.setsummary a
+        where set_id in (
+        <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+        )
+        group by set_id, article_id
+        ) s
+        inner join aidt_lcms.article_meta_map n on s.article_id = n.article_id and s.sub_id = n.sub_id and n.meta_name = 'articleType'
+        group by s.set_id, n.meta_id
+        order by s.set_id, n.meta_id
+    </select>
+
+    <select id="findLesnRscInfo_coment" parameterType="map" resultType="camelHashMap" >
+        /* integExamMapper.findLesnRscInfo_coment */
+        select
+            sam.article_id
+             , sam.sub_id
+             , group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+             , group_concat(case when la.part = 'explanation'  then la.data end order by la.sub_id separator '\n') as explanation
+        from aidt_lcms.setsummary sam
+                 join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+                 join aidt_lcms.log_articlepart la on la.article_id = sam.article_id and la.sub_id = sam.sub_id
+        where sam.set_id = #{setsId}
+          and la.part in ( 'hint','explanation')
+        group by sam.article_id, sam.sub_id
+        order by sam.id
+    </select>
+
+    <select id="findLesnRscList_difficulty" parameterType="map" resultType="camelHashMap" >
+        /* integExamMapper.findLesnRscList_difficulty */
+        select
+        s.set_id as setsId,
+        n.meta_id,
+        (select val from aidt_lcms.meta where id = n.meta_id) as difficulty,
+        count(n.meta_id) as difficulty_cnt
+        from (
+        select set_id, article_id, min(sub_id) as sub_id from aidt_lcms.setsummary a
+        where set_id in (
+        <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+        )
+        group by set_id, article_id
+        ) s
+        inner join aidt_lcms.article_meta_map n on s.article_id = n.article_id and s.sub_id = n.sub_id and n.meta_name = 'difficulty'
+        group by s.set_id, n.meta_id
+        order by s.set_id, n.meta_id
+    </select>
+</mapper>

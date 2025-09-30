@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.mathvillage.mapper.MathVillageMapper">
+
+    <select id="selectTchCompletedList" parameterType="map" resultType="camelHashMap">
+        /* MathVillageMapper.selectTchCompletedList */
+        select m.stdt_id AS `stdtId` -- 학생 ID
+        from math_vill_std_step_info m
+        where 1=1
+            AND m.cla_id = #{claId}
+            AND m.unit_id = #{unitId}
+            AND m.std_cd = #{stdCd}
+            AND m.std_cp_at = #{stdCpAt}
+    </select>
+
+    <select id="findStdByStdtId" parameterType="map" resultType="camelHashMap" >
+        /* MathVillageMapper.findByStdtId */
+        select m.id AS `stepId` -- ID
+            , m.unit_id AS `unitId` -- 단원 ID
+            , m.stdt_id AS `stdtId` -- 학생 ID
+            , m.cla_id AS `claId` -- 학급 ID
+            , m.std_cd AS `stdCd` -- 학습 구분
+            , m.std_cp_at AS `stdCpAt` -- 학습 완료 여부
+            , DATE_FORMAT(m.std_st_dt, '%Y-%m-%d %H:%i:%s') AS `stdStDt` -- 학습 시작 일시
+            , DATE_FORMAT(m.std_ed_dt, '%Y-%m-%d %H:%i:%s') AS `stdEdDt` -- 학습 종료 일시
+        from math_vill_std_step_info m
+        where 1=1
+            AND m.stdt_id = #{stdtId}
+            AND m.cla_id = #{claId}
+            AND m.unit_id = #{unitId}
+            AND m.std_cd = #{stdCd}
+    </select>
+
+    <insert id="insertStep" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* MathVillageMapper.insertStep */
+        INSERT INTO math_vill_std_step_info
+        (unit_id, stdt_id, cla_id, std_cd, std_cp_at, std_st_dt, rgtr, reg_dt, mdfr, mdfy_dt)
+        VALUES (#{unitId}, #{stdtId}, #{claId}, #{stdCd}, #{stdCpAt}, now(), #{stdtId}, now(), #{stdtId}, now())
+    </insert>
+
+    <update id="updateStep" parameterType="map">
+        /* MathVillageMapper.updateStep */
+        update math_vill_std_step_info
+        set std_cp_at = #{stdCpAt},
+            std_ed_dt = now(),
+            mdfr = #{stdtId},
+            mdfy_dt = now()
+        where id = #{id}
+    </update>
+
+
+    <select id="selectActvImage" parameterType="map">
+        /* MathVillageMapper.selectActvImage */
+        select m.paint_actv_img AS `dataUrl` -- 이미지
+            , m.data_txt AS `dataTxt` -- 텍스트
+        from math_vill_rpt m
+        where m.stdt_id = #{stdtId}
+            AND m.unit_id = #{unitId}
+            AND m.sess_id = #{sessId}
+            AND m.qitem_at = #{qitemAt}
+    </select>
+
+    <select id="selectResultList" parameterType="map">
+        /* MathVillageMapper.selectResultList */
+        select m.qitem_no AS `qitemNo` -- 문항 번호
+            , m.ic_at AS `icAt` -- 정오답 여부
+        from math_vill_rpt m
+        where m.stdt_id = #{stdtId}
+            AND m.unit_id = #{unitId}
+            AND m.sess_id = #{sessId}
+            AND m.qitem_at = #{qitemAt}
+        order by m.qitem_no asc
+    </select>
+
+    <insert id="insertReportImage" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* MathVillageMapper.insertReportImage */
+        INSERT INTO math_vill_rpt
+        (stdt_id, cla_id, unit_id, sess_id, qitem_at, paint_actv_img, data_txt, rgtr, reg_dt, mdfr, mdfy_dt)
+        VALUES (#{stdtId}, #{claId}, #{unitId}, #{sessId}, #{qitemAt}, #{paintActvImg}, #{dataTxt}, #{stdtId}, now(), #{stdtId}, now())
+    </insert>
+
+    <insert id="insertReportQitem" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* MathVillageMapper.insertReportQitem */
+        INSERT INTO math_vill_rpt
+        (stdt_id, cla_id, unit_id, sess_id, qitem_at, qitem_no, ic_at, rgtr, reg_dt, mdfr, mdfy_dt)
+        VALUES (#{stdtId}, #{claId}, #{unitId}, #{sessId}, #{qitemAt}, #{qitemNo}, #{icAt}, #{stdtId}, now(), #{stdtId}, now())
+    </insert>
+
+</mapper>

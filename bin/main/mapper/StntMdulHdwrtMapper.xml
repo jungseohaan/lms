@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.StntMdulHdwrtMapper">
+    <update id="modifyStntEvalMdulHdwrtSave" parameterType="map">
+        /* StntMdulHdwrtMapper.modifyStntEvalMdulHdwrtSave */
+        <selectKey keyProperty="resultDetailId" resultType="int" order="BEFORE">
+            select ifnull(min(erd.id),0) as resultDetailId
+            from aidt_lms.evl_result_info eri
+            join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+            where eri.evl_id = #{evlId}
+            and eri.mamoym_id = #{userId}
+            and eri.id = #{evlResultId}
+            and erd.evl_iem_id = #{moduleId}
+            and erd.sub_id = #{subId}
+            limit 1
+        </selectKey>
+        update aidt_lms.evl_result_detail
+        set hdwrt_cn = #{hdwrtCn}
+        where id = #{resultDetailId}
+    </update>
+
+    <select id="findStntEvalMdulHdwrtView" parameterType="map" resultType="camelHashMap">
+        /* StntMdulHdwrtMapper.findStntEvalMdulHdwrtView */
+        select erd.id as resultDetailId
+             , erd.hdwrt_cn
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+        where eri.evl_id = #{evlId}
+        and eri.mamoym_id = #{userId}
+        and eri.id = #{evlResultId}
+        and erd.evl_iem_id = #{moduleId}
+        and erd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <select id="findStntEvalMdulHdwrtShareList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulHdwrtMapper.findStntEvalMdulHdwrtShareList */
+        select
+        hd.id as hdwrt_detail_id
+        ,hd.hdwrt_id
+        ,hd.hdwrt_seq
+        ,hd.hdwrt_img_url
+        from aidt_lms.hdwrt_info hi
+        join aidt_lms.hdwrt_detail hd on hd.hdwrt_id = hi.id
+        where hi.trgt_se_cd = 3
+        and hi.trgt_id = #{evlId}
+        and hi.module_id = #{moduleId}
+        and hi.sub_id = #{subId}
+        order by hd.hdwrt_id asc, hd.hdwrt_seq asc
+    </select>
+
+    <update id="modifyStntHomewkMdulHdwrtSave" parameterType="map">
+        /* StntMdulHdwrtMapper.modifyStntHomewkMdulHdwrtSave */
+        <selectKey keyProperty="resultDetailId" resultType="int" order="BEFORE">
+            select ifnull(min(trd.id),0) as resultDetailId
+            from aidt_lms.task_result_info tri
+            join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+            where tri.task_id = #{taskId}
+            and tri.mamoym_id = #{userId}
+            and tri.id = #{taskResultId}
+            and trd.task_iem_id = #{moduleId}
+            and trd.sub_id = #{subId}
+            limit 1
+        </selectKey>
+        update aidt_lms.task_result_detail
+        set hdwrt_cn = #{hdwrtCn}
+        where id = #{resultDetailId}
+    </update>
+
+    <select id="findStntHomewkMdulHdwrtView" parameterType="map" resultType="camelHashMap">
+        /* StntMdulHdwrtMapper.findStntHomewkMdulHdwrtView */
+        select trd.id as resultDetailId
+             , trd.hdwrt_cn
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+        and tri.mamoym_id = #{userId}
+        and tri.id = #{taskResultId}
+        and trd.task_iem_id = #{moduleId}
+        and trd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <select id="findStntHomewkMdulHdwrtShareList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulHdwrtMapper.findStntHomewkMdulHdwrtShareList */
+        select
+        hd.id as hdwrt_detail_id
+        ,hd.hdwrt_id
+        ,hd.hdwrt_seq
+        ,hd.hdwrt_img_url
+        from aidt_lms.hdwrt_info hi
+        join aidt_lms.hdwrt_detail hd on hd.hdwrt_id = hi.id
+        where hi.trgt_se_cd = 2
+        and hi.trgt_id = #{taskId}
+        and hi.module_id = #{moduleId}
+        and hi.sub_id = #{subId}
+        order by hd.hdwrt_id asc, hd.hdwrt_seq asc
+    </select>
+</mapper>

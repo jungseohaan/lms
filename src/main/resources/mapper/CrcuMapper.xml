@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.textbook.mapper.CrcuMapper">
+    <select id="findTextbookCrcuList" parameterType="map" resultType="camelHashMap">
+        /* CrcuMapper.findTextbookCrcuList */
+        with recursive curriculum as (
+            select
+                a.id,
+                a.textbookIndex_id,
+                a.key,
+                a.parent,
+                a.text,
+                /* a.page,*/
+                a.is_addContents,
+                cast(lpad(a.key,5,'0') as char(100) character set utf8) as id_path,
+                cast(a.text as char(1000) character set utf8) as id_path_nm,
+                1 as depth
+            from
+                aidt_lcms.textbookcurriculum a
+            where
+                1=1
+                and a.textbookIndex_id = #{textbookIndexId}
+                and a.parent = 0
+                and a.is_delete = 0
+                and a.is_active = 1
+            union all
+            select
+                b.id,
+                b.textbookIndex_id,
+                b.key,
+                b.parent,
+                b.text,
+                /* b.page, */
+                b.is_addContents,
+                concat(c.id_path, ' > ', lpad(b.key,5,'0')) as id_path,
+                concat(c.id_path_nm, ' > ', b.text) as id_path_nm,
+                1 + c.depth as depth
+            from
+                aidt_lcms.textbookcurriculum b
+                    inner join curriculum c
+                        on c.textbookIndex_id = b.textbookIndex_id
+                            and c.key = b.parent
+                            and b.is_delete = 0
+                            and b.is_active = 1
+        )
+        select
+            id,
+            textbookIndex_id,
+            `key`,
+            ifnull(parent, 0) as parent,
+            @ROWNUM := @ROWNUM + 1 as `order`,
+            text,
+            id_path,
+            id_path_nm,
+            /* page, */
+            is_addContents,
+            depth,
+            (
+                SELECT
+                    (CASE WHEN count(*)>0 THEN 'Y'
+                        ELSE 'N' END)
+                FROM aidt_lcms.textbooktab d,
+                    (
+                        SELECT c.textbk_tab_id, c.sets_id
+                        FROM aidt_lms.won_asw_note a, aidt_lms.std_dta_result_detail b, aidt_lms.std_dta_result_info c
+                        WHERE a.won_anw_tg_id = b.id
+                            AND b.dta_result_id = c.id
+                            AND c.mamoym_id = #{userId}
+                            AND a.wrter_id = #{userId}
+                            AND b.errata = 2
+                            AND b.mrk_ty = 1
+                    ) e
+                WHERE d.id = e.textbk_tab_id
+                AND d.set_id = e.sets_id
+                AND d.textbookIndex_id = textbookIndex_id
+                AND d.textbookCurriculum_key = `key`
+                AND d.textbookCurriculum_id = id) as won_asw_yn
+        from
+            curriculum
+                inner join (select @ROWNUM:=0) as r
+        order by
+            id_path
+    </select>
+
+    <select id="findTextbookCrcuListByMeta" parameterType="map" resultType="camelHashMap">
+        /* CrcuMapper.findTextbookCrcuListByMeta */
+        select
+            *
+        from (
+            with recursive curriculum as (
+                select
+                    b.id,
+                    b.parent_id,
+                    b.`code`,
+                    b.name,
+                    b.val,
+                    cast(b.id as char(1000) character set utf8) as pk_path,
+                    cast(b.`code` as char(1000) character set utf8) as id_path,
+                    cast(b.val as char(1000) character set utf8) as id_path_nm,
+                    (b.depth -1) as depth
+                from
+                    aidt_lcms.meta a
+                    inner join aidt_lcms.meta b
+                        on a.`code` = b.description
+                            and b.is_active = 1
+                            and b.name = 'studyMap1'
+                    inner join aidt_lcms.meta c
+                        on c.id = b.parent_id
+                            and c.is_active = 1
+                where
+                    1=1
+                    and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbookId})
+                    and a.is_active = 1
+                union all
+                select
+                    b.id,
+                    b.parent_id,
+                    b.`code`,
+                    b.name,
+                    b.val,
+                    concat(c.pk_path, ',', b.id) as pk_path,
+                    concat(c.id_path, ' > ', b.`code`) as id_path,
+                    concat(c.id_path_nm, ' > ', b.val) as id_path_nm,
+                    1 + c.depth as depth
+                from
+                    aidt_lcms.meta b
+                    inner join curriculum c
+                        on c.id = b.parent_id
+                            and b.is_active = 1
+                where
+                    b.name <![CDATA[<>]]> 'studyMap_2'
+            )
+            select
+                id,
+                parent_id,
+                `code`,
+                row_number() over () as `order`,
+                name,
+                val,
+                SUBSTRING_INDEX(pk_path,',',1) as meta_id, /* 대단원 ID */
+                pk_path,
+                id_path,
+                id_path_nm,
+                depth,
+                <if test="brandId == 1"> /* 수학 */
+                'Y' as displayYn
+                </if>
+                <if test="brandId == 3"> /* 영어 */
+                    <choose>
+                        <when test = "displayEngYn != null and displayEngYn != ''">
+                        case
+                            /* 공통 */
+                            /* 중등영어 */
+                            when id_path_nm = 'Vocabulary' then 'N'
+                            when id_path_nm = 'Grammar' then 'N'
+                            else 'Y'
+                        end as displayYn
+                        </when>
+                        <when test = "displayYn != null and displayYn != ''">
+                            case
+                                when depth = 1
+                                /* 공통 */
+                                /* 중등영어 */
+                                and id_path_nm not in ('Vocabulary','Grammar','Project 1','Project 2','Project 3','Project 4') then 'Y'
+                                when id_path_nm = 'Vocabulary' then 'N'
+                                when id_path_nm = 'Grammar' then 'N'
+                                when id_path_nm = 'Project 1' then 'N'
+                                when id_path_nm = 'Project 2' then 'N'
+                                when id_path_nm = 'Project 3' then 'N'
+                                when id_path_nm = 'Project 4' then 'N'
+                                when val = 'Vocabulary' then 'Y'
+                                when val = 'Everyday Communication 1' then 'Y'
+                                when val = 'Everyday Communication 2' then 'Y'
+                                when val = 'Read' then 'Y'
+                                when val = 'Grammar' then 'Y'
+                                /* 고등영어 */
+                                when val = 'Task 1-1' then 'Y'
+                                when val = 'Task 1-2' then 'Y'
+                                when val = 'Task 2: Read' then 'Y'
+                                when val = 'Grammar in Use' then 'Y'
+                                when val = 'Read More' then 'Y'
+                                when val = 'Read Culture' then 'Y'
+
+                                /* 초등영어 */
+                                when #{textbookType} = 'elementaryEnglish' and val = '(+) Words' then 'Y'
+                                when #{textbookType} = 'elementaryEnglish' and val = 'Listen Up' then 'Y'
+                                when #{textbookType} = 'elementaryEnglish' and val = 'Speak Up' then 'Y'
+                                when #{textbookType} = 'elementaryEnglish' and val = 'Build Up' then 'Y'
+                                when #{textbookType} = 'elementaryEnglish' and val = 'Story Time' then 'Y'
+                                when #{textbookType} = 'elementaryEnglish' and val = '(+) Words &amp; Sentences' then 'Y'
+
+                                else 'N'
+                            end as displayYn
+                        </when>
+                        <otherwise>
+                            'Y' as displayYn
+                        </otherwise>
+                    </choose>
+                </if>
+            from
+                curriculum
+            where 1=1
+            /* 영어인 경우 */
+            <if test="brandId == 3">
+                and depth <![CDATA[<=]]> 2
+            </if>
+
+            <if test="textbookType == 'elementaryMath'">
+                and depth = 1
+            </if>
+            order by
+                id_path
+        ) A
+        where 1=1
+            and displayYn = ifnull(#{displayYn},'Y')
+            <if test="textbookType == 'elementaryEnglish'">
+                and val NOT IN ('Review 1', 'Review 2')
+            </if>
+    </select>
+
+    <select id="findTextbookBrandId" parameterType="map" resultType="int">
+        /* CrcuMapper.findTextbookBrandId */
+        select brand_id from aidt_lcms.textbook where id = #{textbookId}
+    </select>
+</mapper>

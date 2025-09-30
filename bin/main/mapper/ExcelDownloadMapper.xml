@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.common.excel.mapper.ExcelDownloadMapper">
+    <select id="findUnits" parameterType="Integer" resultType="camelHashMap">
+        select row_number() over () as unitNum, b.val,
+               b.id as      meta_id
+        from aidt_lcms.meta a
+                 inner join aidt_lcms.meta b
+                            on a.code = b.description
+                                and b.is_active = 1
+                                and b.name = 'studyMap1'
+                 inner join aidt_lcms.meta c
+                            on c.id = b.parent_id
+                                and c.is_active = 1
+                 left join aidt_lcms.meta_extension d
+                           on b.meta_extension_id = d.meta_extension_id
+        where 1 = 1
+          and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+          and a.is_active = 1
+          and ifnull(d.val1, '1') = '1' /* Project 노출여부가 1인 것만 노출 */
+        order by b.parent_id, b.code; /* 20240806 studyMap 정렬순서 수정 */
+    </select>
+
+    <select id="findTaskReviewsByClaIdAndMetaIds" resultType="camelHashMap">
+        select
+        ti.id,
+        tcmi.stdt_id,
+        (select a.flnm from aidt_lms.stdt_reg_info a where a.user_id = tcmi.stdt_id) as student_name,
+        b.genrvw as review,
+        ti.id,
+        ti.task_nm as id_path_nm,
+        (select val from aidt_lcms.meta where id = amm.meta_id) as unit_name
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join aidt_lms.task_info ti on tcmi.cla_id = ti.cla_id
+        left join aidt_lms.task_result_info b on b.task_id = ti.id
+        AND b.mamoym_id = tcmi.stdt_id
+        AND tcmi.actvtn_at = 'Y'
+        left join aidt_lms.task_result_detail c on c.task_result_id = b.id
+        join aidt_lcms.article_meta_map amm
+        on amm.article_id = c.task_iem_id
+        and amm.sub_id = c.sub_id
+        /* 대단원(대분류) */
+        and amm.meta_name = 'studyMap1'
+        and amm.meta_id in
+        <foreach collection="metaIds" item="metaId" open="(" separator="," close=")">
+            #{metaId}
+        </foreach>
+        where ti.cla_id = #{claId}
+        and ti.task_stts_cd <![CDATA[ >= ]]> 3
+        GROUP BY ti.id, tcmi.stdt_id
+        order by ti.id, tcmi.stdt_id;
+    </select>
+
+    <select id="findEvlReviewsByClaIdAndMetaIds" parameterType="map" resultType="camelHashMap">
+        select ei.id,
+        ei.evl_nm as id_path_nm,
+        eri.id,
+        (select a.genrvw from aidt_lms.evl_result_info a where a.evl_id = ei.id and a.mamoym_id = tcmi.stdt_id and
+        a.genrvw is not null) as review,
+        tcmi.stdt_id,
+        (select flnm from aidt_lms.stdt_reg_info sri where sri.user_id = tcmi.stdt_id) student_name,
+        (select val from aidt_lcms.meta where id = amm.meta_id) as unit_name
+        from
+        aidt_lms.tc_cla_mb_info tcmi
+        left join aidt_lms.evl_info ei on tcmi.cla_id = ei.cla_id
+        left join aidt_lms.evl_result_info eri on eri.evl_id = ei.id
+        AND eri.mamoym_id = tcmi.stdt_id
+        left join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+        join aidt_lcms.article_meta_map amm on erd.evl_iem_id = amm.article_id
+        and amm.meta_name = 'studyMap1'
+        and amm.meta_id in
+        <foreach collection="metaIds" item="metaId" open="(" separator="," close=")">
+            #{metaId}
+        </foreach>
+        where ei.cla_id = #{claId}
+        and ei.evl_stts_cd <![CDATA[ >= ]]> 3
+        and tcmi.actvtn_at = 'Y'
+        group by ei.id, tcmi.stdt_id
+        order by ei.id, tcmi.stdt_id;
+    </select>
+
+    <select id="findMathReviewsByClaIdAndMetaIds" parameterType="map" resultType="camelHashMap">
+        /* ExcelDownloadMapper.findMathReviewsByClaIdAndMetaIds */
+        with recursive curriculum as (
+        select
+        a.id,
+        a.wrter_id,
+        a.cla_id,
+        a.textbk_id,
+        a.textbk_idx_id,
+        a.key,
+        a.parent,
+        a.text,
+        cast(lpad(a.key,5,'0') as char(100) character set utf8) as id_path,
+        cast(a.text as char(1000) character set utf8) as id_path_nm,
+        1 as depth
+        from aidt_lms.tc_curriculum a
+        WHERE 1 = 1
+        and a.cla_id = #{claId}
+        and a.textbk_id = #{textbkId}
+        and a.parent = 0
+        union all
+        select
+        b.id,
+        b.wrter_id,
+        b.cla_id,
+        b.textbk_id,
+        b.textbk_idx_id,
+        b.key,
+        b.parent,
+        b.text,
+        concat(c.id_path, ' > ', lpad(b.key,5,'0')) as id_path,
+        case when c.depth >= 3 and c.depth >= 4 then concat(c.id_path_nm, CHAR(10), '> ' ,b.text)
+        else concat(c.id_path_nm, ' > ', b.text)
+        end as id_path_nm,
+        1 + c.depth as depth
+        from
+        aidt_lms.tc_curriculum b
+        inner join curriculum c
+        on c.wrter_id = b.wrter_id
+        and c.cla_id = b.cla_id
+        and c.textbk_id = b.textbk_id
+        and c.key = b.parent
+        )
+        select *
+        from(
+        select
+        tcmi.stdt_id,
+        (select a.flnm from aidt_lms.stdt_reg_info a where a.user_id = tcmi.stdt_id) as student_name,
+        (select sdri_latest.genrvw
+        from aidt_lms.std_dta_result_info sdri_latest
+        join aidt_lms.tab_info ti_latest on ti_latest.id = sdri_latest.textbk_tab_id
+        where ti_latest.crcul_id = ti.crcul_id -- 같은 차시(커리큘럼)
+        and sdri_latest.mamoym_id = tcmi.stdt_id -- 같은 학생
+        and sdri_latest.genrvw is not null
+        and ti_latest.cla_id = tcmi.cla_id -- 같은 학급
+        order by sdri_latest.id desc limit 1) as review,
+        (select id_path_nm from curriculum c where ti.crcul_id = c.`key` and c.depth !=1) as id_path_nm,
+        (select val from aidt_lcms.meta where id = amm.meta_id) as unit_name,
+        amm.meta_id
+        from aidt_lms.tc_cla_mb_info tcmi -- 학급 구성원을 메인 테이블로 시작
+        left join aidt_lms.tab_info ti on ti.cla_id = tcmi.cla_id
+        left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+        left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+        join aidt_lcms.article_meta_map amm
+        on amm.article_id = sdrd.dta_iem_id
+        and amm.sub_id = sdrd.sub_id
+        and amm.meta_name = 'studyMap1'
+        and amm.meta_id in
+        <foreach collection="metaIds" item="metaId" open="(" separator="," close=")">
+            #{metaId}
+        </foreach>
+        where tcmi.cla_id = #{claId}
+        and tcmi.actvtn_at = 'Y'
+        and (sdrd.sub_mit_anw is not null or sub_mit_anw_url is not null )
+        ) a
+        where id_path_nm is not null
+        group by id_path_nm, a.stdt_id -- 차시별, 학생별로 하나씩만 표시
+        order by id_path_nm, a.stdt_id;
+    </select>
+
+    <select id="findEnglishReviewsByClaIdAndMetaIds" parameterType="map" resultType="camelHashMap">
+        with recursive curriculum as (
+        select
+        a.id,
+        a.wrter_id,
+        a.cla_id,
+        a.textbk_id,
+        a.textbk_idx_id,
+        a.key,
+        a.parent,
+        a.text,
+        cast(lpad(a.key,5,'0') as char(100) character set utf8) as id_path,
+        cast(a.text as char(1000) character set utf8) as id_path_nm,
+        1 as depth
+        from
+        aidt_lms.tc_curriculum a
+        where
+        1=1
+        and a.cla_id = #{claId}
+        and a.textbk_id = #{textbkId}
+        and a.parent = 0
+        union all
+        select
+        b.id,
+        b.wrter_id,
+        b.cla_id,
+        b.textbk_id,
+        b.textbk_idx_id,
+        b.key,
+        b.parent,
+        b.text,
+        concat(c.id_path, ' > ', lpad(b.key,5,'0')) as id_path,
+        concat(c.id_path_nm, ' > ', b.text) as id_path_nm,
+        1 + c.depth as depth
+        from
+        aidt_lms.tc_curriculum b
+        inner join curriculum c
+        on c.wrter_id = b.wrter_id
+        and c.cla_id = b.cla_id
+        and c.textbk_id = b.textbk_id
+        and c.key = b.parent
+        )
+        select *
+        from(
+        select
+        tcmi.stdt_id,
+        (select a.flnm from aidt_lms.stdt_reg_info a where a.user_id = tcmi.stdt_id) as student_name,
+        (select sdri_latest.genrvw
+        from aidt_lms.std_dta_result_info sdri_latest
+        join aidt_lms.tab_info ti_latest on ti_latest.id = sdri_latest.textbk_tab_id
+        where ti_latest.crcul_id = ti.crcul_id
+        and sdri_latest.mamoym_id = tcmi.stdt_id
+        and sdri_latest.genrvw is not null
+        and ti_latest.cla_id = tcmi.cla_id
+        order by sdri_latest.id desc limit 1) as review,
+        (select id_path_nm from curriculum c where ti.crcul_id = c.`key` and c.depth !=1) as id_path_nm,
+        (select val from aidt_lcms.meta where id = amm.meta_id) as unit_name
+        from aidt_lms.tc_cla_mb_info tcmi -- 학급 구성원을 메인 테이블로 시작
+        left join aidt_lms.tab_info ti on ti.cla_id = tcmi.cla_id
+        left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+        left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+        join aidt_lcms.article_meta_map amm
+        on amm.article_id = sdrd.dta_iem_id
+        and amm.sub_id = sdrd.sub_id
+        and amm.meta_name = 'studyMap1'
+        and amm.meta_id in
+        <foreach collection="metaIds" item="metaId" open="(" separator="," close=")">
+            #{metaId}
+        </foreach>
+        where tcmi.cla_id = #{claId}
+        and tcmi.actvtn_at = 'Y'
+        and (sdrd.sub_mit_anw is not null or sub_mit_anw_url is not null )
+        ) a
+        where id_path_nm is not null
+        group by id_path_nm, a.stdt_id
+        order by id_path_nm, a.stdt_id;
+    </select>
+    <select id="findEnglishAchievementByTextbkIdAndClaId" parameterType="map" resultType="camelHashMap">
+        SELECT d.unit_num,
+               ROUND(AVG(d.usd_ach_scr_percent), 2) AS                                   usdScr,
+               (select flnm from aidt_lms.stdt_reg_info sri where stdt_id = sri.user_id) student_name,
+               (select val from aidt_lcms.meta where id = meta_id)                       unitName
+        FROM (SELECT b.unit_num,
+                     IFNULL(b.usd_ach_scr_percent, 0) AS usd_ach_scr_percent,
+                     b.stdt_id,
+                     b.meta_id
+              FROM (SELECT id, code, val
+                    FROM aidt_lcms.meta
+                    WHERE 1 = 1
+                      AND name IN ('evaluationArea', 'contentsItem', 'evaluationArea3')
+                      AND brand_id = '3'
+                      AND code != 'sentence') a
+                       INNER JOIN (
+                  /* 학습 이력 + 단원정보 포함 */
+                  SELECT usd_ach_id,
+                         SUM(c.usd_ach_scr)                                                        AS usd_ach_scr,
+                         SUM(c.rflt_actv_cnt)                                                      AS rflt_actv_cnt,
+                         CASE
+                             WHEN c.usd_ach_id IN
+                                  ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                                 THEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2)
+                             WHEN c.usd_ach_id = 'pronunciation'
+                                 THEN ROUND(AVG(c.usd_ach_scr_percent), 2)
+                             ELSE ROUND((AVG(c.usd_ach_scr_percent) * 100), 2)
+                             END                                                                   AS usd_ach_scr_percent,
+                         CASE
+                             WHEN c.usd_ach_id IN
+                                  ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting') THEN
+                                 CASE
+                                     WHEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2) >= 80 THEN 1
+                                     WHEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2) > 50 THEN 2
+                                     ELSE 3
+                                     END
+                             WHEN c.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation') THEN
+                                 CASE
+                                     WHEN c.usd_ach_scr_percent >= 80 THEN 1
+                                     WHEN c.usd_ach_scr_percent > 50 THEN 2
+                                     ELSE 3
+                                     END
+                             END                                                                   AS dfclt_lvl_ty,
+                         GROUP_CONCAT(REPLACE(IFNULL(c.article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                         c.std_at,
+                         c.unit_num,
+                         c.stdt_id,
+                         c.meta_id
+                  FROM (SELECT usd_ach_id,
+                               SUM(usd_ach_scr)                                                        AS usd_ach_scr,
+                               SUM(rflt_actv_cnt)                                                      AS rflt_actv_cnt,
+                               SUM(usd_ach_scr) / SUM(rflt_actv_cnt)                                   AS usd_ach_scr_percent,
+                               GROUP_CONCAT(REPLACE(IFNULL(article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                               stdt_id,
+                               std_at,
+                               unit_num,
+                               meta_id
+                        FROM aidt_lms.usd_ach_src2_info
+                        WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                          AND cla_id = #{claId}
+                          AND textbk_id = #{textbkId}
+
+                          AND std_dt = (SELECT MAX(dt.std_dt)
+                                        FROM aidt_lms.usd_ach_src2_info dt
+                                        WHERE dt.cla_id = #{claId}
+                                          AND dt.textbk_id = #{textbkId})
+                        GROUP BY usd_ach_id, stdt_id, unit_num
+                        UNION ALL
+                        SELECT b.usd_ach_id,
+                               SUM(b.usd_ach_scr)                                                        AS usd_ach_scr,
+                               SUM(b.rflt_actv_cnt)                                                      AS rflt_actv_cnt,
+                               AVG(b.usd_ach_scr_percent)                                                AS usd_ach_scr_percent,
+                               GROUP_CONCAT(REPLACE(IFNULL(b.article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                               b.stdt_id,
+                               b.std_at,
+                               b.unit_num,
+                               b.meta_id
+                        FROM (SELECT a.usd_ach_id,
+                                     SUM(a.usd_ach_scr)         AS usd_ach_scr,
+                                     SUM(a.rflt_actv_cnt)       AS rflt_actv_cnt,
+                                     AVG(a.usd_ach_scr_percent) AS usd_ach_scr_percent,
+                                     a.article_list,
+                                     a.stdt_id,
+                                     a.std_at,
+                                     a.unit_num,
+                                     a.meta_id
+                              FROM (SELECT a.usd_ach_id,
+                                           b.iem_id,
+                                           SUM(b.usd_ach_scr)                        AS usd_ach_scr,
+                                           SUM(b.rflt_actv_cnt)                      AS rflt_actv_cnt,
+                                           SUM(b.usd_ach_scr) / SUM(b.rflt_actv_cnt) AS usd_ach_scr_percent,
+                                           a.stdt_id,
+                                           a.std_at,
+                                           b.article_list,
+                                           a.unit_num,
+                                           a.meta_id
+                                    FROM aidt_lms.usd_ach_src2_info a
+                                             INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                        ON a.id = b.usd_ach_src_id
+                                    WHERE a.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation')
+                                      AND a.cla_id = #{claId}
+                                      AND a.textbk_id = #{textbkId}
+
+                                      AND a.std_dt = (SELECT MAX(dt.std_dt)
+                                                      FROM aidt_lms.usd_ach_src2_info dt
+                                                      WHERE dt.cla_id = #{claId}
+                                                        AND dt.textbk_id = #{textbkId})
+                                    GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd, a.unit_num) a
+                              GROUP BY a.usd_ach_id, a.iem_id, a.unit_num, a.stdt_id) b
+                        GROUP BY b.usd_ach_id, b.unit_num, b.stdt_id) c
+                  GROUP BY c.usd_ach_id, c.unit_num, c.stdt_id) b ON a.code = b.usd_ach_id) d
+        GROUP BY d.unit_num, d.stdt_id
+        ORDER BY d.unit_num, d.stdt_id;
+    </select>
+    <select id="findMathAchievementByTextbkIdAndClaId" parameterType="map" resultType="camelHashMap">
+        SELECT usd_scr,
+               (select val from aidt_lcms.meta where id = meta_id)                       unitName,
+               (select flnm from aidt_lms.stdt_reg_info sri where stdt_id = sri.user_id) student_name
+        FROM (SELECT DATE_FORMAT(a.std_dt, '%Y%m%d')     AS   std_dt,
+                     IFNULL(ROUND(AVG(a.usd_scr), 0), 0) AS   usd_scr,
+                     LAG(IFNULL(ROUND(AVG(a.usd_scr), 0), 0)) OVER (ORDER BY a.std_dt) AS prev_usd_scr, meta_id,
+                     stdt_id
+              FROM (
+                       -- 각 날짜별, 학생별 평균 계산
+                       SELECT a.std_dt,
+                              a.stdt_id,
+                              IFNULL(AVG(a.usd_scr), 0) AS usd_scr,
+                              meta_id
+                       FROM aidt_lms.std_usd_unit_day_hist a
+                       WHERE 1 = 1
+                         AND a.textbk_id = #{textbkId}
+                         AND a.cla_id = #{claId}
+                         AND a.std_at = 'Y'
+                         and a.std_dt = (select max(std_dt)
+                                         from aidt_lms.std_usd_unit_day_hist dt
+                                         where 1 = 1
+                                           AND dt.textbk_id = #{textbkId}
+                                           AND dt.cla_id = #{claId}
+                                           AND dt.std_at = 'Y')
+                       GROUP BY a.std_dt, a.stdt_id, a.meta_id) AS a
+              GROUP BY a.std_dt, a.stdt_id, a.meta_id
+              order by a.meta_id, a.stdt_id) AS subquery;
+    </select>
+</mapper>

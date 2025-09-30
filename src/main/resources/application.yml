@@ -1,0 +1,381 @@
+# Global Settings
+application:
+  title: Visang AIDT LMS PROJECT
+  version: 1.0.0
+
+# Server
+server:
+  shutdown: graceful
+  port: '15000'
+  tomcat:
+    max-swallow-size: -1  # 업로드 실패 방지
+    connection-timeout: 300s
+    mbeanregistry:
+      enabled: true
+
+# Logging
+logging:
+  #  file:
+  #    name: logs/aidt-lms-api.log
+  level:
+    web: WARN
+    sql: WARN
+    org.springdoc: WARN
+    org.springframework.boot.autoconfigure: WARN
+    org.springframework: WARN
+    org.springframework.boot.web.servlet: ERROR
+    org.flywaydb: WARN
+    org.hibernate: WARN
+    io.swagger: WARN
+    jdbc.audit: WARN
+    jdbc.resultset: ERROR
+    jdbc.resultsettable: ERROR
+    jdbc.sqlonly: WARN
+    jdbc.sqltiming: ERROR
+    jdbc.connection: ERROR
+    org.mariadb.jdbc.client.impl.StandardClient: WARN
+    org.apache.kafka: WARN
+    reactor.netty: WARN
+    io.netty: WARN
+    com.visang.aidt.lms: WARN
+    org.springframework.web.servlet.mvc: ERROR
+    org.springframework.web.servlet.handler: ERROR
+    org.springframework.web.servlet.DispatcherServlet: ERROR
+    org.springframework.transaction: WARN
+    com.zaxxer.hikari.pool.HikariPool: ERROR
+    com.zaxxer.hikari.pool.PoolBase: ERROR
+    com.ulisesbocchio.jasyptspringboot: ERROR
+  config: classpath:log4j2.xml
+
+# Spring
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  main:
+    allow-circular-references: true
+    allow-bean-definition-overriding: 'true'
+  data:
+    jpa:
+      repositories:
+        bootstrap-mode: deferred
+    rest:
+      #base-path: /api/v1
+      default-page-size: 10
+      max-page-size: 100
+      page-param-name: page
+      sort-param-name: sort
+      default-media-type: application/hal+json;charset=UTF-8
+      return-body-on-create: true
+      return-body-on-update: true
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Seoul
+          batch_size: '25'
+          lob:
+            non_contextual_creation: 'true'
+        query:
+          fail_on_pagination_over_collection_fetch: 'true'
+          in_clause_parameter_padding: 'true'
+        generate_statistics: 'false'
+        id:
+          optimizer:
+            pooled:
+              preferred: pooled-lo
+          new_generator_mappings: 'true'
+        order_updates: 'true'
+        order_inserts: 'true'
+        connection:
+          provider_disables_autocommit: 'false'
+    hibernate:
+      ddl-auto: none
+      # 대문자 테이블과 매핑하기 위한 전략
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: 'true'
+    open-in-view: 'false'
+  datasource:
+    hikari:
+      auto-commit: false
+      connection-test-query: "SELECT 1"
+      #      keepaliveTime: 30000          # 30초마다 keepalive 쿼리 실행
+      pool-name: hikari-cp
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      master:
+        driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME}
+        jdbc-url: ${VLMSAPI_SPRING_DATASOURCE_MASTER_URL}
+        username: ${VLMSAPI_SPRING_DATASOURCE_MASTER_USERNAME}
+        password: ${VLMSAPI_SPRING_DATASOURCE_MASTER_PASSWORD}
+        pool-name: hikari-cp
+        maximum-pool-size: 100
+        minimum-idle: 25
+      slave:
+        driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME}
+        jdbc-url: ${VLMSAPI_SPRING_DATASOURCE_SLAVE_URL}
+        username: ${VLMSAPI_SPRING_DATASOURCE_SLAVE_USERNAME}
+        password: ${VLMSAPI_SPRING_DATASOURCE_SLAVE_PASSWORD}
+        pool-name: hikari-cp
+        maximum-pool-size: 100
+        minimum-idle: 25
+  security:
+    user:
+      name: aidt
+      password: Qltkdroqkf!12
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  aop:
+    auto: true
+  nats:
+    server: ${LRS_SPRING_NATS_SERVER:nats://t-stream.vsaidt.com}
+    log-server: ${LOG_NATS_SERVER:nats://t-log-stream.aidtclass.com}
+  topic:
+    realtime-send-name: ${VLMSAPI_SPRING_TOPIC_REALTIME:AIDT_REALTIME_DATA_DEV}
+    bulk-send-name: ${VLMSAPI_SPRING_TOPIC_BULK:AIDT_BULK_DATA_DEV}
+    mngraction-log-send-name: ${VLMSAPI_SPRING_TOPIC_MNGRACTION:AIDT_MNGR_ACTION_LOG_DEV}
+    loki-log-send-name: ${NATS_TOPIC_LOKI_LOG:AIDT_LOKI_LOG_DEV}
+
+
+# Resilience
+
+
+
+# Swagger UI
+#springdoc:
+#  swagger-ui:
+#    path: /swagger-ui.html
+#    use-root-path: true
+#    #groups-order: ASC		# group 정렬 오름차순
+#    tags-sorter: alpha		# tag 정렬 알파벳순
+#    operations-sorter: alpha	# api 정렬 알파벳순
+#    doc-expansion: none		# swagger tag 리스트 모두 접기
+#  packages-to-scan: "com.visang.aidt.lms.api, com.cmsapi.digitaltextbookcms.api"
+
+# Etc
+lms:
+  jwt:
+    subject: VISANG-AIDT-LMS
+    secret: Qltkdtjqj!12Uu8H#N$er@4Lj6!z3Pf&Bxz7r8yQ#2M8&cH$
+    access-token-validity: 43200000
+    refresh-token-validity: 43200000 # 12시간
+  api:
+    auth:
+      skip: false
+      whitelist:
+        "/shop/userinfo
+        ,/portal/pz/classInfoByLectureCode
+        ,/portal/pz/tcTextbookList
+        ,/portal/pz/stTextbookInfo
+        ,/test/aidt_userinfo/**
+        ,/aidt_userinfo/**
+        ,/member/_login.json
+        ,/files/s3-file-upload
+        ,/files/file-download
+        ,/files/pfile-download
+        ,/files/pfile-delete
+        ,/files/file-delete
+        ,/common/dateTime
+        ,/common/jwt
+        ,/common/jwt/check
+        ,/keris/**
+        ,/test/keris/index/proc
+        ,/stnt/media-std/**
+        ,/mq/stnt/ai-chatbot/logs
+        ,/mq/stnt/ai-chatbot/logs/modify
+        ,/mq/pushRealFinishMQ.json
+        ,/mq/sendAssessmentSubmittedBulkMQ
+        ,/mq/sendAssessmentSubmittedJson
+        ,/mq/pushAssignmentGaveBulkMQ
+        ,/mq/pushAssignmentFinishedBulkMQ
+        ,/mq/pushAssignmentGaveJson
+        ,/mq/pushAssignmentFinishedJson
+        ,/mq/pushQueryAskBulkMQ
+        ,/mq/pushTeachingReorganizedBulkMQ
+        ,/mq/pushMediaPlayedBulkMQ
+        ,/batch/calculate/engl
+        ,/batch/calculate/math
+        ,/tios/**
+        ,/vivasam/**
+        ,/etc/meta/user
+        ,/etc/meta/sync
+        ,/stress/**
+        ,/test/**
+        ,/operation/customer-support/popup-summary
+        ,/excel/download/**
+        ,/user/check/info
+        ,/writelog.json
+        ,/stnt/mdul/math/**
+        ,/tch/mdul/math/**
+        ,/member/auth-login.json
+        ,/airflow/batch/**"
+    hmac:
+      skip: true
+    cdc:
+      skip: false
+    log:
+      encode: true
+
+#mybatis.mapper-location: "classpath:com/visang/aidt/lms/api/**/*.xml"
+#mybatis.type-aliases-package : com.visang.aidt.lms.api.repository.entity
+
+amazonProperties:
+  endpointUrl: https://t-cms.vsaidt.com/
+  accessKey: AKIAWXWURISTLFZRYNRJ
+  secretKey: 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
+  bucketName: vsaidt-contentsbank-fe-dvlp
+  regionName: ap-northeast-2
+
+
+# NCP Object Storage (S3)
+cloud:
+  aws:
+    nas:
+      path: ${VLMSAPI_CLOUD_AWS_NAS_PATH:/files/nas/engl/}
+    s3:
+      bucket: ${VLMSAPI_CLOUD_AWS_S3_BUCKET:vsaidt-dev-contents}
+      endpoint: ${VLMSAPI_CLOUD_AWS_S3_ENDPOINT:https://kr.object.gov-ncloudstorage.com}
+      url: ${VLMSAPI_CLOUD_AWS_S3_URL:https://con.aidtclass.com}
+      path: ${VLMSAPI_CLOUD_AWS_S3_PATH:/files/dev/}
+    region:
+      static: ${VLMSAPI_CLOUD_AWS_REGION_STATIC:ap-northeast-2}
+    stack:
+      auto: ${VLMSAPI_CLOUD_AWS_STACK_AUTO:false}
+    credentials:
+      accessKey: ${VLMSAPI_CLOUD_AWS_CREDENTIALS_ACCESSKEY:5528E767C1D6AACB732B}
+      secretKey: ${VLMSAPI_CLOUD_AWS_CREDENTIALS_SECRETKEY:E60647B466012E1F44303349C52CED278C55E6B6}
+
+
+# vcloud log 호출 시 옵션 설정 값
+logs:
+  level:
+    debug: 1
+    info: 2
+    warn: 3
+    error: 4
+  div:
+    app: 1
+    server: 2
+
+
+# 외부 서비스 정의
+app:
+  lcmsapi:
+    # 저작 관련 정보 및 CMS 데이터 처리를 위한 외부(lcmsapi)API 조회
+    task-evl-search-path: /api/textbookEvaluation/search
+    url: ${VLMSAPI_APP_LCMSAPI_URL:https://t-lcmsapi.aidtclass.com}
+    deployServerCode: ${VLMSAPI_APP_DEPLOY_SERVER_CODE:T}
+    deployServerCodeMulti: ${VLMSAPI_APP_DEPLOY_SERVER_CODE_MULTI:}
+  lms:
+    errorPageUrl: ${VLMSAPI_APP_LMS_ERROR_PAGE_URL:https://t-class.aidtclass.com/launcher/error/index.html}
+  shop:
+    filePathRoot: ${VLMSAPI_APP_SHOP_FILE_PATH_ROOT:https://t-shop-media.aidtclass.com/}
+  statapi:
+    url: ${VLMSAPI_APP_STATAPI_URL:https://t-stat.aidtclass.com}
+
+key.namespace: ${KEY_NAMESPACE:dev-vsaidt-math}
+
+key:
+  id:
+    prefix: ${KEY_ID_PREFIX:}
+  salt:
+    prefix: ${KEY_SALT_PREFIX:}
+    suffix: ${KEY_SALT_SUFFIX:}
+    main: ${KEY_SALT_MAIN:}
+
+service:
+  name: ${VLMSAPI_SERVICE_NAME:dev-vcloudapi}
+
+# 배치 스케쥴 설정
+batch-job:
+  schedule:
+    EvalStatusChangeBatchJob:
+      executeTasksInProgress: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALSTATUSCHANGEBATCHJOB_EXECUTETASKSINPROGRESS:}
+      executeTasksToComplete: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALSTATUSCHANGEBATCHJOB_EXECUTETASKSTOCOMPLETE:}
+      executePrescriptionTasks: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALSTATUSCHANGEBATCHJOB_EXECUTEPRESCRIPTIONTASKS:300000}
+    TaskStatusChangeBatchJob:
+      executeTasksInProgress: ${VLMSAPI_BATCH_JOB_SCHEDULE_TASKSTATUSCHANGEBATCHJOB_EXECUTETASKSINPROGRESS:}
+      executeTasksToComplete: ${VLMSAPI_BATCH_JOB_SCHEDULE_TASKSTATUSCHANGEBATCHJOB_EXECUTETASKSTOCOMPLETE:}
+    StdUsdCalculateBatchJob:
+      executeStdUsdCalculate: ${VLMSAPI_BATCH_JOB_SCHEDULE_STDUSDCALCULATEBATCHJOB_EXECUTESTDUSDCALCULATE:}
+      textbkIdList: ${VLMSAPI_BATCH_JOB_SCHEDULE_STDUSDCALCULATEBATCHJOB_TEXTBKIDLIST:}
+      testMode: ${VLMSAPI_BATCH_JOB_SCHEDULE_STDUSDCALCULATEBATCHJOB_TESTMODE:local}
+    EngStdUsdCalculateBatchJob:
+      executeEngStdUsdCalculate: ${VLMSAPI_BATCH_JOB_SCHEDULE_ENGSTDUSDCALCULATEBATCHJOB_EXECUTEENGSTDUSDCALCULATE:}
+      engTextbkIdList: ${VLMSAPI_BATCH_JOB_SCHEDULE_ENGSTDUSDCALCULATEBATCHJOB_ENGTEXTBKIDLIST:}
+      engTestMode: ${VLMSAPI_BATCH_JOB_SCHEDULE_ENGSTDUSDCALCULATEBATCHJOB_ENGTESTMODE:local}
+    EvalNtcnSendBatchJob:
+      executeTchEvalUnsubListSend: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALNTCNSENDBATCHJOB_EXECUTETCHEVALUNSUBLISTSEND:}
+      executeStntEvalUnsubListSend: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALNTCNSENDBATCHJOB_EXECUTESTNTEVALUNSUBLISTSEND:}
+      excuteSendTchEvalCreateReportList: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALNTCNSENDBATCHJOB_EXCUTESENDTCHEVALCREATEREPORTLIST:}
+      brandIdList: ${VLMSAPI_BATCH_JOB_SCHEDULE_EVALNTCNSENDBATCHJOB_BRANDIDLIST:}
+    TaskNtcnSendBatchJob:
+      executeTchTaskUnsubListSend: ${VLMSAPI_BATCH_JOB_SCHEDULE_TASKNTCNSENDBATCHJOB_EXECUTETCHTASKUNSUBLISTSEND:}
+      executeStntTaskUnsubListSend: ${VLMSAPI_BATCH_JOB_SCHEDULE_TASKNTCNSENDBATCHJOB_EXECUTESTNTTASKUNSUBLISTSEND:}
+      executeSendTchTaskCreateReportList: ${VLMSAPI_BATCH_JOB_SCHEDULE_TASKNTCNSENDBATCHJOB_EXECUTESENDTCHTASKCREATEREPORTLIST:}
+      brandIdList: ${VLMSAPI_BATCH_JOB_SCHEDULE_TASKNTCNSENDBATCHJOB_BRANDIDLIST:}
+    ShopPrchsHistBatchJob:
+      executeMakePrchsHistBatch: ${VLMSAPI_BATCH_JOB_SCHEDULE_SHOPPRCHSHISTBATCHJOB_EXECUTEMAKEPRCHSHISTBATCH:}
+    MessageQueueBatchJob:
+      sendBulkMessageQueue: ${VLMSAPI_BATCH_JOB_SCHEDULE_MESSAGEQUEUEBATCHJOB_SENDBULKMESSAGEQUEUE:}
+    AiLearningEngBatchJob:
+      executeCreateAiLearningEngSets: ${VLMSAPI_BATCH_JOB_SCHEDULE_AILEARNINGENGBATCHJOB_EXECUTECREATEAILEARNINGENGSETS:1800000}
+    FilesBatchJob:
+      executeDeleteFileList: ${VLMSAPI_BATCH_JOB_SCHEDULE_FILESBATCHJOB_EXECUTEDELETEFILELIST:}
+    EtcBatchJob:
+      executeDgnssEnd: ${VLMSAPI_BATCH_JOB_SCHEDULE_ETCBATCHJOB_EXECUTEDGNSSEND:0 0 9 * * ?}
+      executeDgnssFileReset: ${VLMSAPI_BATCH_JOB_SCHEDULE_ETCBATCHJOB_EXECUTEFILERESET:0 0 0 * * *}
+      executeVivaClassDgnssUserWithdraw: ${VLMSAPI_BATCH_JOB_SCHEDULE_ETCBATCHJOB_VIVACLASSWITHDRAW:0 0 2 * * *}
+      executeVivaClassUserWithdrawSync: ${VLMSAPI_BATCH_JOB_SCHEDULE_ETCBATCHJOB_VIVACLASSWITHDRAWSYNC:0 5 2 * * *}
+
+management:
+  server:
+    port: 9876
+  endpoints:
+    web:
+      exposure:
+        include: prometheus
+      base-path: /visang/metric
+  metrics:
+    tags:
+      application: vlmsapi
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: 'true'
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 1000ms
+
+hmac.secret.key: Qltkdqhdks!12
+
+# 성능 모니터링 설정
+performance:
+  monitoring:
+    enabled: true
+    api:
+      threshold: 3000  # API 실행시간 임계값 (ms)
+    sql:
+      threshold: 3000  # SQL 실행시간 임계값 (ms)
+
+loki:
+  log:
+    enabled: ${VLMSAPI_LOKI_LOG_ENABLED:true}
+
+global:
+  config:
+    map:
+      SECURITY_USER_PASSWORD: ${SECURITY_USER_PASSWORD:}
+      LMS_JWT_SECRET: ${LMS_JWT_SECRET:}
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:}
+
+airflow:
+  secret:
+    key: ${AIRFLOW_SECRET_KEY:}

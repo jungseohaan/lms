@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+
+    <!-- 로그 출력 -->
+    <Appenders>
+        <!-- Console -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <Filters>
+                <!-- 메시지가 "null" 또는 "" 인 경우 거부 -->
+                <RegexFilter regex="^(null)?$"
+                             onMatch="DENY" onMismatch="NEUTRAL"/>
+            </Filters>
+            <PatternLayout>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %message%n</pattern>
+            </PatternLayout>
+        </Console>
+        <!--        <RollingFile name="FileAppender" fileName="logs/aidt-lms-api.log"
+                             filePattern="logs/aidt-lms-api.%i.log">
+                    <PatternLayout>
+                        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %message%n</pattern>
+                    </PatternLayout>
+                    <Policies>
+                        <SizeBasedTriggeringPolicy size="100MB"/>
+                    </Policies>
+                    <DefaultRolloverStrategy max="5"/>
+                </RollingFile>-->
+    </Appenders>
+
+    <!-- 로거 -->
+    <Loggers>
+        <Logger name="com.visang.aidt.lms" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+            <!--            <AppenderRef ref="FileAppender"/>-->
+        </Logger>
+
+        <Logger name="org.springframework" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+            <!--            <AppenderRef ref="FileAppender"/>-->
+        </Logger>
+
+        <Logger name="org.mybatis" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+            <!--            <AppenderRef ref="FileAppender"/>-->
+        </Logger>
+
+        <!-- jdbc.sqlonly는 주석 처리 (application.yml 설정 사용) -->
+        <!--        <Logger name="jdbc.sqlonly" level="DEBUG" additivity="false">
+                    <AppenderRef ref="Console"/>
+                    <AppenderRef ref="FileAppender"/>
+                </Logger>-->
+
+        <Root level="WARN">
+            <AppenderRef ref="Console"/>
+            <!--            <AppenderRef ref="FileAppender"/>-->
+        </Root>
+    </Loggers>
+</Configuration>

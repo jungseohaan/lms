@@ -1,0 +1,795 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.board.mapper.TchBoardMapper">
+
+    <select id="selectTchBbsProgressList" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsProgressList (교사)진행중인과제목록조회 */
+        SELECT
+             a.cla_id
+            ,a.textbk_id
+            ,a.wrter_id
+            ,b.ntt_id
+            ,b.bbs_id
+            ,b.ntt_sj
+            ,b.ntt_cn
+            ,DATE_FORMAT(b.ntce_bgnde, '%Y-%m-%d %H:%i') as ntce_bgnde
+            ,DATE_FORMAT(b.ntce_endde, '%Y-%m-%d %H:%i') as ntce_endde
+             ,aidt_lms.F_CODE_NM('task_stts_cd',(CASE WHEN b.progress_at = 'Y' AND now()
+                                               BETWEEN b.ntce_bgnde AND b.ntce_endde
+                                       THEN '2'
+                                    WHEN b.progress_at = 'Y'  AND now() <![CDATA[<]]> b.ntce_bgnde
+                                       THEN '1'
+                                   WHEN b.progress_at = 'Y' AND now() <![CDATA[>]]> b.ntce_endde
+                                       THEN '3'
+                                    ELSE '3' END)) as progress_at
+            ,b.atch_id
+            ,b.rgtr
+            ,DATE_FORMAT(b.reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+            ,b.mdfr
+            ,DATE_FORMAT(b.mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+        FROM aidt_lms.cla_bbsmaster a
+            LEFT JOIN aidt_lms.cla_bbs b
+            ON a.bbs_id = b.bbs_id
+            AND a.bbs_ty_code = #{bbsTyCode}
+            <if test='userSeCd == "S"'>
+                Inner JOIN aidt_lms.cla_bbs_stnt c on b.ntt_id = c.ntt_id and mamoym_id = #{userId}
+            </if>
+        WHERE
+            a.cla_id = #{claId}
+            AND a.textbk_id = #{textbkId}
+            AND b.progress_at = 'Y'
+            AND b.use_at = 'Y'
+            AND now()
+            BETWEEN b.ntce_bgnde AND b.ntce_endde
+        ORDER BY b.reg_dt, b.bbs_id DESC
+    </select>
+
+    <select id="selectTchBbsMaster" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsMaster (교사)게시판마스터조회 */
+        SELECT
+            bbs_id
+            ,cla_id
+            ,textbk_id
+            ,wrter_id
+            ,bbs_nm
+            ,bbs_intrcn
+            ,bbs_ty_code
+            ,reply_posbl_at
+            ,file_atch_posbl_at
+            ,posbl_atch_file_number
+            ,use_at
+            ,anonym_yn
+            ,rgtr
+            ,DATE_FORMAT(reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+            ,mdfr
+            ,DATE_FORMAT(mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+        FROM aidt_lms.cla_bbsmaster
+        WHERE
+            cla_id = #{claId}
+            AND textbk_id = #{textbkId}
+            AND bbs_ty_code = #{bbsTyCode}
+    </select>
+
+    <select id="selectTchBbsListAll" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchBoardMapper.selectTchBbsListAll (교사)전체과제목록조회 */
+        select (count(*) over () + 1) - (row_number() over (order by t.rgtr_dt desc, t.ntt_id)) as no
+            ,t.cla_id
+            ,t.textbk_id
+            ,t.wrter_id
+            ,t.ntt_id
+            ,t.bbs_id
+            ,t.ntt_sj
+            ,t.ntt_cn
+            ,t.ntce_bgnde
+            ,t.ntce_endde
+            ,aidt_lms.F_CODE_NM('task_stts_cd', t.progress_at) as  progress_at
+            ,t.rgtr
+            ,t.rgtr_dt
+            ,t.mdfr
+            ,t.mdfy_dt
+            ,t.total_num
+            ,t.submit_num
+            ,count(*) over () as full_count
+        from (
+        SELECT
+                 a.cla_id
+                ,a.textbk_id
+                ,a.wrter_id
+                ,b.ntt_id
+                ,b.bbs_id
+                ,b.ntt_sj
+                ,b.ntt_cn
+                ,DATE_FORMAT(b.ntce_bgnde, '%Y-%m-%d %H:%i') as ntce_bgnde
+                ,DATE_FORMAT(b.ntce_endde, '%Y-%m-%d %H:%i') as ntce_endde
+                ,(CASE WHEN b.progress_at = 'Y' AND now()
+                            BETWEEN b.ntce_bgnde AND b.ntce_endde
+                    THEN '2'
+                 WHEN b.progress_at = 'Y'  AND now() <![CDATA[<]]> b.ntce_bgnde
+                    THEN '1'
+                WHEN b.progress_at = 'Y' AND now() <![CDATA[>]]> b.ntce_endde
+                    THEN '3'
+                 ELSE '3' END)
+                     as progress_at
+                ,b.atch_id
+                ,b.rgtr
+                ,DATE_FORMAT(b.reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+                ,b.mdfr
+                ,DATE_FORMAT(b.mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+                ,( SELECT COUNT(*) as total_num
+                            FROM aidt_lms.cla_bbs_stnt
+                            WHERE ntt_id = b.ntt_id
+                            AND use_at <![CDATA[<>]]> 'D') AS total_num
+                ,( SELECT COUNT(*) as submit_num
+                    FROM aidt_lms.cla_bbs_stnt
+                    WHERE ntt_id = b.ntt_id
+                    AND subm_at = 'Y') AS submit_num
+            FROM aidt_lms.cla_bbsmaster a
+                inner JOIN aidt_lms.cla_bbs b
+                    ON a.bbs_id = b.bbs_id
+                    AND a.bbs_ty_code = #{param.bbsTyCode}
+                    AND a.use_at <![CDATA[<>]]> 'D'
+                    AND b.use_at <![CDATA[<>]]> 'D'
+            WHERE
+                a.cla_id = #{param.claId}
+                AND a.textbk_id = #{param.textbkId}
+            <if test="param.keyword != null and param.keyword != '' ">
+              and b.ntt_sj like concat('%',#{param.keyword},'%')
+            </if>
+        ) t
+        ORDER BY no desc
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="selectTchBbsDetail" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsDetail (교사)과제상세조회 */
+        SELECT
+             a.cla_id
+            ,a.textbk_id
+            ,a.wrter_id
+            ,b.ntt_id
+            ,b.bbs_id
+            ,b.ntt_sj
+            ,b.ntt_cn
+            ,DATE_FORMAT(b.ntce_bgnde, '%Y-%m-%d %H:%i') as ntce_bgnde
+            ,DATE_FORMAT(b.ntce_endde, '%Y-%m-%d %H:%i') as ntce_endde
+            ,aidt_lms.F_CODE_NM('task_stts_cd',(CASE WHEN b.progress_at = 'Y' AND now()
+                                        BETWEEN b.ntce_bgnde AND b.ntce_endde
+                                THEN '2'
+                             WHEN b.progress_at = 'Y'  AND now() <![CDATA[<]]> b.ntce_bgnde
+                                THEN '1'
+                            WHEN b.progress_at = 'Y' AND now() <![CDATA[>]]> b.ntce_endde
+                                THEN '3'
+                             ELSE '3' END)) as progress_at
+            ,b.atch_id
+            ,b.rgtr
+            ,DATE_FORMAT(b.reg_dt,  '%Y-%m-%d %H:%i')     as rgtr_dt
+            ,b.mdfr
+            ,DATE_FORMAT(b.mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+            ,( SELECT COUNT(*) AS total_num
+                FROM aidt_lms.cla_bbs_stnt
+                WHERE ntt_id = b.ntt_id) as total_num
+            ,( SELECT COUNT(*) AS submit_num
+               FROM aidt_lms.cla_bbs_stnt
+               WHERE ntt_id = b.ntt_id
+                AND subm_at = 'Y' ) as submit_num
+            ,( SELECT COUNT(*) AS not_submit_num
+               FROM aidt_lms.cla_bbs_stnt
+               WHERE ntt_id = b.ntt_id
+                AND subm_at = 'N' ) as not_submit_num
+        FROM aidt_lms.cla_bbsmaster a
+            LEFT JOIN aidt_lms.cla_bbs b
+            ON a.bbs_id = b.bbs_id
+            AND a.bbs_ty_code = #{bbsTyCode}
+            AND b.use_at <![CDATA[<>]]> 'D'
+        WHERE
+            a.cla_id = #{claId}
+            AND a.textbk_id = #{textbkId}
+            AND b.ntt_id = #{nttId}
+    </select>
+
+    <select id="selectClsStntList" parameterType="map" resultType="camelHashMap">
+            /* TchBoardMapper.selectClsStntList (교사)학생리스트 */
+            SELECT
+                id
+                ,stdt_id
+            FROM aidt_lms.tc_cla_mb_info
+            WHERE
+                cla_id= #{claId}
+                and actvtn_at = 'Y'
+            ORDER BY id
+    </select>
+
+    <select id="selectClsStntSltList" parameterType="map" resultType="camelHashMap">
+            /* TchBoardMapper.selectClsStntSltList (교사)선택된학생리스트 */
+            SELECT
+                a.id,
+                a.stdt_id,
+                CASE
+                    WHEN b.mamoym_id IS NULL THEN 'N'  -- cla_bbs_stnt에 없는 경우
+                    ELSE 'Y'                         -- cla_bbs_stnt에 있는 경우
+                END AS stdt_trgt
+            FROM aidt_lms.tc_cla_mb_info a
+            LEFT JOIN aidt_lms.cla_bbs_stnt b
+                ON a.stdt_id = b.mamoym_id
+                AND b.ntt_id = #{nttId}
+            WHERE
+                a.cla_id = #{claId}
+                and a.actvtn_at = 'Y'
+            ORDER BY a.id
+    </select>
+
+    <select id="selectTchBbsTchFileList" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsTchFileList (교사)교사과제파일목록조회 */
+        SELECT
+            e.atch_id
+            ,e.file_id
+            ,e.file_sn
+            ,orignl_file_nm as file_nm
+            ,CONCAT(e.file_stre_path, e.stre_file_nm) as file_path
+        FROM aidt_lms.cla_atch_detail e
+        WHERE
+            atch_id  = (select atch_id from aidt_lms.cla_bbs WHERE ntt_id = #{nttId})
+            AND e.del_yn <![CDATA[<>]]> 'Y'
+            AND e.file_sn <![CDATA[<>]]> '0'
+        ORDER BY e.file_sn, e.file_id
+    </select>
+
+    <select id="selectTchBbsTchFileDetailList" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsTchFileDetailList (교사)교사과제파일목록조회 */
+        SELECT
+            e.atch_id
+            ,e.file_id
+            ,e.file_sn
+            ,CONCAT(e.file_stre_path, e.stre_file_nm) as file_path
+            ,e.file_stre_path
+            ,e.stre_file_nm
+            ,orignl_file_nm  as file_nm
+        FROM aidt_lms.cla_atch_detail e
+        WHERE
+            atch_id  = (select atch_id from aidt_lms.cla_bbs WHERE ntt_id = #{nttId})
+            AND e.del_yn <![CDATA[<>]]> 'Y'
+        <foreach collection="fileList" item="map" open="(" close=")" separator=",">
+                   #{map.fileId}
+        </foreach>
+        ORDER BY e.file_sn, e.file_id
+    </select>
+
+    <select id="selectBbsFileDownInfo" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectBbsFileDownInfo (교사,학생)파일단건조회 */
+        SELECT
+            e.atch_id
+            ,e.file_id
+            ,e.file_sn
+            ,CONCAT(e.file_stre_path, e.stre_file_nm) as file_path
+            ,e.file_stre_path
+            ,e.stre_file_nm
+            ,orignl_file_nm  as file_nm
+        FROM aidt_lms.cla_atch_detail e
+        WHERE
+            e.del_yn <![CDATA[<>]]> 'Y'
+            AND e.file_Id = #{fileId}
+        ORDER BY e.file_sn, e.file_id
+    </select>
+
+    <select id="selectBbsFileDownInfo_bak" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectBbsFileDownInfo_bak (교사,학생)파일단건조회 */
+        SELECT
+                a.atch_id
+               ,a.file_id
+               ,a.file_sn
+               ,a.file_path
+               ,a.file_stre_path
+               ,a.stre_file_nm
+               ,a.file_nm
+               ,a.rgtr
+               ,a.rgtr_user_se_cd
+                ,(CASE WHEN a.rgtr_user_se_cd = 'T' THEN (SELECT cla_id FROM aidt_lms.tc_cla_mb_info WHERE user_id = a.rgtr AND actvtn_at = 'Y' limit 1)
+                    ELSE (SELECT cla_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = a.rgtr AND actvtn_at = 'Y') END) AS rgtr_cla_id
+        FROM
+            (SELECT
+                e.atch_id
+                ,e.file_id
+                ,e.file_sn
+                ,CONCAT(e.file_stre_path, e.stre_file_nm) as file_path
+                ,e.file_stre_path
+                ,e.stre_file_nm
+                ,orignl_file_nm  as file_nm
+                ,rgtr
+                ,(SELECT user_se_cd FROM adit_lms.user WHERE user_id = rgtr) as rgtr_user_se_cd
+            FROM aidt_lms.cla_atch_detail e
+            WHERE
+                e.del_yn <![CDATA[<>]]> 'Y'
+                AND e.file_Id = #{fileId}
+            ORDER BY e.file_sn, e.file_id
+        ) a
+    </select>
+
+
+
+    <select id="selectUserInfoBfDwn" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectUserInfoBfDwn (교사,학생)파일다운로드를위한체크2 */
+        SELECT
+            (CASE WHEN user_se_cd = 'T' THEN (SELECT cla_id FROM aidt_lms.tc_cla_mb_info WHERE user_id = #{userId} AND actvtn_at = 'Y' limit 1)
+            ELSE (SELECT cla_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = #{userId} AND actvtn_at = 'Y') END) AS req_cla_id
+            , user_se_cd as req_user_se_cd
+        FROM aidt_lms.user
+        WHERE
+            user_id = #{userId}
+    </select>
+
+    <select id="selectBbsFileDownList" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectBbsFileDownList (교사,학생)파일다건조회 */
+        SELECT
+            e.atch_id
+            ,e.file_id
+            ,e.file_sn
+            ,CONCAT(e.file_stre_path, e.stre_file_nm) as file_path
+            ,e.file_stre_path
+            ,e.stre_file_nm
+            ,orignl_file_nm  as file_nm
+        FROM aidt_lms.cla_atch_detail e
+        WHERE
+            e.del_yn <![CDATA[<>]]> 'Y'
+            AND e.file_id = #{fileId}
+        ORDER BY e.file_sn, e.file_id
+    </select>
+
+    <select id="selectTchBbsInfTcnFileInfo" parameterType="map" resultType="camelHashMap">
+            /* TchBoardMapper.selectTchBbsInfTcnFileInfo (교사)교사업로드과제파일상세 */
+        SELECT
+            a.ntt_sj,
+            a.ntt_cn,
+            DATE_FORMAT(ntce_bgnde, '%Y-%m-%d %H:%i') AS ntce_bgnde,
+            DATE_FORMAT(ntce_endde, '%Y-%m-%d %H:%i') AS ntce_endde,
+            a.atch_id,
+            CASE
+             WHEN COUNT(c.file_id) <![CDATA[>]]> 0 THEN
+                 JSON_ARRAYAGG(
+                     JSON_OBJECT(
+                         'fileId', c.file_id,
+                         'fileSn', c.file_sn,
+                         'fileNm', c.orignl_file_nm,
+                         'filePath', CONCAT(c.file_stre_path, c.stre_file_nm)
+                     )
+                 )
+             ELSE NULL
+            END AS files
+            FROM aidt_lms.cla_bbs a
+                LEFT JOIN aidt_lms.cla_atch_detail c
+                ON a.atch_id = c.atch_id
+                AND c.del_yn <![CDATA[<>]]> 'Y'
+            WHERE a.ntt_id = #{nttId}
+            GROUP BY a.ntt_id
+    </select>
+
+    <select id="selectTchBbsInfTcnFileList" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsInfTcnFileList (교사)교사업로드과제파일상세 */
+        SELECT
+            b.file_id
+            ,b.file_sn
+            ,b.orignl_file_nm as file_nm
+            ,CONCAT(b.file_stre_path, b.stre_file_nm) as file_path
+        FROM aidt_lms.cla_bbs a
+            JOIN aidt_lms.cla_atch_detail b
+            ON a.atch_id = b.atch_id
+        WHERE
+            a.ntt_id = #{nttId}
+            AND a.use_at <![CDATA[<>]]> 'D'
+            AND b.del_yn <![CDATA[<>]]> 'Y'
+        ORDER BY a.ntt_id
+    </select>
+
+    <select id="selectTchBbsStntFileList" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectTchBbsStntFileList (교사)학생과제파일목록조회 */
+        SELECT
+                b.stdt_id
+               , (select num from aidt_lms.stdt_reg_info a where a.user_id = b.stdt_id) as num /* 학생 번호 */
+               ,a.ntt_id
+               , a.subm_at
+               , DATE_FORMAT(a.subm_dt, '%Y-%m-%d %H:%i') as subm_dt
+               , (CASE WHEN a.subm_dt is null THEN null
+                ELSE DATE_FORMAT(a.mdfy_dt, '%Y-%m-%d %H:%i') END) as mdfy_dt
+            ,JSON_ARRAYAGG(
+                    JSON_OBJECT(
+                        'fileId', c.file_id,
+                        'fileSn', c.file_sn,
+                        'fileNm', c.orignl_file_nm,
+                        'filePath', CONCAT(c.file_stre_path, c.stre_file_nm)
+                    )
+                ) AS files
+        FROM aidt_lms.cla_bbs_stnt a
+            LEFT JOIN aidt_lms.tc_cla_mb_info b
+                ON b.stdt_id = a.mamoym_id
+                    AND a.ntt_id = #{nttId}
+                    and b.actvtn_at = 'Y'
+            LEFT JOIN aidt_lms.cla_atch_detail c
+                ON a.atch_id = c.atch_id
+                    AND c.del_yn <![CDATA[<>]]> 'Y'
+                    AND c.file_sn <![CDATA[<>]]> '0'
+        WHERE
+            b.cla_id = #{claId}
+        GROUP BY b.stdt_id
+        ORDER BY b.id
+    </select>
+
+    <insert id="insertTchClaBbsMasterPreEnter" parameterType="map" useGeneratedKeys="true" keyProperty="bbsId">
+        INSERT INTO aidt_lms.cla_bbsmaster /* TchBoardMapper.insertTchClaBbsMasterPreEnter (교사)게시판마스터생성 */
+        (
+            bbs_id
+            ,cla_id
+            ,textbk_id
+            ,wrter_id
+            ,bbs_nm
+            ,bbs_intrcn
+            ,bbs_ty_code
+            ,reply_posbl_at
+            ,file_atch_posbl_at
+            ,posbl_atch_file_number
+            ,use_at
+            ,anonym_yn
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{claId}
+            ,#{textbkId}
+            ,#{userId}
+            ,null
+            ,null
+            ,#{bbsTyCode}
+            ,'N'
+            ,'Y'
+            ,5
+            ,'Y'
+            ,'N'
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <insert id="insertClaAtchForKey" parameterType="map" useGeneratedKeys="true" keyProperty="atchId">
+        INSERT INTO aidt_lms.cla_atch /* TchBoardMapper.insertClaAtchForKey (교사)첨부파일마스터키채번 */
+        (
+            atch_id
+            ,use_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,'N'
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <update id="updateClaAtchY" parameterType="map">
+        UPDATE aidt_lms.cla_atch /* TchBoardMapper.updateClaAtchY (교사)첨부파일사용변경 */
+        SET     use_at = 'Y'
+                ,mdfr = #{userId}
+                ,mdfy_dt = NOW()
+        WHERE
+            atch_id = #{atchId}
+    </update>
+
+    <insert id="insertClaAtchDetail" parameterType="map" useGeneratedKeys="true" keyProperty="fileId">
+        INSERT INTO aidt_lms.cla_atch_detail /* TchBoardMapper.insertClaAtchDetail (교사)첨부파일상세생성 */
+        (
+            file_id
+            ,atch_id
+            ,file_sn
+            ,file_stre_path
+            ,stre_file_nm
+            ,orignl_file_nm
+            ,file_extsn
+            ,file_mg
+            ,file_cn
+            ,del_yn
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{atchId}
+            ,0
+            ,#{fileStrePath}
+            ,#{streFileNm}
+            ,#{orignlFileNm}
+            ,#{fileExtsn}
+            ,null
+            ,null
+            ,'N'
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <update id="updateClaAtchDtlFileSn" parameterType="map">
+        UPDATE aidt_lms.cla_atch_detail /* TchBoardMapper.updateClaAtchDtlFileSn (교사)첨부파일순번업데이트 */
+        SET     file_sn = #{fileSn}
+                ,mdfr = #{userId}
+                ,mdfy_dt = NOW()
+        WHERE
+            file_id = #{fileId}
+    </update>
+
+    <update id="deleteClaAtchDtlFile" parameterType="map">
+        UPDATE aidt_lms.cla_atch_detail /* TchBoardMapper.deleteClaAtchDtlFile (교사)파일삭제 */
+        SET del_yn = 'Y'
+        , mdfr = #{userId}
+        , mdfy_dt = NOW()
+        WHERE atch_id = #{atchId}
+        AND file_id in
+            <foreach collection="fileList" item="map" open="(" close=")" separator=",">
+                       #{map.fileId}
+            </foreach>
+    </update>
+
+    <select id="selectClaAtchDetail" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectClaAtchDetail (교사)상세파일테이블조회 */
+        SELECT
+            file_id
+            ,atch_id
+            ,file_sn
+            ,file_stre_path
+            ,stre_file_nm
+            ,orignl_file_nm
+            ,file_extsn
+            ,file_mg
+            ,file_cn
+            ,rgtr
+            ,DATE_FORMAT(reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+            ,mdfr
+            ,DATE_FORMAT(mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+        FROM aidt_lms.cla_atch_detail
+        WHERE
+            atch_id = #{atchId}
+            AND del_yn <![CDATA[<>]]> 'Y'
+        ORDER BY file_id
+    </select>
+
+
+
+
+    <insert id="insertTchClaBbs" parameterType="map" useGeneratedKeys="true" keyProperty="nttId">
+        INSERT INTO aidt_lms.cla_bbs /* TchBoardMapper.insertTchClaBbs (교사)새게시글생성 */
+        (
+            ntt_id
+            ,bbs_id
+            ,ntt_sj
+            ,ntt_cn
+            ,parnts
+            ,inqire_cnt
+            ,use_at
+            ,ntce_bgnde
+            ,ntce_endde
+            ,progress_at
+            ,atch_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{bbsId}
+            ,#{nttSj}
+            ,#{nttCn}
+            ,null
+            ,0
+            ,'Y'
+            ,#{ntceBgnde}
+            ,#{ntceEndde}
+            ,'Y'
+            ,CASE WHEN #{atchId} = '' THEN null ELSE #{atchId} END
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <update id="updateTchClaBbs" parameterType="map">
+        UPDATE aidt_lms.cla_bbs /* TchBoardMapper.updateTchClaBbs (교사)과제수정사항저장 */
+        SET ntt_sj = #{nttSj}
+            ,ntt_cn = #{nttCn}
+            ,ntce_bgnde = #{ntceBgnde}
+            ,ntce_endde = #{ntceEndde}
+            ,atch_id = CASE WHEN #{atchId} = '' THEN null ELSE #{atchId} END
+            ,mdfr = #{userId}
+            ,mdfy_dt = NOW()
+        WHERE ntt_id = #{nttId}
+    </update>
+
+    <update id="updateTchClaBbsCnt" parameterType="map">
+        UPDATE aidt_lms.cla_bbs /* TchBoardMapper.updateTchClaBbsCnt (교사)게시물조회수카운트 */
+        SET inqire_cnt = inqire_cnt + 1
+        WHERE ntt_id = #{nttId}
+    </update>
+
+
+    <insert id="insertClaBbsStnt" parameterType="map">
+        INSERT INTO aidt_lms.cla_bbs_stnt /* TchBoardMapper.insertClaBbsStnt (교사)학생과제테이블생성 */
+        (
+            id
+            ,ntt_id
+            ,mamoym_id
+            ,subm_at
+            ,subm_dt
+            ,atch_id
+            ,use_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{nttId}
+            ,#{userId}
+            ,null
+            ,null
+            ,null
+            ,'N'
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <insert id="insertClaBbsStntList" parameterType="map">
+        INSERT INTO aidt_lms.cla_bbs_stnt /* TchBoardMapper.insertClaBbsStntList (교사)학생과제테이블생성리스트 */
+        (
+            id
+            ,ntt_id
+            ,mamoym_id
+            ,subm_at
+            ,stnt_ntt_sj
+            ,stnt_ntt_cn
+            ,subm_dt
+            ,atch_id
+            ,use_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        )
+        SELECT
+            null
+            ,#{nttId}
+            ,a.stdt_id
+            ,'N'
+            ,null
+            ,null
+            ,null
+            ,null
+            ,'N'
+            ,a.stdt_id
+            ,NOW()
+            ,a.stdt_id
+            ,NOW()
+        FROM aidt_lms.tc_cla_mb_info a
+        WHERE a.cla_id = #{claId}
+        AND a.actvtn_at = 'Y'
+        AND a.stdt_id in
+        <foreach collection="stntList" item="map" open="(" close=")" separator=",">
+            #{map.stdtId}
+        </foreach>
+        AND NOT EXISTS (
+            SELECT 1
+            FROM aidt_lms.cla_bbs_stnt b
+            WHERE b.mamoym_id = a.stdt_id
+            AND b.ntt_id = #{nttId}
+        )
+        ORDER BY id
+    </insert>
+
+    <select id="selectClaBbsStnt" parameterType="map" resultType="camelHashMap">
+       /* TchBoardMapper.selectClaBbsStnt (교사)학생과제조회 */
+       SELECT
+            id
+            ,ntt_id
+            ,mamoym_id
+            ,subm_at
+            ,subm_dt
+            ,atch_id
+            ,use_at
+            ,rgtr
+            ,DATE_FORMAT(reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+            ,mdfr
+            ,(CASE WHEN subm_dt is null THEN null
+            ELSE DATE_FORMAT(mdfy_dt, '%Y-%m-%d %H:%i') END)    as mdfy_dt
+       FROM aidt_lms.cla_bbs_stnt
+       WHERE
+           ntt_id = #{nttId}
+       ORDER BY id
+    </select>
+
+    <delete id="deleteStnt" parameterType="map">
+        DELETE FROM aidt_lms.cla_bbs_stnt /* TchBoardMapper.deleteStnt (교사)학생삭제 */
+        WHERE ntt_id = #{nttId}
+        AND mamoym_id in
+        (
+            SELECT stdt_id
+            FROM aidt_lms.tc_cla_mb_info
+            WHERE cla_id = #{claId}
+            AND actvtn_at = 'Y'
+            AND stdt_id not in <foreach collection="stntList" item="map" open="(" close=")" separator=",">
+                        #{map.stdtId}
+                    </foreach>
+        )
+    </delete>
+
+    <insert id="insertClaBbsStntEditList" parameterType="map">
+        INSERT INTO aidt_lms.cla_bbs_stnt /* TchBoardMapper.insertClaBbsStntEditList (교사)수정된학생목록 */
+        SELECT
+            null
+            ,#{nttId}
+            ,stdt_id
+            ,null
+            ,null
+            ,CASE WHEN #{atchId} = '' THEN null ELSE #{atchId} END
+            ,'N'
+            ,stdt_id
+            ,NOW()
+            ,stdt_id
+            ,NOW()
+        FROM aidt_lms.tc_cla_mb_info a
+        WHERE
+        a.stdt_id in <foreach collection="list" item="map" open="(" close=")" separator=",">
+                #{stntList.userId}
+            </foreach>
+        AND NOT EXISTS (
+            SELECT 1
+            FROM aidt_lms.cla_bbs_stnt
+            WHERE ntt_id = #{nttId}
+            AND mamoym_id = a.stdt_id
+        )
+        and a.actvtn_at = 'Y'
+        limit 1
+    </insert>
+
+    <update id="tchBoardBbsEnd" parameterType="map">
+        UPDATE aidt_lms.cla_bbs /* TchBoardMapper.tchBoardBbsEnd (교사)과제종료 */
+        SET progress_at = 'N', ntce_endde = now()
+        WHERE ntt_id = #{nttId}
+    </update>
+
+    <update id="delTchBoardBbs" parameterType="map">
+        UPDATE aidt_lms.cla_bbs /* TchBoardMapper.delTchBoardBbs (교사)과제삭제 */
+        SET use_at = 'D'
+        WHERE ntt_id = #{nttId}
+    </update>
+
+    <select id="selectUserInfo" parameterType="map" resultType="camelHashMap">
+        /* TchBoardMapper.selectClaBbsStnt (교사)학생과제조회 */
+        SELECT
+            user_id
+            , user_se_cd as userSeCd
+        FROM aidt_lms.user
+        WHERE
+            user_id = #{userId}
+    </select>
+
+    <select id="selectClaBbsCheck" parameterType="map" resultType="int">
+        select
+            count(1)
+        from cla_bbs
+        where ntt_id = #{nttId}
+          AND use_at = 'Y'
+    </select>
+
+
+</mapper>

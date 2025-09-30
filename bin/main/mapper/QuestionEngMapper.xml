@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.QuestionEngMapper">
+    <select id="findQuestionListEng" parameterType="map" resultType="camelHashMap">
+        /* QuestionEngMapper.findQuestionListEng */
+        select
+            h.id as articleId
+        from
+            (
+                select
+                    b.article_id,
+                    max(if(b.meta_name = 'studyMap1',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap1,
+                    max(if(b.meta_name = 'difficulty',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as difficulty,
+                    max(if(b.meta_name = 'evaluationArea',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as evaluationArea,
+                    max(if(b.meta_name = 'evaluationArea3',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as evaluationArea3,
+                    max(if(b.meta_name = 'contentsItem',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as contentsItem
+                from
+                    aidt_lcms.article a
+                        inner join aidt_lcms.article_meta_map b
+                                   on a.id = b.article_id
+                                       and b.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                                       /* 대분류, 난이도, 유형1, 유형2, 유형3 */
+                                       and b.meta_name in ('studyMap1', 'difficulty', 'evaluationArea', 'evaluationArea3', 'contentsItem')
+                where
+                    1=1
+                  and a.id = #{articleId}
+                group by
+                    b.article_id
+            ) a
+                inner join aidt_lcms.article_meta_map b
+                           on b.meta_name = 'studyMap1' /* 대분류(단원) */
+                               and b.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                               and b.meta_id = a.studyMap1
+                inner join aidt_lcms.article_meta_map c
+                           on b.article_id = c.article_id
+                               and c.meta_name = 'difficulty' /*  난이도 */
+                               and c.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                               and c.meta_id = a.difficulty
+                inner join aidt_lcms.article_meta_map d
+                           on b.article_id = d.article_id
+                               and d.meta_name = 'evaluationArea' /*  유형1 */
+                               and d.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                               and d.meta_id = a.evaluationArea
+                inner join aidt_lcms.article_meta_map e
+                           on b.article_id = e.article_id
+                               and e.meta_name = 'evaluationArea3' /*  유형2 */
+                               and e.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                               and e.meta_id = a.evaluationArea3
+                inner join aidt_lcms.article_meta_map f
+                           on b.article_id = f.article_id
+                               and f.meta_name = 'contentsItem' /*  유형3 */
+                               and f.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                               and f.meta_id = a.contentsItem
+                inner join aidt_lcms.article_meta_map g
+                           on b.article_id = g.article_id
+                               and g.meta_name = 'questionType'
+                               and g.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                               and g.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /*  연쇄형은 제외 */
+                inner join aidt_lcms.article h
+                           on b.article_id = h.id
+                inner join aidt_lcms.article_meta_map i
+                        on  i.article_id = b.article_id
+                        and i.meta_name = 'articleCategory'
+                        and i.sub_id = 0 /* META SUB_ID 추가 - CSH 20240523 */
+                        and i.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /*  비교과 */
+        where
+            1=1
+          and h.id <![CDATA[<>]]> a.article_id
+          and h.articleType in (
+            select id from aidt_lcms.meta where name = 'articleType' and code = 'question' /*  유형(문항) */
+        )
+        and h.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+        and h.is_active = 1
+        and h.is_publicOpen = 1
+        order by rand()
+        limit #{limitNum}
+    </select>
+</mapper>

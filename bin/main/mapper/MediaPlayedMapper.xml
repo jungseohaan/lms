@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.mq.mapper.bulk.MediaPlayedMapper">
+    <select id="findStudentsFromMediaLog" resultType="com.visang.aidt.lms.api.mq.dto.media.MediaDto">
+    /*findStudentsFromMediaLog*/
+        select a.stdt_id                as userId,
+                u.ptn_id                as partnerId,
+                IFNULL(NULLIF(u.use_terms_agree_yn, ''), 'N') AS useTermsAgreeYn
+        from aidt_lms.med_std_log_result a
+            LEFT JOIN aidt_lms.USER u ON a.stdt_id  = u.user_id
+        where 1 = 1
+          AND u.user_se_cd = 'S'
+          and a.reg_dt >= #{startTime}
+          and a.reg_dt <![CDATA[<]]> #{endTime}
+        <if test='userId != null and userId != ""'>
+            and a.stdt_id = #{userId}
+        </if>
+        group by a.stdt_id
+        order by a.stdt_id desc
+    </select>
+
+    <select id="findMediaUsageHistory" resultType="com.visang.aidt.lms.api.mq.dto.media.MediaLogResultDto">
+    /*findMediaUsageHistory*/
+        WITH articleMeta AS (
+            SELECT
+                a.article_id,
+                MAX(CASE WHEN b.meta_name = 'difficulty' THEN b.meta_id END) AS difficulty_meta_id,
+                MAX(CASE WHEN b.meta_name = 'curriSubject' THEN b.meta_id END) AS curriSubject_meta_id,
+                MAX(CASE WHEN b.meta_name = 'studyMap_1' THEN b.meta_id END) AS studyMap_1_meta_id
+            FROM
+                aidt_lms.med_std_log_result a
+                    LEFT join aidt_lcms.article_meta_map b ON a.article_id = b.article_id
+            WHERE a.stdt_id = #{userId}
+            GROUP by a.article_id
+        )
+        SELECT
+            a.stdt_id,
+            a.article_id,
+            a.med_id,
+            CASE a.med_ty
+                WHEN 1 THEN 'video'
+                WHEN 2 THEN 'audio'
+                END AS medTy,
+            max(a.med_Lt) as `length`,
+            CASE am.difficulty_meta_id
+                WHEN '52' THEN 1
+                WHEN '53' THEN 2
+                WHEN '54' THEN 3
+                WHEN '55' THEN 4
+                WHEN '56' THEN 5
+                WHEN '759' THEN 1
+                WHEN '760' THEN 2
+                WHEN '761' THEN 3
+                ELSE -1
+                END AS difficulty,
+            CASE e.id
+                WHEN 8 THEN 1
+                WHEN 355 THEN 1
+                ELSE -1
+                END AS difficultyMin,
+            CASE e.id
+                WHEN '8' THEN 5
+                WHEN '355' THEN 3
+                ELSE -1
+                END AS difficultyMax,
+            me.val1 AS curriculumStandardId,
+            false AS common,
+            MAX(a.ai_tut_recmd_at) AS aitutorRecommended,
+            MAX(a.med_ply_time) AS duration,
+            if(MAX(a.med_std_cp_at) = 'Y', true, false) AS completion,
+            SUM(a.med_ply_cnt) AS attempt,
+            SUM(a.med_ply_mute_cnt) AS muteCnt,
+            SUM(a.med_ply_jump_cnt) AS skipCnt,
+            SUM(a.med_ply_stop_cnt) AS pauseCnt
+        FROM
+            aidt_lms.med_std_log_result a
+                LEFT JOIN aidt_lms.USER u ON a.stdt_id  = u.user_id
+                LEFT join articleMeta am ON a.article_id = am.article_id
+                LEFT join aidt_lcms.meta c ON am.difficulty_meta_id = c.id AND c.id = '31'
+                LEFT join aidt_lcms.meta e ON am.curriSubject_meta_id = e.id
+                LEFT join aidt_lcms.meta g ON am.studyMap_1_meta_id = g.id
+                LEFT join aidt_lcms.meta_extension me ON g.meta_extension_id = me.meta_extension_id
+        where 1=1
+          and a.reg_dt >= #{startTime}
+          AND a.reg_dt <![CDATA[<]]> #{endTime}
+          and a.stdt_id = #{userId}
+          AND u.user_se_cd = 'S'
+        GROUP BY
+            a.article_id, a.stdt_id
+    </select>
+
+    <update id="modifyMediaPlayedUpdate" parameterType="com.visang.aidt.lms.api.mq.dto.media.MediaDto">
+    /*modifyMediaPlayedUpdate*/
+        UPDATE aidt_lms.med_std_log_result
+            SET mq_trn_at = 'Y'
+        WHERE
+             <![CDATA[
+            (CASE
+                WHEN mdfy_dt IS NULL THEN reg_dt
+                ELSE mdfy_dt
+            END) >= #{startTime}
+            AND
+            (CASE
+                WHEN mdfy_dt IS NULL THEN reg_dt
+                ELSE mdfy_dt
+            END) < #{endTime}
+          ]]>
+            AND mq_trn_at = 'N';
+
+    </update>
+
+    <select id="getUserId" resultType="String" parameterType="String">
+        select
+            COALESCE(ptn_id, '') AS ptn_id
+        from aidt_lms.user
+        where user_id = #{userId}
+    </select>
+</mapper>

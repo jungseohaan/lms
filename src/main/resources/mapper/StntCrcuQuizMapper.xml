@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.StntCrcuQuizMapper">
+
+    <select id="findStntToolQuizList" parameterType="map" resultType="camelHashMap">
+        /* StntCrcuQuizMapper.findStntToolQuizList */
+        select sqi.id as qiz_id
+             , aidt_lms.F_CODE_NM('qiz_stts_cd', sqi.qiz_stts_cd) AS qiz_stts_nm
+             , (CASE WHEN (SELECT COUNT(*)
+                            FROM aidt_lms.spot_qiz_result
+                            WHERE qiz_id=sqi.id AND introdur_id=#{userId})>0
+                THEN 'Y'
+                ELSE 'N' END) AS subm_at
+                , sqi.*
+          from aidt_lms.spot_qiz_info sqi
+         where sqi.cla_id = #{claId}
+           and sqi.textbk_id = #{textbkId}
+    </select>
+
+    <select id="findStntToolQuizCall_spotQizInfo" parameterType="map" resultType="camelHashMap">
+        /* StntCrcuQuizMapper.findStntToolQuizCall_spotQizInfo */
+        select sqi.id as qiz_id
+             , aidt_lms.F_CODE_NM('qiz_stts_cd', sqi.qiz_stts_cd) AS qiz_stts_nm
+             , sqi.*
+          from aidt_lms.spot_qiz_info sqi
+         where sqi.id = #{qizId}
+
+    </select>
+
+    <select id="findStntToolQuizCall_spotQizDistract" parameterType="map" resultType="camelHashMap">
+        /* StntCrcuQuizMapper.findStntToolQuizCall_spotQizDistract */
+        select *
+        from aidt_lms.spot_qiz_distract
+        where qiz_id = #{qizId}
+        order by distr_num
+    </select>
+
+    <insert id="createStntToolQuizSubmit" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchCrcuQuizMapper.createStntToolQuizSubmit */
+        insert into aidt_lms.spot_qiz_result
+        (qiz_id, introdur_id, submdistr_num, subm_dt, rgtr, mdfr
+        ) values (
+        #{qizId}, #{userId}, #{submdistrNum}, now(), 'system', 'system'
+        )
+    </insert>
+
+    <select id="findStntTollQuizHist" parameterType="map" resultType="camelHashMap">
+        /* StntCrcuQuizMapper.findStntTollQuizHist */
+        select *
+        from aidt_lms.spot_qiz_result
+        where qiz_id = #{qizId}
+          and introdur_id = #{userId}
+    </select>
+</mapper>

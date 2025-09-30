@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.act.mapper.TchActMapper">
+
+    <insert id="createActToolInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TcActMapper.createActToolInfo */
+        INSERT INTO aidt_lms.act_tol_info (wrter_id, cla_id, schl_nm, textbk_id, textbk_tab_id, textbk_nm, act_iem_id, act_stts_cd, act_wy, sub_id, act_st_dt, rgtr, mdfr, act_proc_cd)
+        select  #{userId} as wrter_id
+             , ti.cla_id
+             , '삭제예정' schl_nm
+             , ti.textbk_id
+             , ti.id as textbk_tab_id
+             , t.name as textbk_nm
+             , #{actIemId} as act_item_d
+             , 1 as act_stts_cd
+             , #{actWy} as act_wy
+             , #{subId} as sub_id
+             , now() as act_st_dt
+             , #{userId} as rgtr
+             , #{userId} as mdfr
+             , #{actProcCd}
+        from 	aidt_lms.tab_info ti
+                    left join aidt_lcms.textbook t on ti.textbk_id = t.id
+        where 	1=1
+          and 	ti.id = #{textbkTabId}
+    </insert>
+
+
+    <insert id="createActResultInfo" parameterType="map" >
+        /* TcActMapper.createActResultInfo */
+        INSERT INTO aidt_lms.act_result_info
+            (act_id, mamoym_id, act_stts_cd, act_st_dt, subm_at, rgtr, mdfr)
+        select  ati.id as act_id
+             , tcmi.stdt_id as mamoym_id
+             , 1 as act_stts_cd
+             , now() as act_st_dt
+             , 'N' as subm_at
+             , #{userId} as rgtr
+             , #{userId} as mdfr
+        from 	aidt_lms.act_tol_info ati
+                    join aidt_lms.tc_cla_mb_info tcmi on tcmi.cla_id = ati.cla_id and tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        where 	ati.id = #{id}
+    </insert>
+
+    <select id="getActToolInfo" parameterType="map" resultType="camelHashMap" >
+        /* TcActMapper.getActToolInfo */
+        select  ati.id
+             , ati.act_stts_cd
+             , aidt_lms.F_CODE_NM('act_stts_cd', ati.act_stts_cd )as actSttsNm
+             , ati.act_wy
+             , aidt_lms.F_CODE_NM('act_wy', ati.act_wy )as actWyNm
+             , DATE_FORMAT(ati.act_st_dt, '%Y-%m-%d %H:%i:%s') as actStDt
+             , DATE_FORMAT(ati.act_ed_dt, '%Y-%m-%d %H:%i:%s') as actEdDt
+        from 	aidt_lms.act_tol_info ati
+        where 	ati.id = #{actId}
+    </select>
+
+    <update id="modifyActToolInfoEnd" parameterType="map" >
+        /* TcActMapper.modifyActToolInfoEnd */
+        update 	aidt_lms.act_tol_info ati
+        set 	ati.act_stts_cd = 2
+          , ati.act_ed_dt = now()
+          , ati.mdfr = #{userId}
+          , ati.mdfy_dt = now()
+        where 	ati.id = #{actId}
+    </update>
+
+    <select id="findActToolList" parameterType="map" resultType="camelHashMap" >
+        /* TcActMapper.getActToolInfo */
+        select 	ati.act_wy /* 활동방식 코드 */
+             , aidt_lms.F_CODE_NM('act_wy', ati.act_wy )as actWyNm /* 활동방식 코드명 */
+             , ati.id /* 활동도구 아이디 */
+             , ati.wrter_id /* 교사아이디 */
+             , ati.cla_id /* 학급 아이디 */
+             , ati.textbk_tab_id /* 탭 아이디 */
+             , ati.textbk_id /* 교과서 아이디 */
+             , ati.textbk_nm /* 교과서명 */
+             , ati.act_iem_id /* 활동모듈 아이디 */
+             , ati.act_stts_cd  /* 활동상태 코드 */
+             , aidt_lms.F_CODE_NM('act_stts_cd', ati.act_stts_cd )as actSttsNm /* 활동상태 코드명 */
+             , DATE_FORMAT(ati.act_st_dt, '%Y-%m-%d %H:%i:%s') as actStDt
+             , DATE_FORMAT(ati.act_ed_dt, '%Y-%m-%d %H:%i:%s') as actEdDt
+        from 	aidt_lms.act_tol_info ati
+        where 	1=1
+          and 	ati.textbk_tab_id = #{textbkTabId}
+          and 	ati.act_iem_id = #{actIemId}
+          and 	ati.sub_id = #{subId}
+        <if test="actSttsCd != null and actSttsCd != '' ">
+            AND ati.act_stts_cd = #{actSttsCd}
+        </if>
+        order by ati.act_wy
+    </select>
+
+    <select id="findActMdulStatusList" parameterType="map" resultType="camelHashMap" >
+        /* TcActMapper.findActMdulStatusList */
+        select 	ari.id /* 활동결과정보 id */
+             , ari.act_id /* 활동 id */
+             , ari.mamoym_id /* 학생id */
+             , u.flnm /* 학생명 */
+             ,(
+                SELECT pf_ui_img
+                FROM aidt_lms.sp_pf_info
+                WHERE
+                id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info WHERE user_id = ari.mamoym_id AND cla_id = ati.cla_id AND prchs_gds_se_cd = 'P'), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+             ) as pf_ui_img
+             , ifnull(
+                (select thumbnail from aidt_lcms.setsummary where article_id = ati.act_iem_id and sub_id = ati.sub_id limit 1),
+                ari.thumbnail
+             ) as thumbnail
+             , ari.act_submit_url
+             , ifnull(af.del_yn, 'N') as delYn
+             , ari.act_submit_dc
+             , DATE_FORMAT(ati.act_st_dt, '%Y-%m-%d %H:%i:%s') as actStDt
+             , DATE_FORMAT(ati.act_ed_dt, '%Y-%m-%d %H:%i:%s') as actEdDt
+             , ari.subm_at /* 제출여부 */
+             , u.id as userIdx
+             , u.user_id /* 학생ID */
+             , ari.fdb_dc
+             , ari.fdb_url
+             , ari.mdfy_dt
+             , ati.act_proc_cd
+             , ami.group_id
+             , ati.exchng_yn
+             , ifnull((select read_yn
+                         from aidt_lms.act_mate_read
+                        where act_id = ari.act_id
+                          and mamoym_id = ari.mamoym_id
+                          and group_id = ami.group_id
+                          and read_yn = 'Y' limit 1), 'N')     as othersReadYn
+             , ifnull((select read_yn
+                             from aidt_lms.act_mate_read
+                            where act_id = ari.act_id
+                              and evaluator_id = ari.mamoym_id
+                              and group_id = ami.group_id
+                              and read_yn = 'Y' limit 1), 'N') as myReadYn
+        from 	aidt_lms.act_tol_info ati
+                    join aidt_lms.act_result_info ari on ari.act_id = ati.id
+                    left join aidt_lms.`user` u on ari.mamoym_id = u.user_id
+                    left join aidt_lms.act_mate_info ami on ati.id = ami.act_id and ari.mamoym_id = ami.mamoym_id
+                    LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+                    INNER JOIN (SELECT sri.user_id, sri.num FROM aidt_lms.stdt_reg_info sri) sri_info ON ari.mamoym_id = sri_info.user_id
+        where 	1=1
+          AND 	ati.textbk_tab_id = #{textbkTabId}
+          and 	ati.act_wy = (select act_wy from aidt_lms.act_tol_info where id = #{actId})
+          and 	ati.act_iem_id = #{actIemId}
+          and 	ati.sub_id = #{subId}
+        ORDER BY sri_info.num, ati.act_ed_dt DESC
+    </select>
+
+    <select id="findActMdulStatusTabList" parameterType="map" resultType="camelHashMap" >
+        /* TcActMapper.findActMdulStatusTabList */
+        select tabId
+             , tabNm
+             , act_wy
+             , actId
+             , actProcCd
+             , dtaIemId
+             , subId
+             , typeSeq
+             , act_stts_cd  /* 활동상태 */
+             , act_stts_nm  /* 활동상태명 */
+             ,  @rownum := @rownum + 1 AS tabSeq
+        from 	(
+            select 	sdri.textbk_tab_id as tabId
+                , '학습 현황' COLLATE utf8mb4_general_ci as tabNm
+                , 0 as act_wy
+                , null as actId
+                , null as actProcCd
+                , sdrd.dta_iem_id as dtaIemId
+                , sdrd.sub_id as subId
+                , 0 as typeSeq /* 학습현황을 0으로 표시 */
+                , null as act_st_dt
+                , null as act_stts_cd
+                , null as act_stts_nm
+            from 	aidt_lms.std_dta_result_info sdri
+                join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+            where 	1=1
+                AND 	sdri.textbk_tab_id =#{textbkTabId}
+                AND 	sdrd.dta_iem_id = #{actIemId}
+                AND 	sdrd.sub_id = #{subId}
+            union all
+                SELECT tabId,
+                       tabNm,
+                       act_wy,
+                       actId,
+                       actProcCd,
+                       dtaIemId,
+                       subId,
+                       typeSeq,
+                       act_st_dt,
+                       act_stts_cd,
+                       act_stts_nm
+                FROM (
+                    SELECT ati.textbk_tab_id AS tabId,
+                           aidt_lms.F_CODE_NM('act_wy', ati.act_wy) AS tabNm,
+                           ati.act_wy,
+                           ati.id AS actId,
+                           ati.act_proc_cd as actProcCd,
+                           ati.act_iem_id AS dtaIemId,
+                           ati.sub_id AS subId,
+                           1 AS typeSeq, /* 학습도구를 1로 표시 */
+                           ati.act_st_dt,
+                           ati.act_stts_cd,
+                           aidt_lms.F_CODE_NM('act_stts_cd', ati.act_stts_cd) AS act_stts_nm,
+                           ROW_NUMBER() OVER (PARTITION BY ati.act_wy ORDER BY ati.act_st_dt DESC) AS rn
+                    FROM aidt_lms.act_tol_info ati
+                         JOIN aidt_lms.tab_info ti
+                           ON ati.textbk_tab_id = ti.id
+                          AND ati.cla_id = ti.cla_id
+                          AND ati.textbk_id = ti.textbk_id
+                    WHERE ati.textbk_tab_id = #{textbkTabId}
+                      AND ati.act_iem_id = #{actIemId}
+                      AND ati.sub_id = #{subId}
+                ) innerTmp
+                WHERE rn = 1
+                )tmp,
+            (SELECT @rownum := 0) r
+        where 	1=1
+        order by typeSeq, act_st_dt
+    </select>
+
+
+    <update id="modifyActToolInfo" parameterType="map">
+        /* TcActMapper.modifyActToolInfo */
+        update aidt_lms.act_tol_info ati
+            join aidt_lms.tab_info ti on ati.cla_id = ti.cla_id and ati.textbk_id = ti.textbk_id and ati.textbk_tab_id = ti.id
+            left join aidt_lcms.textbook t on ti.textbk_id = t.id
+        set ati.wrter_id = #{userId}
+          , ati.schl_nm = '삭제예정'
+          , ati.textbk_nm = t.name
+          , ati.act_stts_cd = 1
+          , ati.act_st_dt = now()
+          , ati.mdfr = #{userId}
+          , ati.mdfy_dt = now()
+          , ati.exchng_yn = 'N'
+        where ati.textbk_tab_id = #{textbkTabId}
+          and ati.act_iem_id = #{actIemId}
+          and ati.sub_id = #{subId}
+          and ati.act_wy = #{actWy}
+          and ati.act_proc_cd = #{actProcCd}
+    </update>
+
+    <update id="modifyActResultInfo" parameterType="map">
+        /* TcActMapper.modifyActResultInfo */
+        update aidt_lms.act_result_info ari
+        join aidt_lms.act_tol_info ati on ati.id = ari.act_id
+        set ari.act_stts_cd = 1
+            , ari.act_st_dt = now()
+            , ari.subm_at = 'N'
+            , ari.mdfr = #{userId}
+            , ari.mdfy_dt = now()
+            , ari.fdb_dc = null
+            , ari.fdb_url = null
+            , ari.tch_rpt_chk_at = 'N'
+        where ati.id = #{id}
+    </update>
+
+    <select id="findActToolInfo" parameterType="map" resultType="camelHashMap" >
+        /* TcActMapper.findActToolInfo */
+        select ati.*
+        from aidt_lms.act_tol_info ati
+        where ati.textbk_tab_id = #{textbkTabId}
+          and ati.act_iem_id = #{actIemId}
+          and ati.sub_id = #{subId}
+          and ati.act_wy = #{actWy}
+          and ati.act_proc_cd = #{actProcCd}
+        limit 1
+    </select>
+
+    <update id="modifyActToolInfoSave" parameterType="map">
+        /* TcActMapper.modifyActToolInfoSave */
+        update aidt_lms.act_result_info
+           set fdb_dc = #{fdbDc}
+             , fdb_url = #{fdbUrl}
+         where id = #{id}
+    </update>
+
+    <select id="findActMdulMate" parameterType="int" resultType="camelHashMap" >
+        /* TcActMapper.findActMdulMate */
+        select id
+             , evaluator_id
+             , fdb_dc as mateFdbDc
+             , fdb_url as mateFdbUrl
+             , mamoym_id
+        from aidt_lms.act_mate_fdb
+        where act_id = #{id}
+    </select>
+
+    <update id="modifyTchActMdulExchange" parameterType="map" >
+        /* TcActMapper.modifyTchActMdulExchange */
+        update 	aidt_lms.act_tol_info ati
+        set 	ati.exchng_yn = 'Y'
+          , ati.mdfr = #{wrterId}
+          , ati.mdfy_dt = now()
+        where 	ati.id = #{actId}
+    </update>
+
+    <insert id="createtchActMdulMate" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TcActMapper.createtchActMdulMate */
+        INSERT INTO aidt_lms.act_mate_info (act_id, mamoym_id, group_id)
+        values (
+                 #{actId}
+               , #{stntId}
+               , #{groupId}
+               )
+    </insert>
+
+    <update id="modifytchActMdulMate" parameterType="map" >
+        /* TcActMapper.modifytchActMdulMate */
+        update 	aidt_lms.act_result_info ari
+        set 	ari.group_id = #{groupId}
+        where 	ari.act_id = #{actId}
+        and     ari.mamoym_id = #{stntId}
+    </update>
+
+    <delete id="removeActMateInfo" parameterType="map">
+        /* TcActMapper.removeActMateInfo */
+        DELETE
+        FROM aidt_lms.act_mate_info
+        WHERE act_id = #{id}
+    </delete>
+
+    <delete id="removeActMateFdb" parameterType="map">
+        /* TcActMapper.removeActMateFdb */
+        DELETE
+        FROM aidt_lms.act_mate_fdb
+        WHERE act_id = #{id}
+    </delete>
+
+
+
+    <select id="findGroupIdList" parameterType="map" resultType="camelHashMap" >
+        /* TcActMapper.findGroupIdList */
+        select ami.group_id
+        from aidt_lms.act_mate_info ami
+        where ami.act_id in (select id
+                             from aidt_lms.act_tol_info
+                             where (cla_id, textbk_tab_id, act_iem_id, sub_id, act_wy) in
+                                   (select cla_id, textbk_tab_id, act_iem_id, sub_id, act_wy
+                                    from aidt_lms.act_tol_info
+                                    where id = #{actId}))
+        group by ami.group_id
+        order by (select min(ari.act_ed_dt)
+                  from aidt_lms.act_result_info ari
+                  where ari.act_id = #{actId}
+                    and ari.group_id = ami.group_id);
+    </select>
+
+    <select id="findGroupIdList_bak" parameterType="map" resultType="camelHashMap">
+        /* TcActMapper.findGroupIdList_bak */
+        select group_id
+        from aidt_lms.act_mate_info
+        where act_id in (select id
+                         from aidt_lms.act_tol_info
+                         where (cla_id, textbk_tab_id, act_iem_id, sub_id, act_wy) in
+                               (select cla_id, textbk_tab_id, act_iem_id, sub_id, act_wy
+                                from aidt_lms.act_tol_info
+                                where id = #{actId}))
+        group by group_id
+        order by group_id
+    </select>
+
+    <delete id="removeActMateRead" parameterType="map" >
+         delete from aidt_lms.act_mate_read where act_id =#{id}
+    </delete>
+
+</mapper>
+

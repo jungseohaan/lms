@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchMaterialsMapper">
+    <insert id="createMaterialsSaveSets" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* tchMaterialsMapper.createMaterialsSaveSets */
+        insert into aidt_lms.tc_materials_info
+        (
+         save_type
+        , eam_mth
+        , brand_id
+        , name
+        , description
+        , thumbnail
+        , points_type
+        , points
+        , limit_time_type
+        , limit_time
+        , creator_id
+        , creator_date
+        , serviceType
+        , difficulty
+        , setCategory
+        , curriBook
+        , curriUnit1
+        , curriUnit2
+        , curriUnit3
+        , curriUnit4
+        , curriUnit5
+        , org_sets_id
+        , reg_id
+        , reg_date
+        , mod_id
+        , mod_date
+        )
+        select
+            #{saveType}
+             , #{eamMth}
+             , brand_id
+             , CASE
+                   WHEN #{name} IS NOT NULL AND #{name} != ''
+                    THEN #{name}
+                   ELSE name
+                END
+             , description
+             , thumbnail
+             , points_type
+             , points
+             , limit_time_type
+             , limit_time
+             , #{userId}
+             , now()
+             , serviceType
+             , difficulty
+             , setCategory
+             , curriBook
+             , curriUnit1
+             , curriUnit2
+             , curriUnit3
+             , curriUnit4
+             , curriUnit5
+             , id
+             , #{userId}
+             , now()
+             , #{userId}
+             , now()
+        from aidt_lcms.sets
+        where id = #{setsId}
+        /* where id = 'MSTG313026'; */ /* 교과서 */
+       /*  where id = 'MSTG313027'; */ /* 과제 */
+    </insert>
+
+    <insert id="createMaterialsSaveExtLearnCnts" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* tchMaterialsMapper.createMaterialsSaveExtLearnCnts */
+        insert into aidt_lms.tc_materials_info
+        (
+         save_type
+        , eam_mth
+        , brand_id
+        , name
+        , description
+        , thumbnail
+        , points_type
+        , points
+        , limit_time_type
+        , limit_time
+        , creator_id
+        , creator_date
+        , serviceType
+        , difficulty
+        , setCategory
+        , curriBook
+        , curriUnit1
+        , curriUnit2
+        , curriUnit3
+        , curriUnit4
+        , curriUnit5
+        , org_sets_id
+        , reg_id
+        , reg_date
+        , mod_id
+        , mod_date
+        )
+        select
+            2
+             , #{eamMth}
+             , null
+             , cnts_nm
+             , null
+             , null
+             , null
+             , null
+             , null
+             , null
+             , wrter_id
+             , now()
+             , null
+             , null
+             , 31 /* 고정된 값 */
+             , null
+             , null
+             , null
+             , null
+             , null
+             , null
+             , id
+             , rgtr
+             , now()
+             , rgtr
+             , now()
+        from aidt_lms.ext_learn_cnts
+        where id = #{extLearnCntsId};
+    </insert>
+
+    <insert id="createMaterialsDetailSaveSetsummary" parameterType="map">
+        /* tchMaterialsMapper.createMaterialsDetailSaveSetsummary */
+        insert into aidt_lms.tc_materials_detail
+        (
+          tc_materials_info_id
+        , article_id
+        , sub_id
+        , thumbnail
+        , name
+        , gradingMethod
+        , points
+        , qnum
+        , textbk_id
+        , cnts_type
+        , cnts_ext
+        , url
+        , reg_id
+        , reg_date
+        , mod_id
+        , mod_date
+        )
+        select
+            #{tcMaterialsInfoId} /* insert 시, 리턴받은 데이터 (tc_materials_info_id) */
+             , ss.article_id
+             , ss.sub_id
+             , ss.thumbnail
+             , CASE
+                   WHEN #{name} IS NOT NULL AND #{name} != ''
+                    THEN #{name}
+                   ELSE ss.name
+                END
+             , ss.gradingMethod
+             , ss.points
+             , ss.qnum
+             , null
+             , null
+             , null
+             , null
+             , ss.creator
+             , now()
+             , ss.creator
+             , now()
+        from aidt_lcms.setsummary ss
+        inner join aidt_lcms.article a on a.id = ss.article_id
+            and a.use_evaluation = 0 /* 자기/동료평가 제외 */
+        where ss.set_id = #{setsId}
+        /* where set_id = 'MSTG313026'; */ /*교과서 */
+        /* where set_id = 'MSTG313027'; */ /* 과제 */
+        order by ss.id asc
+    </insert>
+
+    <insert id="createMaterialsDetailSaveExtLearnCnts" parameterType="map">
+        /* tchMaterialsMapper.createMaterialsDetailSaveExtLearnCnts */
+        insert into aidt_lms.tc_materials_detail
+        (
+          tc_materials_info_id
+        , article_id
+        , sub_id
+        , thumbnail
+        , name
+        , gradingMethod
+        , points
+        , qnum
+        , textbk_id
+        , cnts_type
+        , cnts_ext
+        , url
+        , reg_id
+        , reg_date
+        , mod_id
+        , mod_date
+        )
+        select
+            #{tcMaterialsId} /* insert 시, 리턴받은 데이터 (tc_materials_info_id) */
+             , null
+             , null
+             , null
+             , cnts_nm
+             , null
+             , null
+             , null
+             , textbk_id
+             , cnts_type
+             , cnts_ext
+             , url
+             , rgtr
+             , now()
+             , rgtr
+             , now()
+        from aidt_lms.ext_learn_cnts
+        where id = #{extLearnCntsId}; /* 수업 재구성 내자료 등록하기 */
+    </insert>
+
+    <select id="findMaterialsList" parameterType="pagingParam" resultType="camelHashMap">
+        /* tchMaterialsMapper.findMaterialsList */
+        select count(*) over() as sets_total_count  /* 총갯수 */
+        , tmi.tc_materials_info_id   /* id */
+        , ifnull(
+            if(tmi.eam_mth is not null, tmi.eam_mth, (
+                case
+                    when tmi.setCategory = 31 and tmi.brand_id is not null and tmi.org_sets_id is not null
+                        then (select sdi_sub.eam_mth from aidt_lms.std_dta_info sdi_sub where sdi_sub.sets_id = tmi.org_sets_id limit 1)
+                    when tmi.setCategory = 32 and tmi.brand_id is not null and tmi.org_sets_id is not null
+                        then (select ei_sub.eam_mth from aidt_lms.evl_info ei_sub where ei_sub.sets_id = tmi.org_sets_id limit 1)
+                    when tmi.setCategory = 357 and tmi.brand_id is not null and tmi.org_sets_id is not null
+                        then (select ti_sub.eam_mth from aidt_lms.task_info ti_sub where ti_sub.sets_id = tmi.org_sets_id limit 1)
+                    else 6
+                end
+            )
+        ), 6) as eam_mth
+        , tmi.save_type /* 저장 타입 */
+        , tmi.brand_id /* 교과정보 */
+        , (
+            select m_sub.code
+            from aidt_lcms.meta m_sub
+            where m_sub.name = 'setCategory'
+            and m_sub.id = tmi.setCategory
+        ) as category_code
+        , (
+            select m_sub.val
+            from aidt_lcms.meta m_sub
+            where m_sub.name = 'setCategory'
+            and m_sub.id = tmi.setCategory
+        ) as category_name
+        , tmi.name /* 이름 */
+        , tmi.thumbnail /* 세트지의 thumbnail 로 변경 20250806 */
+        , (
+            select json_object(
+            'conceptCnt', count(case when meta_sub.val = '개념' then 1 end),
+            'questionCnt',count(case when meta_sub.val = '문항' then 1 end),
+            'movementCnt',count(case when meta_sub.val = '활동' then 1 end))
+            from aidt_lms.tc_materials_detail tmd_sub
+                inner join aidt_lcms.article_meta_map amm_sub on amm_sub.article_id = tmd_sub.article_id and meta_name = 'articleType' and tmd_sub.sub_id = amm_sub.sub_id
+                inner join aidt_lcms.meta meta_sub on meta_sub.id = amm_sub.meta_id
+            where tmd_sub.is_deleted = 0
+            and tmd_sub.tc_materials_info_id = tmi.tc_materials_info_id
+        ) as article_type_json
+        , (
+            select count(*)
+            from aidt_lms.tc_materials_detail
+            where tc_materials_info_id = tmi.tc_materials_info_id
+            and is_deleted = 0
+        ) as article_count
+        , (
+            select
+            json_arrayagg(cla_id)
+            from (
+                select distinct cla_id
+                from aidt_lms.tc_materials_class_tasks
+                where tc_materials_info_id = tmi.tc_materials_info_id
+                and is_deleted = 0
+                and (
+                    (setCategory = 32 and exists(select 1 from aidt_lms.evl_info where id = target_id and tmpr_strg_at = 'N'))
+                    or
+                    (setCategory = 357 and exists(select 1 from aidt_lms.task_info where id = target_id and tmpr_strg_at = 'N'))
+                    or
+                    (setCategory = 31 and exists(select 1 from aidt_lms.tab_info where id = target_id))
+                )
+            ) as tmct_sub
+        ) as class_tasks_list  /* 출제반 */
+        , (
+            select m_sub.val
+            from aidt_lcms.meta m_sub
+            where m_sub.name = 'difficulty'
+            and m_sub.id = tmi.difficulty
+        ) as sets_article_difficulty
+        , (
+            select cnts_type
+            from aidt_lms.tc_materials_detail
+            where tc_materials_info_id = tmi.tc_materials_info_id
+            and is_deleted = 0
+            limit 1
+        ) as cnts_type
+        , (
+            select cnts_ext
+            from aidt_lms.tc_materials_detail
+            where tc_materials_info_id = tmi.tc_materials_info_id
+            and is_deleted = 0
+            limit 1
+        ) as cnts_ext
+        , (
+            select url
+            from aidt_lms.tc_materials_detail
+            where tc_materials_info_id = tmi.tc_materials_info_id
+            and is_deleted = 0
+            limit 1
+        ) as url
+        , if(tmi.brand_id is not null, tmi.org_sets_id, 'null') as sets_id
+        , if(tmi.brand_id is null, tmi.org_sets_id, 'null') as ext_learn_cnts_id
+        , date_format(tmi.reg_date, '%Y-%m-%d %H:%i:%s') as reg_date /* 등록일 */
+        , (
+            case
+                when tmi.reg_date = tmi.mod_date then ''
+                else date_format(tmi.mod_date, '%Y-%m-%d %H:%i:%s')
+            end
+        ) as mod_date /* 수정일 */
+        -- , date_format(tmi.mod_date, '%Y-%m-%d %H:%i:%s') as mod_date /* 수정일 */
+        from aidt_lms.tc_materials_info tmi
+        where tmi.is_deleted = 0
+            and tmi.creator_id = #{param.userId}
+        <if test="param.keyword != null and param.keyword != '' ">
+            and tmi.name like concat('%',#{param.keyword}, '%')
+        </if>
+        <if test="param.saveType eq 1 or param.saveType eq 2">
+            and tmi.save_type = #{param.saveType}
+        </if>
+        <if test="param.sortCode != null and param.sortCode != '' ">
+            <choose>
+                <when test="param.sortCode eq 1 ">
+                    order by tmi.creator_date desc /* 최근 생성일순 */
+                </when>
+                <when test="param.sortCode eq 2 ">
+                    order by tmi.mod_date desc  /* 최근 수정일 순 */
+                </when>
+                <otherwise>
+                    order by
+                    case
+                        /* 1. 완성형 한글: ㄱ~ㅎ (쌍자음 포함) */
+                        when conv(hex(convert(left(tmi.name,1) using ucs2)),16,10) between 44032 and 55203
+                        then floor( (conv(hex(convert(left(tmi.name,1) using ucs2)),16,10) - 44032) / 588 )
+                        /* 2. 호환 자모 ㄱ~ㅎ */
+                        when left(tmi.name,1) in ('ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ')
+                        then field(left(tmi.name,1),
+                        'ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ')
+                        /* 3. 영문 */
+                        when left(tmi.name,1) regexp '^[A-Za-z]' then 100
+                        /* 4. 숫자 */
+                        when left(tmi.name,1) regexp '^[0-9]' then 101
+                        /* 5. 특수문자 */
+                        else 102
+                    end,
+                    tmi.name collate utf8mb4_unicode_ci asc /* 가나다_영문_숫자_특수문자 순 */
+                </otherwise>
+            </choose>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findMaterialsDetail" parameterType="map" resultType="camelHashMap">
+        /* tchMaterialsMapper.findMaterialsDetail */
+        select tmi.tc_materials_info_id
+             , tmi.save_type
+             , ifnull(
+                if(tmi.eam_mth is not null, tmi.eam_mth, (
+                    case
+                        when tmi.setCategory = 31 and tmi.brand_id is not null and tmi.org_sets_id is not null
+                            then (select sdi_sub.eam_mth from aidt_lms.std_dta_info sdi_sub where sdi_sub.sets_id = tmi.org_sets_id limit 1)
+                        when tmi.setCategory = 32 and tmi.brand_id is not null and tmi.org_sets_id is not null
+                            then (select ei_sub.eam_mth from aidt_lms.evl_info ei_sub where ei_sub.sets_id = tmi.org_sets_id limit 1)
+                        when tmi.setCategory = 357 and tmi.brand_id is not null and tmi.org_sets_id is not null
+                            then (select ti_sub.eam_mth from aidt_lms.task_info ti_sub where ti_sub.sets_id = tmi.org_sets_id limit 1)
+                        else 6
+                        end
+                    )
+             ), 6) as eam_mth
+             , tmi.name
+             , tmi.description
+             , tmi.creator_id
+             , (
+                    case
+                        when tmi.brand_id is not null then ifnull(tmi.thumbnail, s.thumbnail)
+                        else ''
+                    end
+                ) as tc_materials_info_thumbnail
+             , (
+                select m_sub.code
+                from aidt_lcms.meta m_sub
+                where m_sub.name = 'setCategory'
+                  and m_sub.id = tmi.setCategory
+                ) as category_code
+             , (
+                    select m_sub.val
+                    from aidt_lcms.meta m_sub
+                    where m_sub.name = 'setCategory'
+                      and m_sub.id = tmi.setCategory
+                ) as category_name
+             , count(*) over() as total_article_count
+             , (
+                select json_object(
+                               'difyHighMdulCnt', count(case when meta_sub.val = '상' then 1 end),
+                               'difyMiddleHighMdulCnt',count(case when meta_sub.val = '중상' then 1 end),
+                               'difyMiddleMdulCnt',count(case when meta_sub.val = '중' then 1 end),
+                               'difyMiddleLowMdulCnt',count(case when meta_sub.val = '중하' then 1 end),
+                               'difyLowMdulCnt',count(case when meta_sub.val = '하' then 1 end))
+                from aidt_lms.tc_materials_detail tmd_sub
+                         inner join aidt_lcms.article_meta_map amm_sub on amm_sub.article_id = tmd_sub.article_id and amm_sub.meta_name = 'difficulty' and tmd_sub.sub_id = amm_sub.sub_id
+                         inner join aidt_lcms.meta meta_sub on meta_sub.id = amm_sub.meta_id
+                where tmd_sub.is_deleted = 0
+                  and tmd_sub.tc_materials_info_id = tmi.tc_materials_info_id
+             ) as article_difficulty_count_json
+            , (
+                    select json_object(
+                                   'conceptCnt', count(case when meta_sub.val = '개념' then 1 end),
+                                   'questionCnt',count(case when meta_sub.val = '문항' then 1 end),
+                                   'movementCnt',count(case when meta_sub.val = '활동' then 1 end))
+                    from aidt_lms.tc_materials_detail tmd_sub
+                             inner join aidt_lcms.article_meta_map amm_sub on amm_sub.article_id = tmd_sub.article_id and meta_name = 'articleType' and tmd_sub.sub_id = amm_sub.sub_id
+                             inner join aidt_lcms.meta meta_sub on meta_sub.id = amm_sub.meta_id
+                    where tmd_sub.is_deleted = 0
+                      and tmd_sub.tc_materials_info_id = tmi.tc_materials_info_id
+            ) as article_type_json
+            , (
+                select m_sub.val
+                from aidt_lcms.meta m_sub
+                where m_sub.name = 'difficulty'
+                  and m_sub.id = tmi.difficulty
+            ) as sets_article_difficulty
+            , ifnull(
+                (
+                    select sum(tmd_sub.points)
+                    from aidt_lms.tc_materials_detail tmd_sub
+                    where tmd_sub.tc_materials_info_id = tmi.tc_materials_info_id
+                      and tmd_sub.is_deleted = 0
+                ), 0
+            ) as total_article_score
+          , if(tmi.brand_id is not null, tmi.org_sets_id, 'null') as sets_id
+          , if(tmi.brand_id is null, tmi.org_sets_id, 'null') as ext_learn_cnts_id
+          , date_format(tmi.reg_date, '%Y-%m-%d %H:%i:%s') as reg_date
+          , (
+                case
+                    when tmi.reg_date = tmi.mod_date then ''
+                    else date_format(tmi.mod_date, '%Y-%m-%d %H:%i:%s')
+                end
+            ) as mod_date /* 수정일 */
+          , date_format(tmi.mod_date, '%Y-%m-%d %H:%i:%s') as mod_date
+          , tmd.article_id
+          , tmd.sub_id
+          , tmd.name
+          , ifnull(tmd.thumbnail, a.thumbnail) as thumbnail
+          , a.hashTags
+          , (
+                select m_sub.val
+                from aidt_lcms.article_meta_map amm_sub
+                         inner join aidt_lcms.meta m_sub on m_sub.id = amm_sub.meta_id
+                where amm_sub.article_id = a.id
+                  and amm_sub.sub_id = tmd.sub_id
+                  and amm_sub.meta_name = 'questionType'
+            ) as question_type
+         , (
+                select m_sub.val
+                from aidt_lcms.article_meta_map amm_sub
+                         inner join aidt_lcms.meta m_sub on m_sub.id = amm_sub.meta_id
+                where amm_sub.article_id = a.id
+                  and amm_sub.sub_id = tmd.sub_id
+                  and amm_sub.meta_name = 'articleType'
+            ) as article_type
+            , (
+                    select m_sub.val
+                    from aidt_lcms.article_meta_map amm_sub
+                             inner join aidt_lcms.meta m_sub on m_sub.id = amm_sub.meta_id
+                    where amm_sub.article_id = a.id
+                      and amm_sub.sub_id = tmd.sub_id
+                      and amm_sub.meta_name = 'difficulty'
+                ) as article_difficulty
+             , ifnull(tmd.points, 0) as score
+             , ifnull(
+                (
+                    select use_cnt
+                    from aidt_lms.module_use_cnt muc
+                    where muc.article_id = tmd.article_id
+                      and muc.sub_id = tmd.sub_id
+                ), 0
+               ) as article_use_count
+             , (
+                    select group_concat(la_sub.data order by la_sub.sub_id separator '\n')
+                    from aidt_lcms.log_articlepart la_sub
+                    where la_sub.article_id = tmd.article_id
+                      and la_sub.sub_id = tmd.sub_id
+                      and la_sub.part = 'hint'
+                ) as hint
+            , (
+                    select group_concat(la_sub.data order by la_sub.sub_id separator '\n')
+                    from aidt_lcms.log_articlepart la_sub
+                    where la_sub.article_id = tmd.article_id
+                      and la_sub.sub_id = tmd.sub_id
+                      and la_sub.part = 'explanation'
+                ) as explanation
+             , tmd.qnum
+             , tmd.textbk_id
+             , tmd.cnts_type
+             , tmd.cnts_ext
+             , tmd.url
+        from aidt_lms.tc_materials_info tmi
+                 inner join aidt_lms.tc_materials_detail tmd on tmd.tc_materials_info_id = tmi.tc_materials_info_id and tmd.is_deleted = 0
+                 left join aidt_lcms.article a on a.id = tmd.article_id
+                 left join aidt_lcms.sets s on s.id = tmi.org_sets_id
+        where tmi.tc_materials_info_id = #{tcMaterialsInfoId}
+          and tmi.is_deleted = 0
+        order by tmd.tc_materials_detail_id asc;
+    </select>
+
+    <select id="checkDuplicateName" resultType="int">
+        /* tchMaterialsMapper.checkDuplicateName */
+        select count(*)
+        from aidt_lms.tc_materials_info
+        where is_deleted = 0
+          and creator_id = #{userId}
+          and name = #{name}
+    </select>
+
+    <select id="selecTcMaterialsInfoCount" resultType="java.lang.Integer">
+        /* tchMaterialsMapper.selecTcMaterialsInfoCount */
+        select count(*)
+        from aidt_lms.tc_materials_info
+        where
+        <if test='setsId != null and setsId != "" and !setsId.equals("0")'>
+            org_sets_id = #{setsId}
+        </if>
+        <if test='setsId == null or setsId == "" or setsId.equals("0")'>
+            org_sets_id = #{extLearnCntsId}
+        </if>
+        and is_deleted = 0
+        and creator_id = #{userId}
+    </select>
+
+    <insert id="createMaterialsClassTaks" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* tchMaterialsMapper.createMaterialsClassTaks */
+        insert into aidt_lms.tc_materials_class_tasks
+        (
+          tc_materials_info_id
+        , cla_id
+        , setCategory
+        , target_id
+        , reg_id
+        , reg_date
+        , mod_id
+        , mod_date
+        )
+        values
+            (
+              #{tcMaterialsInfoId} /* 내자료 입력후 tc_materials_info_id return 필수 */
+            , #{claId}
+            , #{setCategory}
+            , #{trgetId}
+            , #{userId}
+            , now()
+            , #{userId}
+            , now()
+            );
+    </insert>
+
+    <select id="selecMaterialsClassTasksCount" resultType="java.lang.Integer">
+        /* tchMaterialsMapper.selecMaterialsClassTasksCount */
+        select count(*)
+        from aidt_lms.tc_materials_class_tasks
+        where tc_materials_info_id = #{tcMaterialsInfoId}
+          and cla_id = #{claId}
+          and setCategory = #{setCategory}
+          and target_id = #{trgetId}
+          and is_deleted = 0
+    </select>
+
+    <select id="findMaterialsClassTasksList" parameterType="pagingParam" resultType="camelHashMap">
+        /* tchMaterialsMapper.findMaterialsClassTasksList */
+        select
+            count(*) OVER() as total_count
+            , (count(*) over()) - row_number() over (order by reg_date desc) + 1 as no
+            , (
+                    case setCategory
+                        when 31 then (select tab_nm from aidt_lms.tab_info where id = tmct.target_id)
+                        when 32 then (select evl_nm from aidt_lms.evl_info where id = tmct.target_id)
+                        when 357 then (select task_nm from aidt_lms.task_info where id = tmct.target_id)
+                        else (select name from aidt_lms.tc_materials_info where tc_materials_info_id = tmct.tc_materials_info_id)
+                    end
+                ) as name
+            , tmct.cla_id
+            , (select val from aidt_lcms.meta where id = tmct.setCategory) as category_name
+            , date_format(tmct.reg_date, '%Y-%m-%d %H:%i:%s') as reg_date
+        from aidt_lms.tc_materials_class_tasks tmct
+        where tmct.tc_materials_info_id = #{param.tcMaterialsInfoId}
+        and tmct.is_deleted = 0
+        and (
+            (tmct.setCategory = 32 and exists(select 1 from aidt_lms.evl_info where id = tmct.target_id and tmpr_strg_at = 'N'))
+           or
+            (tmct.setCategory = 357 and exists(select 1 from aidt_lms.task_info where id = tmct.target_id and tmpr_strg_at = 'N'))
+           or
+            (tmct.setCategory = 31 and exists(select 1 from aidt_lms.tab_info where id = tmct.target_id))
+            )
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findIsTchMetrialsYn" resultType="java.lang.Integer">
+        /* tchMaterialsMapper.findIsTchMetrialsYn */
+        select count(*)
+        from aidt_lms.tc_materials_info
+        where tc_materials_info_id = #{tcMaterialsInfoId}
+    </select>
+
+    <update id="updateMaterialsTitle" parameterType="map" >
+        /* tchMaterialsMapper.updateMaterialsTitle */
+        update aidt_lms.tc_materials_info
+        set name = #{name}
+          , mod_id = #{userId}
+          , mod_date = NOW()
+        where tc_materials_info_id = #{tcMaterialsInfoId}
+    </update>
+
+    <delete id="deleteMaterialsDetailByMaterialsInfoId" parameterType="map" >
+        /* tchMaterialsMapper.deleteMaterialsDetailByMaterialsInfoId */
+        update aidt_lms.tc_materials_detail
+        set is_deleted = 1
+          , mod_id = #{userId}
+          , mod_date = now()
+        where tc_materials_info_id = #{tcMaterialsInfoId}
+    </delete>
+
+    <delete id="deleteMaterialsClassTasksByMaterialsInfoId" parameterType="map" >
+        /* tchMaterialsMapper.deleteMaterialsClassTasksByMaterialsInfoId */
+        update aidt_lms.tc_materials_class_tasks
+        set is_deleted = 1
+          , mod_id = #{userId}
+          , mod_date = now()
+        where tc_materials_info_id = #{tcMaterialsInfoId}
+    </delete>
+
+    <delete id="deleteMaterialsInfo" parameterType="map" >
+        /* tchMaterialsMapper.deleteMaterialsInfo */
+        update aidt_lms.tc_materials_info
+        set is_deleted = 1
+          , mod_id = #{userId}
+          , mod_date = now()
+        where tc_materials_info_id = #{tcMaterialsInfoId};
+    </delete>
+
+    <select id="findSetSummaryForMaterials" parameterType="map" resultType="int">
+        /* tchMaterialsMapper.findSetSummaryForMaterials */
+        select count(1) 
+        from aidt_lcms.setsummary ssm 
+        where ssm.set_id = #{setsId}
+    </select>
+
+    <select id="selectSetsIdByTcMaterialsInfoId" parameterType="map" resultType="String">
+        /* tchMaterialsMapper.selectSetsIdByTcMaterialsInfoId */
+        select tmi.org_sets_id
+        from aidt_lms.tc_materials_info tmi
+        where tmi.tc_materials_info_id = #{tcMaterialsInfoId}
+    </select>
+
+    <delete id="deleteScrapInfoBySetsId" parameterType="map" >
+        /* tchMaterialsMapper.deleteScrapInfoBySetsId */
+        DELETE FROM aidt_lms.scrap_info
+        WHERE scrp_rgtr_id = #{userId}
+          AND dta_cd = 1
+          AND dta_id = #{orgSetsId}
+    </delete>
+</mapper>

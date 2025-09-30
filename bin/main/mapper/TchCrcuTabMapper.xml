@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.TchCrcuTabMapper">
+    <select id="findCrcuTabList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuTabMapper.findCrcuTabList */
+        select
+            A.id,
+            A.wrter_id,
+            A.cla_id,
+            A.textbk_id,
+            A.crcul_id,
+            A.tab_nm,
+            A.tab_seq,
+            A.sets_id,
+            A.sets_nm,
+            A.sets_code,
+            A.sets_val,
+            A.mdul_cnt,
+            A.use_at,
+            A.expos_at,
+            A.tab_add_at,
+            A.ai_cstmzd_std_crt_at,
+            A.category_cd,
+            A.category_nm,
+            A.eam_mth, /* 출제방법 - 2:AI 출제, 3:직접출제, 4:처방 학습, 5:AI 맞춤학습, 6:자료 불러오기 */
+            (select code_nm from aidt_lms.se_code where code_gb_cd = 'eam_mth' and code_cd = A.eam_mth) as eam_mth_nm,
+            /* 편집가능하고 직접출제(3)인 경우 탭 편집가능 */
+            /* 편집가능하고 문항자동생성(2)-공통문항출제(1)인 경우 탭 편집가능 */
+            /* 2024-10-16, 학습이력이 없는 직접출제(3)/AI 출제(2)/자료 불러오기(6) 만 편집이 가능. 문항자동생성(2)인 경우 현재 공통문항출제만 존재함.*/
+            /* if(A.editable = 'Y' and (A.eam_mth = 3 or (A.eam_mth = 2 and A.eam_trget = 1)), 'Y', 'N') as editable, */
+            if(A.editable = 'Y' and (A.eam_mth = 3 or A.eam_mth = 2 or A.eam_mth = 6 or A.eam_mth = 7), 'Y', 'N') as editable,
+            A.ebk_id,
+            A.ebk_use_at,
+            A.pdf_url,
+            A.startPage,
+            A.endPage,
+            A.thm_cd,
+            A.thm_path,
+            A.thm_desc,
+            A.std_id,
+            A.rgtr,
+            A.reg_dt,
+            A.mdfr,
+            A.mdfy_dt,
+            /* 1: 수업중 풀기, 2: 과제로 내기 */
+            if(B.ai_cstmzd_std_mthd_se_cd is null,null,(select code_cd from aidt_lms.se_code where code_gb_cd = B.ai_cstmzd_std_mthd_se_cd)) as ai_cstmzd_std_mthd_se_cd,
+            if(B.ai_cstmzd_std_mthd_se_cd is null,null,(select code_nm from aidt_lms.se_code where code_gb_cd = B.ai_cstmzd_std_mthd_se_cd)) as ai_cstmzd_std_mthd_se_nm,
+            (select m.val from aidt_lcms.meta m where m.id = A.difficulty) as difyNm,
+            (select thumbnail from aidt_lcms.article a where a.id = (
+                select min(sam.article_id) over (order by id)
+                from aidt_lcms.sets_article_map sam
+                where sam.sets_id = A.sets_id limit 1
+            )) as thumbnail,
+            scm.id as stdCntsMapId,
+            scm.cnts_type as cntsType,
+            scm.cnts_ext as cntsExt,
+            scm.url
+        from
+        (
+            select
+                a.id,
+                a.wrter_id,
+                a.cla_id,
+                a.textbk_id,
+                a.crcul_id,
+                a.tab_nm,
+                a.tab_seq,
+                a.sets_id,
+                b.name as sets_nm,     /* 셋트지 명 */
+                b.difficulty,          /* 셋트지 난이도 */
+                c.`code` as sets_code, /* 셋트지 유형(코드) */
+                c.val as sets_val,     /* 셋트지 유형(명) */
+                (select count(1) from aidt_lcms.sets_article_map where sets_id = a.sets_id) as mdul_cnt, /* 문항 갯수 */
+                a.use_at,
+                a.expos_at,
+                a.tab_add_at,
+                a.ai_cstmzd_std_crt_at, /* AI맞춤학습 생성 여부 */
+                if(a.setCategory is not null,(select code from aidt_lcms.meta where name = 'setCategory' and id = a.setCategory),null) as category_cd,
+                if(a.setCategory is not null,(select val from aidt_lcms.meta where name = 'setCategory' and id = a.setCategory),null) as category_nm,
+                (select if(count(y.id) > 0,'N','Y')
+                    from aidt_lms.std_dta_result_info x
+                    inner join aidt_lms.std_dta_result_detail y
+                        on x.textbk_tab_id = a.id and x.id = y.dta_result_id
+                            and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null)
+                ) as editable, /* 학습이력 존재유무에 따른 편집가능 여부 */
+                ifnull((select max(eam_mth)
+                    from aidt_lms.std_dta_info
+                    where 1=1
+                        and cla_id = a.cla_id
+                        and textbk_id = a.textbk_id
+                        and crcul_id = a.crcul_id
+                        and textbk_tab_id = a.id
+                ),3) as eam_mth, /* 출제방법, null 이면 직접출제(3)로 처리 */
+                ifnull((select max(eam_trget)
+                    from aidt_lms.std_dta_info
+                    where 1=1
+                        and cla_id = a.cla_id
+                        and textbk_id = a.textbk_id
+                        and crcul_id = a.crcul_id
+                        and textbk_tab_id = a.id
+                ),1) as eam_trget, /* 출제대상, null 이면 공통문항출제(1)로 처리 */
+                a.ebk_id, /* e북 textbook id */
+                a.ebk_use_at, /* e북 사용여부 */
+                (select pdf_url from aidt_lcms.textbook where id = a.ebk_id) as pdf_url, /* PDF url */
+                a.startPage, /* PDF 시작페이지 */
+                a.endPage, /* PDF 종료페이지 */
+                a.thm_cd,   /* 테마설정코드 */
+                a.thm_path, /* 테마설정경로 */
+                a.thm_desc, /* 테마설명 */
+                (select max(id) from aidt_lms.std_dta_info
+                                where 1=1
+                                and cla_id = a.cla_id
+                                and textbk_tab_id = a.id) as std_id, /* 학습자료정보 ID (교사가 추가한 탭인 경우) */
+                a.rgtr,
+                a.reg_dt,
+                a.mdfr,
+                a.mdfy_dt
+            from
+                aidt_lms.tab_info a
+                left join aidt_lcms.sets b
+                on a.sets_id = b.id
+                left join aidt_lcms.meta c
+                on b.setCategory = c.id
+            where 1=1
+                and a.cla_id = #{claId}
+                and a.textbk_id = #{textbkId}
+                and a.crcul_id = #{crculId}
+            order by
+                a.tab_seq
+        ) A
+            left join aidt_lms.ai_cstmzd_std_set_info B
+                on A.id = B.tab_id
+                       and B.id = (
+                           select max(id)
+                           from aidt_lms.ai_cstmzd_std_set_info acssi
+                           where acssi.tab_id = A.id
+                       )
+            left join aidt_lms.std_cnts_map scm
+                on 1=1
+                and scm.tab_id = A.id
+    </select>
+
+    <select id="findCrcuTabInfo" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuTabMapper.findCrcuTabInfo */
+        select
+        A.*,
+        /* 1: 수업중 풀기, 2: 과제로 내기 */
+        if(B.ai_cstmzd_std_mthd_se_cd is null,null,(select code_cd from aidt_lms.se_code where code_gb_cd = B.ai_cstmzd_std_mthd_se_cd)) as ai_cstmzd_std_mthd_se_cd,
+        if(B.ai_cstmzd_std_mthd_se_cd is null,null,(select code_nm from aidt_lms.se_code where code_gb_cd = B.ai_cstmzd_std_mthd_se_cd)) as ai_cstmzd_std_mthd_se_nm
+        from
+        (
+            select
+                a.id,
+                a.wrter_id,
+                a.cla_id,
+                a.textbk_id,
+                a.crcul_id,
+                a.tab_nm,
+                a.tab_seq,
+                a.sets_id,
+                a.use_at,
+                a.expos_at,
+                a.tab_add_at,
+                a.ai_cstmzd_std_crt_at,
+                if(a.setCategory is not null,(select code from aidt_lcms.meta where name = 'setCategory' and id = a.setCategory),null) as category_cd,
+                if(a.setCategory is not null,(select val from aidt_lcms.meta where name = 'setCategory' and id = a.setCategory),null) as category_nm,
+                a.rgtr,
+                DATE_FORMAT(a.reg_dt, "%Y-%m-%d %H:%i:%s") reg_dt,
+                a.mdfr,
+                DATE_FORMAT(a.mdfy_dt, "%Y-%m-%d %H:%i:%s") mdfy_dt
+            from
+                tab_info a
+            where
+                1=1
+                and id = #{tabId}
+        ) A
+        left join aidt_lms.ai_cstmzd_std_set_info B
+            on A.id = B.tab_id
+    </select>
+
+    <update id="updateCrcuTabAvailable" parameterType="map">
+        /* TchCrcuTabMapper.updateCrcuTabAvailable */
+        UPDATE tab_info
+            SET expos_at = #{exposAt}
+        WHERE id = #{tabId}
+    </update>
+
+    <update id="modifyTchCrcuTabSave" parameterType="map">
+        /* TchCrcuTabMapper.modifyTchCrcuTabSave */
+        update aidt_lms.tab_info
+        set tab_seq = #{tabSeq}
+        where 1=1
+          and id = #{tabId}
+    </update>
+
+    <update id="modifyTchCrcuTabChginfo" parameterType="map">
+        /* TchCrcuTabMapper.modifyTchCrcuTabSave */
+        update aidt_lms.tab_info
+        set sets_id = #{setsId}
+            , mdfr = #{userId}
+            ,mdfy_dt = now()
+        where 1=1
+          and id = #{tabId}
+    </update>
+
+    <update id="modifyTchCrcuTabChginfo_stdDtaInfo" parameterType="map">
+        /* TchCrcuTabMapper.modifyTchCrcuTabChginfo_stdDtaInfo */
+        update aidt_lms.std_dta_info
+        set    sets_id = #{setsId}
+             , mdfr = #{userId}
+             , mdfy_dt = now()
+        where  textbk_tab_id = #{tabId}
+    </update>
+
+    <select id="findStdDtaInfoByTabId" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuTabMapper.findStdDtaInfoByTabId */
+        select *
+        from aidt_lms.std_dta_info
+        where textbk_tab_id = #{tabId}
+        limit 1
+    </select>
+
+    <update id="modifyTchCrcuTabChginfo_stdDtaResultInfo" parameterType="map">
+        /* TchCrcuTabMapper.modifyTchCrcuTabChginfo_stdDtaResultInfo */
+        update aidt_lms.std_dta_result_info
+        set    sets_id = #{setsId}
+             , mdfr = #{userId}
+             , mdfy_dt = now()
+        where  textbk_tab_id = #{tabId}
+    </update>
+
+    <delete id="removeTchCrcuTabChginfo_stdDtaResultDetail" parameterType="map">
+        /* TchCrcuTabMapper.removeTchCrcuTabChginfo_stdDtaResultDetail */
+        delete from
+        aidt_lms.std_dta_result_detail
+        where dta_result_id in (
+        	select id
+        	from aidt_lms.std_dta_result_info
+        	where dta_id = #{id}
+        )
+    </delete>
+
+    <delete id="removeTchCrcuTabChginfo_setsTables" parameterType="map">
+        /* TchCrcuTabMapper.removeTchCrcuTabChginfo_setsTables */
+        delete sam, skm, smm, ss
+        from aidt_lcms.sets s
+        left join aidt_lcms.sets_article_map sam on s.id = sam.sets_id
+        left join aidt_lcms.sets_keyword_map skm on s.id = skm.sets_id
+        left join aidt_lcms.sets_meta_map smm on s.id = smm.sets_id
+        left join aidt_lcms.setsummary ss on s.id = ss.set_id
+        where s.id = #{bbsSetsId}
+    </delete>
+
+    <delete id="removeTchCrcuTabChginfo_sets" parameterType="map">
+        /* TchCrcuTabMapper.removeTchCrcuTabChginfo_sets */
+        delete
+        from aidt_lcms.sets s
+        where s.id = #{bbsSetsId}
+    </delete>
+
+    <select id="findCrcuEbookTabInfo" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuTabMapper.findCrcuEbookTabInfo */
+        /* 교과서 커리큘럼에서 페이지에 해당하는 탭 조회 */
+        select
+            b.id as tab_id,
+            b.crcul_id
+        from
+            aidt_lms.tc_curriculum a
+            inner join aidt_lms.tab_info b
+                    on a.cla_id = b.cla_id
+                    and a.textbk_id = b.textbk_id
+                    and a.`key` = b.crcul_id
+        where 1=1
+            and a.textbk_id = #{textbkId}
+            and a.cla_id = #{claId}
+            and a.use_at = 'Y'
+            and a.del_at = 'N'
+            and #{currPage} between a.startPage and a.endPage
+            and exists (
+                select id from aidt_lcms.textbook where web_textbook_id = a.textbk_id and is_active = 1 and id = #{ebkId}
+            )
+        union all
+        /* 탭 정보에서 페이지에 해당하는 탭 조회 */
+        select
+            id as tab_id,
+            crcul_id
+        from
+            aidt_lms.tab_info
+        where 1=1
+            and textbk_id = #{textbkId}
+            and cla_id = #{claId}
+            and ebk_id = #{ebkId}
+            and #{currPage} between startPage and endPage
+        order by tab_id
+        limit 1
+    </select>
+
+    <select id="findTabEditable" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuTabMapper.findTabEditable */
+        select
+            /* A.editable, A.eam_mth, A.eam_trget, */
+            /* 2024-10-16, 학습이력이 없는 직접출제(3)/AI 출제(2)/자료 불러오기(6) 만 편집이 가능. 문항자동생성(2)인 경우 현재 공통문항출제만 존재함.*/
+            /* if(A.editable = 'Y' and (A.eam_mth = 3 or (A.eam_mth = 2 and A.eam_trget = 1)), 'Y', 'N') as editable */
+            if(A.editable = 'Y' and (A.eam_mth = 3 or A.eam_mth = 2 or A.eam_mth = 6 or A.eam_mth = 7), 'Y', 'N') as editable
+        from (
+            select a.id,
+            (select if(count(y.id) > 0,'N','Y')
+                from aidt_lms.std_dta_result_info x
+                inner join aidt_lms.std_dta_result_detail y
+                    on x.textbk_tab_id = a.id and x.id = y.dta_result_id
+                        and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null)
+            ) as editable, /* 학습이력 존재유무에 따른 편집가능 여부 */
+            ifnull((select max(eam_mth) as eam_mth
+                    from aidt_lms.std_dta_info
+                    where 1=1
+                        and cla_id = a.cla_id
+                        and textbk_id = a.textbk_id
+                        and crcul_id = a.crcul_id
+                        and textbk_tab_id = a.id
+                ),3) as eam_mth, /* 출제방법, null 이면 직접출제(3)로 처리 */
+            ifnull((select max(eam_trget) as eam_trget
+                    from aidt_lms.std_dta_info
+                    where 1=1
+                        and cla_id = a.cla_id
+                        and textbk_id = a.textbk_id
+                        and crcul_id = a.crcul_id
+                        and textbk_tab_id = a.id
+                ),1) as eam_trget /* 출제대상, null 이면 공통문항출제(1)로 처리 */
+            from aidt_lms.tab_info a
+            where a.id = #{tabId}
+        ) A
+    </select>
+
+    <delete id="removeTchStdSaveSDRD" parameterType="map">
+        /* TchCrcuTabMapper.removeTchStdSaveSDRD */
+        DELETE FROM aidt_lms.std_dta_result_detail
+         WHERE dta_result_id in (SELECT id
+                                   FROM aidt_lms.std_dta_result_info
+                                  WHERE textbk_tab_id = #{tabId}
+                                )
+    </delete>
+
+    <insert id="createTchStdSaveSDRD" parameterType="map" useGeneratedKeys="true">
+        /* TchCrcuTabMapper.createTchStdSaveSDRD */
+        INSERT INTO aidt_lms.std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at, src_detail_id)
+          SELECT sdri.id
+               , s.article_id
+               , s.sub_id
+               , CASE COALESCE(m2.code, m1.code)
+                 when 'concept' then 3
+                 else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+                 end as mrk_ty
+               , CASE COALESCE(m2.code, m1.code)
+                 when 'concept' then 5
+                 else 1
+                 end as eak_stts_cd
+               , CASE COALESCE(m2.code, m1.code)
+                 when 'concept' then 4
+                 else null
+                 end as errata
+               , 'system'
+               , 'system'
+               , CASE COALESCE(m2.code, m1.code)
+                 when 'concept' then 'Y'
+                 else 'N'
+                 end as eakAt
+               , CASE COALESCE(m2.code, m1.code)
+                 when 'concept' then 'Y'
+                 else 'N'
+                 end
+               , 0
+            FROM aidt_lms.tab_info ti
+            JOIN aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+            JOIN aidt_lcms.setsummary s ON ti.sets_id  = s.set_id
+            LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+            LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id  and meta_name = 'articleType')
+            left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+            WHERE ti.id = #{tabId}
+            ORDER BY sdri.id, s.id
+    </insert>
+
+    <update id="modifyTcLastlessonCrcul" parameterType="map">
+        /* TchCrcuTabMapper.modifyTcLastlessonCrcul */
+        UPDATE aidt_lms.tc_lastlesson_crcul
+        SET tab_id = #{tabId},
+            mdfr = #{userId},
+            mdfy_dt = NOW()
+        WHERE textbk_id = #{textbkId}
+          AND cla_id = #{claId}
+          AND wrter_id = #{userId}
+          AND crcul_id = #{crculId}
+    </update>
+
+    <insert id="createTcLastlessonCrcul" parameterType="map">
+        /* TchCrcuTabMapper.createTcLastlessonCrcul */
+        INSERT INTO aidt_lms.tc_lastlesson_crcul
+        (
+            id
+            ,wrter_id
+            ,cla_id
+            ,tab_id
+            ,textbk_id
+            ,textbk_idx_id
+            ,crcul_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{claId}
+            ,#{tabId}
+            ,#{textbkId}
+            ,#{textbkIdxId}
+            ,#{crculId}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+</mapper>

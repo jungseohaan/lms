@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.mq.mapper.bulk.StdLessonReconMapper">
+    <insert id="seveStdMqTrnLog" parameterType="int">
+        INSERT INTO aidt_lms.std_mq_trn_log
+            (tab_id)
+        VALUES (#{tabId})
+    </insert>
+    <update id="updateStdMqTrnLog" parameterType="RealMqReqDto">
+        UPDATE aidt_lms.std_mq_trn_log
+        SET trn_at  = 'Y',
+            trn_dt  = now(),
+            mdfy_dt = now()
+        WHERE trn_at = 'N'
+          AND reg_dt <![CDATA[>=]]> #{startTime}
+          AND reg_dt <![CDATA[<]]> #{endTime}
+    </update>
+</mapper>

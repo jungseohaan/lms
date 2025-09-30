@@ -1,0 +1,1170 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.engtemp.mapper.EngTempMapper">
+<!-- 교과템 학습 -->
+    <update id="updateLesnRsc" parameterType="map">
+        /* EngTemp.updateLesnRsc */
+        UPDATE aidt_lms.std_dta_eng_temp_result_info a1
+            INNER JOIN aidt_lms.std_dta_result_detail b1 on a1.dta_result_detail_id = b1.id
+            INNER JOIN aidt_lms.std_dta_result_info c1 on b1.dta_result_id = c1.id
+        SET a1.eak_st_dt = now()
+        WHERE a1.eng_temp_id = #{engTempId}
+        AND c1.textbk_tab_id = #{textbkTabId}
+        <choose>
+            <when test='lessonId != 0 and lessonId > 0'>
+                AND a1.lesson_id = #{lessonId}
+                AND a1.tmplt_ty = #{tmpltTy}
+            </when>
+            <otherwise>
+                AND a1.script_id = #{scriptId}
+                AND a1.tmplt_actv_id = #{tmpltActvId}
+            </otherwise>
+        </choose>
+    </update>
+
+    <select id="selectDtaEngTempResultId" parameterType="map" resultType="int">
+        /* EngTemp.selectDtaEngTempResultId */
+        SELECT IFNULL ((
+            select id
+            from aidt_lms.std_dta_eng_temp_result_info
+            where dta_result_detail_id = #{resultDetailId}
+            and eng_temp_id = #{engTempId}
+            <choose>
+                <when test='lessonId != 0 and lessonId > 0'>
+                    AND lesson_id = #{lessonId}
+                    AND tmplt_ty = #{tmpltTy}
+                </when>
+                <otherwise>
+                    AND script_id = #{scriptId}
+                    AND tmplt_actv_id = #{tmpltActvId}
+                </otherwise>
+            </choose>
+            ), 0)
+    </select>
+
+    <insert id="insertLesnRscQuestion" parameterType="list">
+        /* EngTemp.insertLesnRscQuestion */
+        INSERT INTO aidt_lms.std_dta_eng_temp_result_detail (
+            dta_eng_temp_result_id
+            , libtext_id
+            , libtext_dialog_id
+            , pkey
+            , skey
+            , skeys
+            , article_id
+            , dfclt_lvl_ty
+            , anw_inpt_ty
+            , tmplt_dtl_actv_vl
+        )
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+        (
+            #{item.dtaEngTempResultId}
+            , #{item.libtextId}
+            , #{item.libtextDialogId}
+            , #{item.pkey}
+            , #{item.skey}
+            , #{item.skeys}
+            , #{item.articleId}
+            , #{item.dfcltLvlTy}
+            , #{item.anwInptTy}
+            , #{item.tmpltDtlActvVl}
+        )
+        </foreach>
+
+    </insert>
+
+    <delete id="deleteDtaQuestion" parameterType="int">
+        /* EngTemp.deleteDtaQuestion */
+        DELETE FROM aidt_lms.std_dta_eng_temp_result_detail
+        WHERE dta_eng_temp_result_id = #{dtaEngTempResultId}
+    </delete>
+
+    <select id="selectLesnRscQuestion" parameterType="int" resultType="map">
+        /* EngTemp.selectLesnRscQuestion */
+        SELECT id AS engTempResultDetailId
+            , skey
+        FROM aidt_lms.std_dta_eng_temp_result_detail
+        WHERE dta_eng_temp_result_id = #{dtaEngTempResultId}
+    </select>
+
+    <update id="updateLesnRscEnd" parameterType="map">
+        /* EngTemp.updateLesnRscEnd */
+        UPDATE aidt_lms.std_dta_eng_temp_result_info a1
+            INNER JOIN aidt_lms.std_dta_result_detail b1 on a1.dta_result_detail_id = b1.id
+            INNER JOIN aidt_lms.std_dta_result_info c1 on b1.dta_result_id = c1.id
+        SET a1.eak_ed_dt = now()
+        WHERE a1.eng_temp_id = #{engTempId}
+        AND c1.textbk_tab_id = #{textbkTabId}
+        <choose>
+            <when test='lessonId != 0 and lessonId > 0'>
+                AND a1.lesson_id = #{lessonId}
+                AND a1.tmplt_ty = #{tmpltTy}
+            </when>
+            <otherwise>
+                AND a1.script_id = #{scriptId}
+                AND a1.tmplt_actv_id = #{tmpltActvId}
+            </otherwise>
+        </choose>
+    </update>
+
+    <update id="updateLesnRscResultDetail" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.updateLesnRscResultDetail */
+        UPDATE aidt_lms.std_dta_eng_temp_result_detail
+        set eak_ed_dt = now()
+            , mdfcn_dt = now()
+            , mdfr = 'admin'
+            <if test="errata != '' and errata != null">
+                , errata = #{errata}
+            </if>
+            <if test="subMitAnw != '' and subMitAnw != null">
+                , sub_mit_anw = #{subMitAnw}
+            </if>
+            <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+                , sub_mit_anw_url = #{subMitAnwUrl}
+            </if>
+            <if test="notUdstdTf != '' and notUdstdTf != null">
+                , not_udstd_tf = #{notUdstdTf}
+            </if>
+            <if test="aitutorRslt != '' and aitutorRslt != null">
+                , aitutor_rslt = #{aitutorRslt}
+            </if>
+            <if test="lastVoiceFileId != '' and lastVoiceFileId != null">
+                , last_voice_file_id = #{lastVoiceFileId}
+            </if>
+            <if test="aitutorScore != 0 and aitutorScore > 0">
+                , aitutor_score = #{aitutorScore}
+            </if>
+        WHERE id = #{engTempResultDetailId}
+    </update>
+
+    <update id="updateLesnRscDdln" parameterType="map">
+        /* EngTemp.updateSelfLrnDdln */
+        UPDATE aidt_lms.std_dta_result_info a1
+            INNER JOIN aidt_lms.std_dta_result_detail b1 ON a1.id = b1.dta_result_id
+            INNER JOIN aidt_lms.std_dta_eng_temp_result_info c1 ON b1.id = c1.dta_result_detail_id
+        SET c1.ddln_at = 'Y'
+            , c1.ddln_dt = NOW()
+        WHERE a1.textbk_tab_id = #{textbkTabId}
+        AND c1.eng_temp_id = #{engTempId}
+        AND c1.script_id = #{scriptId}
+        AND c1.tmplt_actv_id = #{tmpltActvId}
+    </update>
+
+    <update id="updateLesnRsltRlsAt" parameterType="map">
+        /* EngTemp.updateLesnRsltRlsAt */
+        UPDATE aidt_lms.std_dta_eng_temp_result_info
+        SET rslt_rls_at = #{rsltRlsAt}
+            , rslt_rls_dt = NOW()
+        WHERE id = #{engTempResultId}
+    </update>
+
+    <select id="getLesnRscUserTotalCnt" parameterType="map" resultType="int">
+        /* EngTemp.getLesnRscUserTotalCnt */
+        select count(*)
+        from `aidt_lms`.`std_dta_result_info`
+        where textbk_tab_id = #{textbkTabId}
+    </select>
+
+    <select id="getLesnRscNotUdstdCnt" parameterType="map" resultType="map">
+        /* EngTemp.getHomeworkNotUdstdCnt */
+        select d1.libtext_id as libtextId
+             , count(case when d1.not_udstd_tf = 1 then 1 end) as `notUdstdCnt`
+        from `aidt_lms`.`std_dta_result_info` a1
+             inner join `aidt_lms`.`std_dta_result_detail` b1 on a1.id = b1.dta_result_id
+             inner join `aidt_lms`.`std_dta_eng_temp_result_info` c1 on b1.id = c1.dta_result_detail_id
+             inner join `aidt_lms`.`std_dta_eng_temp_result_detail` d1 on c1.id = d1.dta_eng_temp_result_id
+        where a1.textbk_tab_id = #{textbkTabId}
+        and c1.eng_temp_id =#{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id = #{tmpltActvId}
+        group by d1.libtext_id
+        order by d1.libtext_id
+    </select>
+
+    <select id="getLesnRscUserAnswer" parameterType="map" resultType="map">
+        select a1.id as engTempResultId
+             , b1.id as engTempResultDetailId
+             , b1.libtext_id as libtextId
+             , b1.libtext_dialog_id as libtextDialogId
+             , b1.pkey
+             , b1.skey
+             , b1.sub_mit_anw
+             , b1.sub_mit_anw_url
+             , b1.errata
+        from `aidt_lms`.`task_eng_temp_result_info` a1
+                 inner join `aidt_lms`.`task_eng_temp_result_detail` b1 on a1.id = b1.task_eng_temp_result_id
+        where a1.id = #{engTempResultId}
+    </select>
+
+    <select id="getLesnRscSubmitCnt" parameterType="map" resultType="map">
+        /* EngTemp.getLesnRscSubmitCnt */
+        select count(*) as totalCnt
+             , sum(case when c1.subm_at = 'Y' then 1 else 0 end) as submitCnt
+        from `aidt_lms`.`std_dta_result_info` a1
+            inner join `aidt_lms`.`std_dta_result_detail` b1 on a1.id = b1.dta_result_id
+            inner join `aidt_lms`.`std_dta_eng_temp_result_info` c1 on b1.id = c1.dta_result_detail_id
+        where a1.textbk_tab_id = #{textbkTabId}
+        and c1.eng_temp_id =#{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id = #{tmpltActvId}
+    </select>
+
+    <select id="getLesnRscUserQuesInfo" parameterType="map" resultType="map">
+        /* EngTemp.getLesnRscUserQuesInfo */
+        select a1.id as dtaResultId
+             , a1.mamoym_id
+             , count(d1.id) as totalQuesCnt
+             , sum(case when d1.errata = '1' then 1 else 0 end) as correctCnt
+             , case
+                   when c1.subm_at = 'Y' then 'Y'
+                   else
+                       case
+                           when exists (select d1_1.id from `aidt_lms`.`std_dta_eng_temp_result_detail` d1_1 where d1_1.id = d1.id) then 'M'
+                           else 'N'
+                           end
+               end as submAt
+        from  `aidt_lms`.`std_dta_result_info` a1
+             inner join `aidt_lms`.`std_dta_result_detail` b1 on a1.id = b1.dta_result_id
+             inner join `aidt_lms`.`std_dta_eng_temp_result_info` c1 on b1.id = c1.dta_result_detail_id
+             inner join `aidt_lms`.`std_dta_eng_temp_result_detail` d1 on c1.id = d1.dta_eng_temp_result_id
+        where a1.textbk_tab_id = #{textbkTabId}
+        and c1.eng_temp_id =#{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id = #{tmpltActvId}
+        group by a1.mamoym_id
+    </select>
+
+    <select id="getLesnRscAnswerList" parameterType="map" resultType="map">
+        /* EngTemp.getLesnRscAnswerList */
+        select a1.id as dtaResultId
+             , d1.id as engTempResultDetailId
+             , IFNULL(d1.errata, 2) as errata
+             , d1.article_id
+        from  `aidt_lms`.`std_dta_result_info` a1
+             inner join `aidt_lms`.`std_dta_result_detail` b1 on a1.id = b1.dta_result_id
+             inner join `aidt_lms`.`std_dta_eng_temp_result_info` c1 on b1.id = c1.dta_result_detail_id
+             inner join `aidt_lms`.`std_dta_eng_temp_result_detail` d1 on c1.id = d1.dta_eng_temp_result_id
+        where a1.textbk_tab_id = #{textbkTabId}
+        and c1.eng_temp_id =#{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id = #{tmpltActvId}
+    </select>
+
+    <select id="selectLesnRscIsStudy" parameterType="map" resultType="map">
+        /* EngTemp.selectLesnRscIsStudy */
+        select c1.tmplt_actv_id as tmpltActvId
+            , a1.mamoym_id as stdtId
+            , case when exists (select 1 from `aidt_lms`.`std_dta_eng_temp_result_detail` c1_1 where c1.id = c1_1.dta_eng_temp_result_id) = 1 then 'true' else 'false' end isStudy
+        from `aidt_lms`.std_dta_result_info a1
+            inner join `aidt_lms`.std_dta_result_detail b1 on a1.id = b1.dta_result_id
+            inner join `aidt_lms`.std_dta_eng_temp_result_info c1 on b1.id = c1.dta_result_detail_id
+        where a1.textbk_tab_id = #{textbkTabId}
+        and c1.eng_temp_id = #{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id in
+            <foreach collection="tmpltActvIdList" item="arr" open="(" close=")" separator=",">
+                #{arr}
+            </foreach>
+    </select>
+
+    <select id="selectAssessmentIsStudy" parameterType="map" resultType="map">
+        /* EngTemp.selectAssessmentIsStudy */
+        select c1.tmplt_actv_id as tmpltActvId
+            , a1.mamoym_id as stdtId
+            , case when exists (select 1 from `aidt_lms`.`evl_eng_temp_result_detail` c1_1 where c1.id = c1_1.evl_eng_temp_result_id) = 1 then 'true' else 'false' end isStudy
+        from  `aidt_lms`.evl_result_info a1
+              inner join `aidt_lms`.evl_result_detail b1 on a1.id = b1.evl_result_id
+              inner join `aidt_lms`.evl_eng_temp_result_info c1 on b1.id = c1.evl_result_detail_id
+        where b1.`id` = #{evlResultDetailId}
+        and c1.eng_temp_id = #{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id in
+            <foreach collection="tmpltActvIdList" item="arr" open="(" close=")" separator=",">
+                #{arr}
+            </foreach>
+    </select>
+
+
+
+<!--  교과템 평가  -->
+
+    <insert id="insertAssessment" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.insertAssessment */
+        INSERT INTO aidt_lms.evl_eng_temp_result_info
+        (
+            evl_result_detail_id
+            , eng_temp_id
+            , script_id
+            , tmplt_actv_id
+            , eak_st_dt
+            , rgtr
+        ) VALUES (
+            #{evlResultDetailId}
+            , #{engTempId}
+            , #{scriptId}
+            , #{tmpltActvId}
+            , NOW()
+            , 'admin'
+        )
+    </insert>
+
+    <select id="selectEvlEngTempResultInfoDate" parameterType="map" resultType="map">
+        /* EngTemp.selectEvlEngTempResultInfoDate */
+        SELECT `id` as `engTempResultId`
+            , evl_result_detail_id AS `resultDetailId`
+            , date_format(eak_st_dt,'%Y-%m-%d %H:%i:%s') as `eakStDt`
+            , date_format(eak_ed_dt,'%Y-%m-%d %H:%i:%s') as `eakEdDt`
+        FROM evl_eng_temp_result_info
+        WHERE 1=1
+        <choose>
+            <when test="engTempResultId != null and engTempResultId > 0">
+        and   id = #{engTempResultId}
+            </when>
+            <otherwise>
+        and   evl_result_detail_id = #{evlResultDetailId}
+        and   eng_temp_id = #{engTempId}
+        and   script_id = #{scriptId}
+        and   tmplt_actv_id = #{tmpltActvId}
+            </otherwise>
+        </choose>
+    </select>
+
+    <update id="updateAssessment" parameterType="map">
+        /* EngTemp.updateAssessment */
+        UPDATE aidt_lms.evl_eng_temp_result_info
+        SET eak_ed_dt = current_timestamp()
+        WHERE id = #{engTempResultId}
+    </update>
+
+    <select id="selectAssessmentExists" parameterType="map" resultType="int">
+        /* EngTemp.selectAssessmentExists */
+        SELECT ifnull((
+            SELECT id
+            FROM aidt_lms.evl_eng_temp_result_detail
+            WHERE evl_eng_temp_result_id = #{engTempResultId}
+            <if test="libtextId != null and libtextId > 0">
+            AND libtext_id = #{libtextId}
+            </if>
+            <if test="libtextDialogId != null and libtextDialogId > 0">
+            AND libtext_dialog_id = #{libtextDialogId}
+            </if>
+            <if test="articleId != null and articleId > 0">
+            AND article_id = #{articleId}
+            </if>
+        ), 0)
+    </select>
+
+    <insert id="insertAssessmentResultDetail" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.insertAssessmentResultDetail */
+        INSERT INTO aidt_lms.evl_eng_temp_result_detail
+        (
+            evl_result_detail_id
+        <if test="libtextId != '' and libtextId != null">
+            , libtext_id
+        </if>
+        <if test="libtextDialogId != '' and libtextDialogId != null">
+            , libtext_dialog_id
+        </if>
+        <if test="articleId != '' and articleId != null">
+            , article_id
+        </if>
+        <if test="dfcltLvlYy != '' and dfcltLvlYy != null">
+            , dfclt_lvl_ty
+        </if>
+        <if test="anwInptTy != '' and anwInptTy != null">
+            , anw_inpt_ty
+        </if>
+        <if test="tmpltDtlActvVl != '' and tmpltDtlActvVl != null">
+            , tmplt_dtl_actv_vl
+        </if>
+        <if test="errata != '' and errata != null">
+            , errata
+        </if>
+        <if test="subMitAnw != '' and subMitAnw != null">
+            , sub_mit_anw
+        </if>
+        <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+            , sub_mit_anw_url
+        </if>
+        <if test="notUdstdTf != '' and notUdstdTf != null">
+            , not_udstd_tf
+        </if>
+        <if test="aitutorRslt != '' and aitutorRslt != null">
+            , aitutor_rslt
+        </if>
+        <if test="eakStDt != '' and eakStDt != null">
+            , eak_st_dt
+        </if>
+            , rgtr
+        ) VALUES (
+            #{engTempResultId}
+        <if test="libtextId != '' and libtextId != null">
+            , #{libtextId}
+        </if>
+        <if test="libtextDialogId != '' and libtextDialogId != null">
+            , #{libtextDialogId}
+        </if>
+        <if test="articleId != '' and articleId != null">
+            , #{articleId}
+        </if>
+        <if test="dfcltLvlYy != '' and dfcltLvlYy != null">
+            , #{dfcltLvlYy}
+        </if>
+        <if test="anwInptTy != '' and anwInptTy != null">
+            , #{anwInptTy}
+        </if>
+        <if test="tmpltDtlActvVl != '' and tmpltDtlActvVl != null">
+            , #{tmpltDtlActvVl}
+        </if>
+        <if test="errata != '' and errata != null">
+            , #{errata}
+        </if>
+        <if test="subMitAnw != '' and subMitAnw != null">
+            , #{subMitAnw}
+        </if>
+        <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+            , #{subMitAnwUrl}
+        </if>
+        <if test="notUdstdTf != '' and notUdstdTf != null">
+            , #{notUdstdTf}
+        </if>
+        <if test="aitutorRslt != '' and aitutorRslt != null">
+            , #{aitutorRslt}
+        </if>
+        <if test="eakStDt != '' and eakStDt != null">
+            , #{eakStDt}
+        </if>
+            , 'admin'
+        )
+    </insert>
+
+    <update id="updateAssessmentRsltRlsAt" parameterType="map">
+    /* EngTemp.updateAssessmentRsltRlsAt */
+        UPDATE aidt_lms.evl_eng_temp_result_info
+        SET rslt_rls_at = #{rsltRlsAt}
+          , rslt_rls_dt = NOW()
+        WHERE id = #{engTempResultId}
+    </update>
+
+    <select id="getAssessmentUserAnswer" parameterType="map" resultType="map">
+    /* EngTemp.getAssessmentUserAnswer */
+        select a1.id as engTempResultId
+            , b1.id as engTempResultDetailId
+            , b1.libtext_id as libtextId
+            , b1.libtext_dialog_id as libtextDialogId
+            , b1.pkey
+            , b1.skey
+            , b1.sub_mit_anw
+            , b1.sub_mit_anw_url
+            , b1.errata
+        from `aidt_lms`.`evl_eng_temp_result_info` a1
+            inner join `aidt_lms`.`evl_eng_temp_result_detail` b1 on a1.id = b1.evl_eng_temp_result_id
+        where a1.id = #{engTempResultId}
+    </select>
+
+    <select id="getAssessmentUserTotalCnt" parameterType="map" resultType="int">
+        /* EngTemp.getLesnRscUserTotalCnt */
+        select count(*)
+        from `aidt_lms`.`evl_result_info`
+        where evl_id = #{evlId}
+    </select>
+
+    <select id="getAssessmentNotUdstdCnt" parameterType="map" resultType="map">
+        /* EngTemp.getHomeworkNotUdstdCnt */
+        select d1.libtext_id as libtextId
+             , count(case when d1.not_udstd_tf = 1 then 1 end) as `notUdstdCnt`
+        from `aidt_lms`.`evl_result_info` a1
+                 inner join `aidt_lms`.`evl_result_detail` b1 on a1.id = b1.evl_result_id
+                 inner join `aidt_lms`.`evl_eng_temp_result_info` c1 on b1.id = c1.evl_result_detail_id
+                 inner join `aidt_lms`.`evl_eng_temp_result_detail` d1 on c1.id = d1.evl_eng_temp_result_id
+        where a1.id = #{evlId}
+          and c1.eng_temp_id =#{engTempId}
+          and c1.script_id = #{scriptId}
+          and c1.tmplt_actv_id = #{tmpltActvId}
+        group by d1.libtext_id
+        order by d1.libtext_id
+    </select>
+
+    <select id="getAssessmentSubmitCnt" parameterType="map" resultType="map">
+    /* EngTemp.getAssessmentSubmitCnt */
+        select count(*) as totalCnt
+             , sum(case when d1.subm_at = 'Y' then 1 else 0 end) as submitCnt
+        from  `aidt_lms`.`evl_info` a1
+            inner join `aidt_lms`.`evl_result_info` b1 on a1.id = b1.evl_id
+            inner join `aidt_lms`.`evl_result_detail` c1 on b1.id = c1.evl_result_id
+            inner join `aidt_lms`.`evl_eng_temp_result_info` d1 on c1.id = d1.evl_result_detail_id
+        where a1.id = #{evlId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+    </select>
+
+    <select id="getAssessmentUserQuesInfo" parameterType="map" resultType="map">
+    /* EngTemp.getAssessmentUserQuesInfo */
+        select b1.id as evlResultId
+             , b1.mamoym_id
+             , count(e1.id) as totalQuesCnt
+             , sum(case when e1.errata = '1' then 1 else 0 end) as correctCnt
+             , case
+                   when d1.subm_at = 'Y' then 'Y'
+                   else
+                        case
+                            when exists (select e1_1.id from `aidt_lms`.`evl_eng_temp_result_detail` e1_1 where e1_1.id = e1.id) then 'M'
+                            else 'N'
+                        end
+                end as submAt
+        from  `aidt_lms`.`evl_info` a1
+             inner join `aidt_lms`.`evl_result_info` b1 on a1.id = b1.evl_id
+             inner join `aidt_lms`.`evl_result_detail` c1 on b1.id = c1.evl_result_id
+             inner join `aidt_lms`.`evl_eng_temp_result_info` d1 on c1.id = d1.evl_result_detail_id
+             inner join `aidt_lms`.`evl_eng_temp_result_detail` e1 on d1.id = e1.evl_eng_temp_result_id
+        where a1.id = #{evlId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+        group by b1.mamoym_id
+    </select>
+
+    <select id="getAssessmentAnswerList" parameterType="map" resultType="map">
+    /* EngTemp.getAssessmentAnswerList */
+        select b1.id as evlResultId
+             , e1.id as engTempResultDetailId
+             , e1.errata
+             , e1.article_id
+        from  `aidt_lms`.`evl_info` a1
+                  inner join `aidt_lms`.`evl_result_info` b1 on a1.id = b1.evl_id
+                  inner join `aidt_lms`.`evl_result_detail` c1 on b1.id = c1.evl_result_id
+                  inner join `aidt_lms`.`evl_eng_temp_result_info` d1 on c1.id = d1.evl_result_detail_id
+                  inner join `aidt_lms`.`evl_eng_temp_result_detail` e1 on d1.id = e1.evl_eng_temp_result_id
+        where a1.id = #{evlId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+        and d1.subm_at = 'Y'
+    </select>
+
+    <select id="selectAssessmentStdtList" resultType="map">
+        /* EngTemp.selectStdtList */
+        select mamoym_id as stdtId
+        from  aidt_lms.evl_result_info a1
+        where a1.`id` = (
+            select a2_1.`evl_result_id`
+            from  evl_result_detail a2_1
+            where a2_1.id = #{resultDetailId}
+        )
+    </select>
+
+<!--  교과템 숙제  -->
+
+    <insert id="insertHomework" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.insertAssessment */
+        INSERT INTO aidt_lms.task_eng_temp_result_info
+        (
+            task_result_detail_id
+            , eng_temp_id
+            , script_id
+            , tmplt_actv_id
+            <if test='lessonId != null and lessonId > 0'>
+                , lesson_id
+            </if>
+            <if test='tmpltTy != null and tmpltTy > 0'>
+                , tmplt_ty
+            </if>
+            , eak_st_dt
+            , rgtr
+        ) VALUES (
+            #{taskResultDetailId}
+            , #{engTempId}
+            , #{scriptId}
+            , #{tmpltActvId}
+            <if test='lessonId != null and lessonId > 0'>
+                , #{lessonId}
+            </if>
+            <if test='tmpltTy != null and tmpltTy > 0'>
+                , #{tmpltTy}
+            </if>
+            , NOW()
+            , 'admin'
+        )
+    </insert>
+
+    <select id="selectTaskEngTempResultInfoDate" parameterType="map" resultType="map">
+        /* EngTemp.selectTaskEngTempResultInfoDate */
+        SELECT `id` as `taskEngTempResultId`
+            , task_result_detail_id AS `taskResultDetailId`
+            , date_format(eak_st_dt,'%Y-%m-%d %H:%i:%s') as `eakStDt`
+            , date_format(eak_ed_dt,'%Y-%m-%d %H:%i:%s') as `eakEdDt`
+        FROM task_eng_temp_result_info
+        WHERE 1=1
+          and   task_result_detail_id = #{taskResultDetailId}
+          and   eng_temp_id = #{engTempId}
+        <choose>
+            <when test='lessonId != 0 and lessonId > 0'>
+                AND lesson_id = #{lessonId}
+                AND tmplt_ty = #{tmpltTy}
+            </when>
+            <otherwise>
+                AND script_id = #{scriptId}
+                AND tmplt_actv_id = #{tmpltActvId}
+            </otherwise>
+        </choose>
+    </select>
+
+    <update id="updateHomework" parameterType="map">
+        /* EngTemp.updateHomework */
+        UPDATE aidt_lms.task_eng_temp_result_info
+        SET eak_ed_dt = current_timestamp()
+        WHERE id = #{taskEngTempResultId}
+    </update>
+
+    <update id="updateHomeworkResultDetail" parameterType="map">
+        /* EngTemp.updateHomeworkResultDetail */
+        UPDATE aidt_lms.task_eng_temp_result_detail
+        set eak_ed_dt = now()
+        , mdfcn_dt = now()
+        , mdfr = 'admin'
+        <if test="errata != '' and errata != null">
+            , errata = #{errata}
+        </if>
+        <if test="subMitAnw != '' and subMitAnw != null">
+            , sub_mit_anw = #{subMitAnw}
+        </if>
+        <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+            , sub_mit_anw_url = #{subMitAnwUrl}
+        </if>
+        <if test="notUdstdTf != '' and notUdstdTf != null">
+            , not_udstd_tf = #{notUdstdTf}
+        </if>
+        <if test="aitutorRslt != '' and aitutorRslt != null">
+            , aitutor_rslt = #{aitutorRslt}
+        </if>
+        <if test="lastVoiceFileId != '' and lastVoiceFileId != null">
+            , last_voice_file_id = #{lastVoiceFileId}
+        </if>
+        <if test="aitutorScore != 0 and aitutorScore > 0">
+            , aitutor_score = #{aitutorScore}
+        </if>
+        WHERE id = #{taskEngTempResultDetailId}
+    </update>
+
+    <select id="selectHomeworkExists" parameterType="map" resultType="int">
+        /* EngTemp.selectHomeworkExists */
+        SELECT IFNULL ((
+           select id
+           from aidt_lms.task_eng_temp_result_info
+           where id = #{taskEngTempResultId}
+       ), 0)
+    </select>
+
+    <delete id="deleteHomeworkQuestion" parameterType="int">
+        /* EngTemp.deleteHomeworkQuestion */
+        DELETE FROM aidt_lms.task_eng_temp_result_detail
+        WHERE task_eng_temp_result_id = #{taskEngTempResultId}
+    </delete>
+
+    <insert id="insertHomeworkResultDetail" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.insertHomeworkResultDetail */
+        INSERT INTO aidt_lms.task_eng_temp_result_detail
+        (
+            task_eng_temp_result_id
+            , libtext_id
+            , libtext_dialog_id
+            , pkey
+            , skey
+            , skeys
+            , article_id
+            , dfclt_lvl_ty
+            , anw_inpt_ty
+            , tmplt_dtl_actv_vl
+        )
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+        (
+            #{item.taskEngTempResultId}
+            , #{item.libtextId}
+            , #{item.libtextDialogId}
+            , #{item.pkey}
+            , #{item.skey}
+            , #{item.skeys}
+            , #{item.articleId}
+            , #{item.dfcltLvlTy}
+            , #{item.anwInptTy}
+            , #{item.tmpltDtlActvVl}
+        )
+        </foreach>
+    </insert>
+
+    <select id="selectHomeworkQuestion" parameterType="int" resultType="map">
+        /* EngTemp.selectHomeworkQuestion */
+        SELECT id AS taskEngTempResultDetailId
+            , skey
+        FROM aidt_lms.task_eng_temp_result_detail
+        WHERE task_eng_temp_result_id = #{taskEngTempResultId}
+    </select>
+
+    <update id="updateHomeworkRsltRlsAt" parameterType="map">
+    /* EngTemp.updateHomeworkRsltRlsAt */
+        UPDATE aidt_lms.task_eng_temp_result_info
+        SET rslt_rls_at = #{rsltRlsAt}
+          , rslt_rls_dt = NOW()
+        WHERE id = #{engTempResultId}
+    </update>
+
+    <select id="getHomeworkUserTotalCnt" parameterType="map" resultType="int">
+    /* EngTemp.getHomeworkUserTotalCnt */
+        select count(*)
+        from `aidt_lms`.`task_result_info`
+        where task_id = #{taskId}
+    </select>
+
+    <select id="getHomeworkNotUdstdCnt" parameterType="map" resultType="map">
+        /* EngTemp.getHomeworkNotUdstdCnt */
+        select e1.libtext_id as libtextId
+             , count(case when e1.not_udstd_tf = 1 then 1 end) as `notUdstdCnt`
+        from `aidt_lms`.`task_info` a1
+            inner join `aidt_lms`.`task_result_info` b1 on a1.id = b1.task_id
+            inner join `aidt_lms`.`task_result_detail` c1 on b1.id = c1.task_result_id
+            inner join `aidt_lms`.`task_eng_temp_result_info` d1 on c1.id = d1.task_result_detail_id
+            inner join `aidt_lms`.`task_eng_temp_result_detail` e1 on d1.id = e1.task_eng_temp_result_id
+        where a1.id = #{taskId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+        group by e1.libtext_id
+        order by e1.libtext_id
+    </select>
+
+    <select id="getHomeworkUserAnswer" parameterType="map" resultType="map">
+    /* EngTemp.getHomeworkUserAnswer */
+        select a1.id as engTempResultId
+            , b1.id as engTempResultDetailId
+            , b1.libtext_id as libtextId
+            , b1.libtext_dialog_id as libtextDialogId
+            , b1.pkey
+            , b1.skey
+            , b1.sub_mit_anw
+            , b1.sub_mit_anw_url
+            , b1.errata
+        from `aidt_lms`.`task_eng_temp_result_info` a1
+            inner join `aidt_lms`.`task_eng_temp_result_detail` b1 on a1.id = b1.task_eng_temp_result_id
+        where a1.id = #{engTempResultId}
+    </select>
+
+    <select id="getHomeworkSubmitCnt" parameterType="map" resultType="map">
+    /* EngTemp.getHomeworkSubmitCnt */
+        select count(*) as totalCnt
+             , sum(case when d1.subm_at = 'Y' then 1 else 0 end) as submitCnt
+        from  `aidt_lms`.`task_info` a1
+            inner join `aidt_lms`.`task_result_info` b1 on a1.id = b1.task_id
+            inner join `aidt_lms`.`task_result_detail` c1 on b1.id = c1.task_result_id
+            inner join `aidt_lms`.`task_eng_temp_result_info` d1 on c1.id = d1.task_result_detail_id
+        where a1.id = #{taskId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+    </select>
+
+    <select id="getHomeworkUserQuesInfo" parameterType="map" resultType="map">
+    /* EngTemp.getHomeworkUserQuesInfo */
+        select b1.id as taskResultId
+             , b1.mamoym_id
+             , count(e1.id) as totalQuesCnt
+             , sum(case when e1.errata = '1' then 1 else 0 end) as correctCnt
+             , case
+                   when d1.subm_at = 'Y' then 'Y'
+                   else
+                        case
+                            when exists (select e1_1.id from `aidt_lms`.`task_eng_temp_result_detail` e1_1 where e1_1.id = e1.id) then 'M'
+                            else 'N'
+                        end
+                end as submAt
+        from  `aidt_lms`.`task_info` a1
+             inner join `aidt_lms`.`task_result_info` b1 on a1.id = b1.task_id
+             inner join `aidt_lms`.`task_result_detail` c1 on b1.id = c1.task_result_id
+             inner join `aidt_lms`.`task_eng_temp_result_info` d1 on c1.id = d1.task_result_detail_id
+             inner join `aidt_lms`.`task_eng_temp_result_detail` e1 on d1.id = e1.task_eng_temp_result_id
+        where a1.id = #{taskId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+        group by b1.mamoym_id
+    </select>
+
+    <select id="getHomeworkAnswerList" parameterType="map" resultType="map">
+    /* EngTemp.getHomeworkAnswerList */
+        select b1.id as taskResultId
+             , e1.id as engTempResultDetailId
+             , e1.errata
+             , e1.article_id
+        from  `aidt_lms`.`task_info` a1
+                  inner join `aidt_lms`.`task_result_info` b1 on a1.id = b1.task_id
+                  inner join `aidt_lms`.`task_result_detail` c1 on b1.id = c1.task_result_id
+                  inner join `aidt_lms`.`task_eng_temp_result_info` d1 on c1.id = d1.task_result_detail_id
+                  inner join `aidt_lms`.`task_eng_temp_result_detail` e1 on d1.id = e1.task_eng_temp_result_id
+        where a1.id = #{taskId}
+        and d1.eng_temp_id =#{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id = #{tmpltActvId}
+        and d1.subm_at = 'Y'
+    </select>
+
+    <select id="selectHomeworkIsStudy" parameterType="map" resultType="map">
+        /* EngTemp.selectHomeworkIsStudy */
+        select d1.tmplt_actv_id as tmpltActvId
+            , b1.mamoym_id as stdtId
+            , case when exists (select 1 from `aidt_lms`.`task_eng_temp_result_detail` e1 where d1.id = e1.task_eng_temp_result_id) = 1 then 'true' else 'false' end isStudy
+        from aidt_lms.task_info a1
+            inner join aidt_lms.task_result_info b1 on a1.id = b1.task_id
+            inner join aidt_lms.task_result_detail c1 on b1.id = c1.task_result_id
+            inner join aidt_lms.task_eng_temp_result_info d1 on c1.id = d1.task_result_detail_id
+        where a1.id = #{taskId}
+        and d1.eng_temp_id = #{engTempId}
+        and d1.script_id = #{scriptId}
+        and d1.tmplt_actv_id in
+            <foreach collection="tmpltActvIdList" item="arr" open="(" close=")" separator=",">
+                #{arr}
+            </foreach>
+    </select>
+
+    <select id="selectHomeworkStdtList" resultType="map">
+        /* EngTemp.selectHomeworkStdtList */
+        select mamoym_id as stdtId
+        from  aidt_lms.task_result_info a1
+        where a1.`id` = (
+            select a2_1.`task_result_id`
+            from  evl_result_detail a2_1
+            where a2_1.id = #{resultDetailId}
+        )
+    </select>
+
+
+
+<!--  교과템 자기주도학습  -->
+    <insert id="insertSelfLrn" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.insertSelfLrn */
+        INSERT INTO aidt_lms.slf_std_eng_temp_result_info
+        (
+            std_result_id
+            , eng_temp_id
+            , script_id
+            , tmplt_actv_id
+            , eak_st_dt
+            , rgtr
+        ) VALUES (
+            #{selfResultDetailId}
+            , #{engTempId}
+            , #{scriptId}
+            , #{tmpltActvId}
+            , NOW()
+            , 'admin'
+        )
+    </insert>
+
+    <select id="selectSlfStdEngTempResultInfoDate" parameterType="map" resultType="map">
+        /* EngTemp.selectSlfStdEngTempResultInfoDate */
+        SELECT id AS selfResultDetailId
+             , date_format(eak_st_dt,'%Y-%m-%d %H:%i:%s') as eakStDt
+             , date_format(eak_ed_dt,'%Y-%m-%d %H:%i:%s') as eakEdDt
+        FROM aidt_lms.slf_std_eng_temp_result_info
+        WHERE 1=1
+        <choose>
+            <when test="engTempResultId != null and engTempResultId > 0">
+        and   id = #{engTempResultId}
+            </when>
+            <otherwise>
+        and   std_result_detail_id = #{selfResultDetailId}
+        and   eng_temp_id = #{engTempId}
+        and   script_id = #{scriptId}
+        and   tmplt_actv_id = #{tmpltActvId}
+            </otherwise>
+        </choose>
+    </select>
+
+    <update id="updateSelfLrn" parameterType="map">
+        /* EngTemp.updateSelfLrn */
+        UPDATE aidt_lms.slf_std_eng_temp_result_info
+        SET eak_ed_dt = current_timestamp()
+        WHERE id = #{engTempResultId}
+    </update>
+
+    <insert id="insertSelfLrnResultDetail" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* EngTemp.insertSelfLrnResultDetail */
+        INSERT INTO aidt_lms.slf_std_eng_temp_result_detail
+        (
+            std_eng_temp_result_id
+        <if test="libtextId != '' and libtextId != null">
+            , libtext_id
+        </if>
+        <if test="libtextDialogId != '' and libtextDialogId != null">
+            , libtext_dialog_id
+        </if>
+        <if test="articleId != '' and articleId != null">
+            , article_id
+        </if>
+        <if test="dfcltLvlYy != '' and dfcltLvlYy != null">
+            , dfclt_lvl_ty
+        </if>
+        <if test="anwInptTy != '' and anwInptTy != null">
+            , anw_inpt_ty
+        </if>
+        <if test="tmpltDtlActvVl != '' and tmpltDtlActvVl != null">
+            , tmplt_dtl_actv_vl
+        </if>
+        <if test="errata != '' and errata != null">
+            , errata
+        </if>
+        <if test="subMitAnw != '' and subMitAnw != null">
+            , sub_mit_anw
+        </if>
+        <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+            , sub_mit_anw_url
+        </if>
+        <if test="notUdstdTf != '' and notUdstdTf != null">
+            , not_udstd_tf
+        </if>
+        <if test="aitutorRslt != '' and aitutorRslt != null">
+            , aitutor_rslt
+        </if>
+        <if test="aitutorScore != 0 and aitutorScore > 0">
+            , aitutor_score
+        </if>
+        <if test="eakStDt != '' and eakStDt != null">
+            , eak_st_dt
+        </if>
+            , rgtr
+        ) VALUES (
+        #{engTempResultId}
+        <if test="libtextId != '' and libtextId != null">
+            , #{libtextId}
+        </if>
+        <if test="libtextDialogId != '' and libtextDialogId != null">
+            , #{libtextDialogId}
+        </if>
+        <if test="articleId != '' and articleId != null">
+            , #{articleId}
+        </if>
+        <if test="dfcltLvlYy != '' and dfcltLvlYy != null">
+            , #{dfcltLvlYy}
+        </if>
+        <if test="anwInptTy != '' and anwInptTy != null">
+            , #{anwInptTy}
+        </if>
+        <if test="tmpltDtlActvVl != '' and tmpltDtlActvVl != null">
+            , #{tmpltDtlActvVl}
+        </if>
+        <if test="errata != '' and errata != null">
+            , #{errata}
+        </if>
+        <if test="subMitAnw != '' and subMitAnw != null">
+            , #{subMitAnw}
+        </if>
+        <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+            , #{subMitAnwUrl}
+        </if>
+        <if test="notUdstdTf != '' and notUdstdTf != null">
+            , #{notUdstdTf}
+        </if>
+        <if test="aitutorRslt != '' and aitutorRslt != null">
+            , #{aitutorRslt}
+        </if>
+        <if test="aitutorScore != 0 and aitutorScore > 0">
+            , #{aitutorScore}
+        </if>
+        <if test="eakStDt != '' and eakStDt != null">
+            , #{eakStDt}
+        </if>
+            , 'admin'
+        )
+    </insert>
+
+    <update id="updateSelfLrnDdln" parameterType="map">
+        /* EngTemp.updateSelfLrnDdln */
+        UPDATE aidt_lms.slf_std_info a1
+            INNER JOIN aidt_lms.slf_std_result_info b1 ON a1.id = b1.std_id
+            INNER JOIN aidt_lms.slf_std_eng_temp_result_info c1 ON b1.id = c1.std_result_detail_id
+        SET c1.ddln_at = 'Y'
+            , c1.ddln_dt = NOW()
+        WHERE a1.id = #{resultDetailId}
+        AND c1.eng_temp_id = #{engTempId}
+        AND c1.script_id = #{scriptId}
+        AND c1.tmplt_actv_id = #{tmpltActvId}
+    </update>
+
+    <update id="updateSelfLrnRsltRlsAt" parameterType="map">
+        /* EngTemp.updateSelfLrnRsltRlsAt */
+        UPDATE aidt_lms.slf_std_eng_temp_result_info
+        SET rslt_rls_at = #{rsltRlsAt}
+          , rslt_rls_dt = NOW()
+        WHERE id = #{engTempResultId}
+    </update>
+
+    <update id="updateSelfLrnResultDetail" parameterType="map">
+        /* EngTemp.updateSelfLrnResultDetail */
+        UPDATE aidt_lms.slf_std_eng_temp_result_detail
+        set eak_ed_dt = now()
+        , mdfcn_dt = now()
+        , mdfr = 'admin'
+        <if test="errata != '' and errata != null">
+            , errata = #{errata}
+        </if>
+        <if test="subMitAnw != '' and subMitAnw != null">
+            , sub_mit_anw = #{subMitAnw}
+        </if>
+        <if test="subMitAnwUrl != '' and subMitAnwUrl != null">
+            , sub_mit_anw_url = #{subMitAnwUrl}
+        </if>
+        <if test="notUdstdTf != '' and notUdstdTf != null">
+            , not_udstd_tf = #{notUdstdTf}
+        </if>
+        <if test="aitutorRslt != '' and aitutorRslt != null">
+            , aitutor_rslt = #{aitutorRslt}
+        </if>
+        <if test="lastVoiceFileId != '' and lastVoiceFileId != null">
+            , last_voice_file_id = #{lastVoiceFileId}
+        </if>
+        <if test="aitutorScore != 0 and aitutorScore > 0">
+            , aitutor_score = #{aitutorScore}
+        </if>
+        WHERE id = #{selfEngTempResultDetailId}
+    </update>
+
+    <select id="getSelfLrnNotUdstdCnt" parameterType="map" resultType="map">
+        /* EngTemp.getHomeworkNotUdstdCnt */
+        select d1.libtext_id as libtextId
+             , sum(case when d1.not_udstd_tf = 1 then 1 else 0 end) as `notUdstdCnt`
+             , count(*) as totalCnt
+        from `aidt_lms`.`slf_std_info` a1
+                 inner join `aidt_lms`.`slf_std_result_info` b1 on a1.id = b1.std_id
+                 inner join `aidt_lms`.`slf_std_eng_temp_result_info` c1 on b1.id = c1.std_result_detail_id
+                 inner join `aidt_lms`.`slf_std_eng_temp_result_detail` d1 on c1.id = d1.std_eng_temp_result_id
+        where a1.id = #{resultDetailId}
+        and c1.eng_temp_id =#{engTempId}
+        and c1.script_id = #{scriptId}
+        and c1.tmplt_actv_id = #{tmpltActvId}
+        group by d1.libtext_id
+        order by d1.libtext_id
+    </select>
+
+    <select id="getSelfLrnUserAnswer" parameterType="map" resultType="map">
+        select a1.id as engTempResultId
+             , b1.id as engTempResultDetailId
+             , b1.libtext_id as libtextId
+             , b1.libtext_dialog_id as libtextDialogId
+             , b1.pkey
+             , b1.skey
+             , b1.article_id
+             , b1.sub_mit_anw
+             , b1.sub_mit_anw_url
+             , b1.errata
+        from `aidt_lms`.`slf_std_eng_temp_result_info` a1
+             inner join `aidt_lms`.`slf_std_eng_temp_result_detail` b1 on a1.id = b1.std_eng_temp_result_id
+        where a1.id = #{engTempResultId}
+    </select>
+
+    <select id="selectSelfLrnIsStudy" parameterType="map" resultType="map">
+        /* EngTemp.selectSelfLrnIsStudy */
+        select b1.tmplt_actv_id
+            , case when exists (select 1 from `aidt_lms`.`slf_std_eng_temp_result_detail` c1_1 where b1.id = c1_1.std_eng_temp_result_id) = 1 then 'true' else 'false' end isStudy
+        from aidt_lms.slf_std_result_info a1
+            inner join aidt_lms.slf_std_eng_temp_result_info b1 on a1.id = b1.std_result_detail_id
+        where a1.id = #{selfResultDetailId}
+        and b1.eng_temp_id = #{engTempId}
+        and b1.script_id = #{scriptId}
+        and b1.tmplt_actv_id in
+        <foreach collection="tmpltActvIdList" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </select>
+
+    <!-- 교과템 학습 -->
+    <insert id="insertLesnRsc" parameterType="map" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    /* EngTemp.insertLesnRsc */
+        INSERT INTO aidt_lms.std_dta_eng_temp_result_info
+        (
+              dta_result_detail_id
+            , eng_temp_id
+            , script_id
+            , tmplt_actv_id
+            , eak_st_dt
+            , rgtr
+        ) VALUES (
+              #{resultDetailId}
+            , #{engTempId}
+            , #{scriptId}
+            , #{tmpltActvId}
+            , NOW()
+            , 'admin'
+        )
+    </insert>
+
+    <select id="selectEngtempInfoByArticleId" resultType="map">
+        select a1.`id` as `engTempId`
+            , ( select max(b2_1.script_id)
+                from  aidt_lcms.engtemp_library_map a2_1
+                      inner join aidt_lcms.library b2_1 on a2_1.library_id = b2_1.`id`
+                where a2_1.engTemp_id = a1.`id`
+              ) as `scriptId`
+            , ifnull ( (
+                select b2_1.`code`
+                from  aidt_lcms.engtemp_meta_map a2_1
+                      inner join aidt_lcms.`meta` b2_1 on a2_1.meta_id = b2_1.`id`
+                where a2_1.meta_name = 'templateDiv'
+                and   a2_1.engTemp_id = a1.`id`
+                limit 1
+              ), a1.type_1) as templateDivCode
+        from  aidt_lcms.engtemp a1
+              inner join aidt_lcms.article_engtemp_map b1 on a1.`id` =  b1.engTemp_id
+        where b1.article_id = #{articleId}
+            <if test="subId != null and subId != '' ">
+                and b1.sub_id = #{subId}
+            </if>
+    </select>
+
+    <select id="selectEngtempExistsYn" resultType="string">
+        select ifnull( (
+            select 'Y'
+            from  aidt_lms.std_dta_eng_temp_result_info a1
+            where a1.dta_result_detail_id = #{resultDetailId}
+            and   a1.eng_temp_id = #{engTempId}
+            and   a1.tmplt_actv_id = 0
+            and   a1.script_id = 0
+        ), 'N' )
+    </select>
+
+    <select id="selectEngtempAtivityList" resultType="map">
+        select a1.`engTempId`
+            , a1.`tmpltActvId`
+            , a1.`scriptId`
+            , ( select a2_1.`id`
+                from  aidt_lms.std_dta_eng_temp_result_info a2_1
+                where a2_1.dta_result_detail_id = #{resultDetailId}
+                and   a2_1.eng_temp_id = a1.`engTempId`
+                and   a2_1.tmplt_actv_id = a1.`tmpltActvId`
+                and   a2_1.script_id = a1.`scriptId`
+              ) as `engTempResultInfoId`
+        from
+        (	select a2.engTemp_id as `engTempId`
+                , b2.`id` as `tmpltActvId`
+                , ( select max(b3_1.script_id)
+                    from  aidt_lcms.engtemp_library_map a3_1
+                          inner join aidt_lcms.library b3_1 on a3_1.library_id = b3_1.`id`
+                    where a3_1.engTemp_id = a2.engTemp_id
+                  ) as `scriptId`
+            from  aidt_lcms.engtemp_meta_map a2
+                  inner join aidt_lcms.meta b2 on a2.meta_id = b2.`id`
+            where a2.meta_name = 'templateDiv1'
+            and   a2.engTemp_id = #{engTempId}
+        ) a1
+    </select>
+
+    <select id="selectStdtList" parameterType="map" resultType="map">
+        /* EngTemp.selectStdtList */
+        select mamoym_id as stdtId
+        from aidt_lms.std_dta_result_info
+        where textbk_tab_id = #{textbkTabId}
+    </select>
+
+</mapper>

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.mq.mapper.real.RealMessageQueueMapper">
+
+    <select id="findClassStatusByClaIdx" resultType="com.visang.aidt.lms.api.mq.dto.real.RealClassStartDto">
+        /* findClassStatusByClaIdx */
+        select ccl.class_idx as classIdx,
+               tci.user_id as tchId,
+               u.user_id as stntId,
+               tci.cla_id AS claId,
+               open_date as tchOpenDate,
+               close_date as tchCloseDate,
+               IFNULL(NULLIF(use_terms_agree_yn, ''), 'N') AS useTermsAgreeYn
+        from aidt_lms.class_conn_log ccl
+        inner join aidt_lms.`user` u on ccl.user_idx = u.id
+        inner join aidt_lms.tc_cla_info tci on ccl.class_idx = tci.id
+        where 1 = 1
+          and ccl.class_idx = #{claIdx}
+          and u.user_id = #{userId}
+         -- and ccl.user_div = 'S'
+        ORDER BY ccl.open_date desc limit 1
+    </select>
+
+    <select id="findLearningProgressList" resultType="com.visang.aidt.lms.api.mq.dto.real.LearningProgressDto">
+        <![CDATA[
+        WITH RECURSIVE cte AS (
+            SELECT 1 AS n
+            UNION ALL
+            SELECT n + 1 FROM cte WHERE n < 20
+        ),
+        -- 교과서 표준체계 조회
+        textbk_curri_data AS (
+           SELECT COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(me.val1, '#^|', ','), ',', cte.n), ',', -1)), '-1'), '-1') AS curriculum
+                , COUNT(*) AS moduleCnt
+             FROM aidt_lms.tab_info ti
+           INNER JOIN aidt_lcms.setSummary ss ON ti.sets_id = ss.set_id
+           INNER JOIN aidt_lcms.meta m1 ON ti.setCategory = m1.id
+           INNER JOIN aidt_lcms.article a ON ss.article_id = a.id
+           INNER JOIN aidt_lcms.meta m2 ON m2.id = a.articleType
+           INNER JOIN aidt_lcms.article_meta_map amm1 ON amm1.article_id = ss.article_id AND amm1.sub_id = ss.sub_id AND amm1.meta_name = 'studyMap1'
+           INNER JOIN aidt_lcms.article_meta_map amm2 ON amm2.article_id = ss.article_id AND amm2.sub_id = ss.sub_id AND amm2.meta_name = 'studyMap_1'
+           INNER JOIN aidt_lcms.meta m3 ON m3.id = amm2.meta_id
+           INNER JOIN aidt_lcms.meta_extension me ON m3.meta_extension_id = me.meta_extension_id
+           INNER JOIN cte ON cte.n <= LENGTH(REPLACE(me.val1, '#^|', ',')) - LENGTH(REPLACE(REPLACE(me.val1, '#^|', ','), ',', '')) + 1
+            WHERE 1=1
+              AND ti.cla_id = #{claId}
+              AND ti.tab_add_at = 'N' /* 기본 제공탭 기준, 교사가 추가한 탭은 제외 */
+              AND m1.code = 'textbook' /* 교과과정 */
+              AND m2.code = 'question' /* 문항유형 */
+            GROUP BY curriculum
+       ),
+       -- 학생이 교과서에서 학습한 표준체계 조회(전체)
+       user_result_curri_data AS (
+           SELECT COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(me.val1, '#^|', ','), ',', cte.n), ',', -1)), '-1'), '-1') AS curriculum
+                  , COUNT(*) AS moduleAnwCnt
+                  , SUM(IF(rd.errata=1, 1, IF(rd.errata=3, 0.5, 0))) AS score
+             FROM std_dta_result_detail rd
+            INNER JOIN std_dta_result_info ri ON ri.id = rd.dta_result_id
+            INNER JOIN tab_info ti ON ri.textbk_tab_id = ti.id
+            INNER JOIN aidt_lcms.meta m1 ON ti.setCategory = m1.id
+            INNER JOIN aidt_lcms.article a ON rd.dta_iem_id = a.id
+            INNER JOIN aidt_lcms.meta m2 ON m2.id = a.articleType
+            INNER JOIN aidt_lcms.article_meta_map amm1 ON amm1.article_id = rd.dta_iem_id AND amm1.sub_id = rd.sub_id AND amm1.meta_name = 'studyMap1'
+            INNER JOIN aidt_lcms.article_meta_map amm2 ON amm2.article_id = rd.dta_iem_id AND amm2.sub_id = rd.sub_id AND amm2.meta_name = 'studyMap_1'
+            INNER JOIN aidt_lcms.meta m3 ON m3.id = amm2.meta_id
+            INNER JOIN aidt_lcms.meta_extension me ON m3.meta_extension_id = me.meta_extension_id
+            INNER JOIN cte ON cte.n <= LENGTH(REPLACE(me.val1, '#^|', ',')) - LENGTH(REPLACE(REPLACE(me.val1, '#^|', ','), ',', '')) + 1
+            WHERE ri.mamoym_id = #{stntId}
+              AND ti.cla_id = #{claId}
+              AND ti.tab_add_at = 'N' /* 기본 제공탭 기준, 교사가 추가한 탭은 제외 */
+              AND m1.code = 'textbook' /* 교과과정 */
+              AND m2.code = 'question' /* 문항유형 */
+              AND rd.src_detail_id = 0 /* 다른문제 풀기 제외 */
+              AND (rd.sub_mit_anw IS NOT NULL OR rd.sub_mit_anw_url IS NOT NULL)  /* 제출답안 있을 경우 */
+            GROUP BY curriculum
+       ),
+       -- 학생이 학습시작~종료 사이에 학습한 표준체계 조회
+       user_period_curri_data AS (
+           SELECT COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(me.val1, '#^|', ','), ',', cte.n), ',', -1)), '-1'), '-1') AS curriculum
+             FROM std_dta_result_detail rd
+            INNER JOIN std_dta_result_info ri ON ri.id = rd.dta_result_id
+            INNER JOIN tab_info ti ON ri.textbk_tab_id = ti.id
+            INNER JOIN aidt_lcms.meta m1 ON ti.setCategory = m1.id
+            INNER JOIN aidt_lcms.article a ON rd.dta_iem_id = a.id
+            INNER JOIN aidt_lcms.meta m2 ON m2.id = a.articleType
+            INNER JOIN aidt_lcms.article_meta_map amm1 ON amm1.article_id = rd.dta_iem_id AND amm1.sub_id = rd.sub_id AND amm1.meta_name = 'studyMap1'
+            INNER JOIN aidt_lcms.article_meta_map amm2 ON amm2.article_id = rd.dta_iem_id AND amm2.sub_id = rd.sub_id AND amm2.meta_name = 'studyMap_1'
+            INNER JOIN aidt_lcms.meta m3 ON m3.id = amm2.meta_id
+            INNER JOIN aidt_lcms.meta_extension me ON m3.meta_extension_id = me.meta_extension_id
+            INNER JOIN cte ON cte.n <= LENGTH(REPLACE(me.val1, '#^|', ',')) - LENGTH(REPLACE(REPLACE(me.val1, '#^|', ','), ',', '')) + 1
+            WHERE ri.mamoym_id = #{stntId}
+              AND ti.cla_id = #{claId}
+              AND ti.tab_add_at = 'N' /* 기본 제공탭 기준, 교사가 추가한 탭은 제외 */
+              AND m1.code = 'textbook' /* 교과과정 */
+              AND m2.code = 'question' /* 문항유형 */
+              AND rd.src_detail_id = 0 /* 다른문제 풀기 제외 */
+              AND (rd.sub_mit_anw IS NOT NULL OR rd.sub_mit_anw_url IS NOT NULL)  /* 제출답안 있을 경우 */
+              AND rd.mdfy_dt >= CONVERT_TZ(#{tchOpenDate}, '+00:00', '+09:00') /* 학습 시작시간 */
+              AND rd.mdfy_dt <= CONVERT_TZ(#{tchCloseDate}, '+00:00', '+09:00') /* 학습 종료시간 */
+            GROUP BY curriculum
+        )
+        SELECT ROUND(COALESCE((ud.moduleAnwCnt / td.moduleCnt) * 100, 0)) AS percent
+             , ROUND(COALESCE((ud.score / td.moduleCnt) * 100, 0)) AS score
+             , td.curriculum
+        FROM user_period_curri_data upd
+        INNER JOIN user_result_curri_data ud ON upd.curriculum = ud.curriculum
+        INNER JOIN textbk_curri_data td ON ud.curriculum = td.curriculum
+        ]]>
+    </select>
+
+    <select id="selectTcLastlessonInfo" parameterType="RealMqReqDto" resultType="string">
+        /* RealMessageQueueMapper.selectTcLastlessonInfo */
+        with recursive cte as (
+            select 1 as n
+            union all
+            select n + 1 from cte where n <![CDATA[<]]> 20
+        )
+        select
+            COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(me.val1, '#^|', ','), ',', cte.n), ',', -1)), '-1'), '-1') AS curriculum
+        from aidt_lms.tc_lastlesson tl
+            join aidt_lms.tab_info ti
+                on ti.cla_id = tl.cla_id
+                and ti.textbk_id = tl.textbk_id
+                and ti.crcul_id = tl.crcul_id
+            join aidt_lcms.sets_article_map sam
+                on ti.sets_id = sam.sets_id
+            join aidt_lcms.article_meta_map amm
+                on sam.article_id = amm.article_id
+                   and amm.meta_name = 'studyMap_1'
+            join aidt_lcms.meta m
+                on amm.meta_id = m.id
+            join aidt_lcms.meta_extension me
+                on m.meta_extension_id = me.meta_extension_id
+            join cte
+                on cte.n <![CDATA[<=]]> LENGTH(REPLACE(me.val1, '#^|', ',')) - LENGTH(REPLACE(REPLACE(me.val1, '#^|', ','), ',', '')) + 1
+        where 1=1
+          and tl.cla_id = #{claId}
+          and tl.textbk_id = #{textbkId}
+        group by curriculum;
+    </select>
+</mapper>

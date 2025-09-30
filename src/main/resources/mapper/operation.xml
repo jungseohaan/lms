@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.operation.mapper.PopUpMapper">
+
+    <select id="getPopUpSummary" parameterType="map" resultType="map">
+          select main.id
+               , main.link
+               , main.ttl
+               , main.conts
+               , concat(#{cloudAwsS3Url}, (select b.url
+                    from aidt_lms.oper_popup_file a
+                         join aidt_lms.oper_file b on a.file_nm = b.file_nm
+                   where a.oper_popup_id = main.id
+                  order by b.oper_reg_dt desc
+                  limit 1) ) as url
+            from oper_popup main
+           where main.use_at = 'Y'
+             and now() >= main.strt_dt
+             and main.end_dt >= now()
+             and main.expos_pstn_cd = coalesce(nullif(#{exposPstnCd}, ''), 1)
+             and main.expos_trgt_cd in ('A', #{exposTrgtCd})
+            <if test='brandId != null and brandId != ""'>
+                 and main.brand_id = #{brandId}
+            </if>
+          order by main.strt_dt desc, main.id desc
+          limit 1
+    </select>
+
+</mapper>

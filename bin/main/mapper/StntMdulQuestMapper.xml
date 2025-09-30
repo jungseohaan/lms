@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.StntMdulQuestMapper">
+    <select id="findStntMdulQuestList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulMapper.findStntMdulQuestList */
+        WITH RECURSIVE qestn AS (
+            (SELECT qi.id
+                  , qi.wrter_id
+                  , u.flnm
+                    ,(
+                    SELECT pf_ui_img
+                    FROM aidt_lms.sp_pf_info
+                    WHERE
+                    id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info
+                                WHERE user_id = u.user_id
+                                  AND cla_id = (select cla_id from aidt_lms.tab_info where id = #{tabId})
+                                  AND prchs_gds_se_cd = 'P'), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+                 ) as pf_ui_img
+                  , u.user_se_cd
+                  , aidt_lms.F_CODE_NM('user_se_cd', u.user_se_cd) AS user_se_nm
+                  , qi.anm_at
+                  , qi.oto_qestn_at
+                  , 1 AS answGb
+                  , '질문' AS answGbNm
+                  , qi.qestn_cn AS answ_cn
+                  , DATE_FORMAT(qi.reg_dt, "%Y-%m-%d %H:%i:%s") AS reg_dt
+                  , qi.id AS path
+             FROM aidt_lms.qestn_info qi
+             LEFT JOIN aidt_lms.user u ON u.user_id = qi.wrter_id
+             WHERE qi.tab_id = #{tabId}
+               AND qi.module_id = #{moduleId}
+                AND qi.sub_id = #{subId}
+             ORDER BY qi.id ASC)
+             UNION ALL
+            (SELECT qai.qestn_id AS id
+                  , qai.wrter_id
+                  , u.flnm
+                 ,(
+                    SELECT pf_ui_img
+                    FROM aidt_lms.sp_pf_info
+                    WHERE
+                    id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info
+                                WHERE user_id = u.user_id
+                                  AND cla_id = (select cla_id from aidt_lms.tab_info where id = #{tabId})
+                                  AND prchs_gds_se_cd = 'P'), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+                 ) as pf_ui_img
+                  , u.user_se_cd
+                  , aidt_lms.F_CODE_NM('user_se_cd', u.user_se_cd) AS user_se_nm
+                  , qai.anm_at
+                  , '' oto_qestn_at
+                  , 2 AS answGb
+                  , '답변' AS answGbNm
+                  , qai.answ_cn
+                  , DATE_FORMAT(qai.reg_dt, "%Y-%m-%d %H:%i:%s") AS reg_dt
+                  , CONCAT(qai.qestn_id, '-', qai.sort_ordr) AS path
+             FROM aidt_lms.qestn_answ_info qai
+             LEFT JOIN aidt_lms.user u ON u.user_id = qai.wrter_id
+             WHERE qai.qestn_id IN (SELECT id
+                                      FROM aidt_lms.qestn_info qi
+                                     WHERE qi.tab_id = #{tabId}
+                                       AND qi.module_id = #{moduleId}
+                                        AND qi.sub_id = #{subId}
+        )
+             ORDER BY qai.sort_ordr ASC)
+        )
+        SELECT id, wrter_id, flnm, pf_ui_img, user_se_cd, user_se_nm, anm_at, oto_qestn_at, answGb, answGbNm, answ_cn, reg_dt, path
+          FROM qestn
+        ORDER BY id, reg_dt, path
+    </select>
+
+    <insert id="createStntMdulQeust" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntMdulMapper.createStntMdulQeust */
+        INSERT INTO aidt_lms.qestn_info
+            (tab_id, module_id, sub_id, qestn_cn, rcve_id, anm_at, oto_qestn_at, rgtr, reg_dt, mdfr, mdfy_dt, wrter_id)
+        VALUES
+            (#{tabId}, #{moduleId}, #{subId}, #{qestnCn}, #{rcveId}, #{anmAt}, #{otoQestnAt}, #{userId}, NOW(), #{userId}, NOW(), #{userId})
+    </insert>
+
+    <insert id="createStntMdulQeustComment" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntMdulMapper.createStntMdulQeustComment */
+        INSERT INTO aidt_lms.qestn_answ_info
+           ( qestn_id, answ_cn
+           , sort_ordr
+           , anm_at, rgtr, reg_dt, mdfr, mdfy_dt, wrter_id)
+        VALUES
+           ( #{qestnId}, #{answCn}
+           , (SELECT COALESCE(MAX(qai.sort_ordr), 0) + 1 FROM aidt_lms.qestn_answ_info qai WHERE qai.qestn_id = #{qestnId})
+           , #{anmAt}, #{userId}, NOW(), #{userId}, NOW(), #{userId})
+    </insert>
+
+    <update id="modifyStntMdulQuestReadall" parameterType="map">
+        /* StntMdulMapper.modifyStntMdulQuestReadall */
+        update aidt_lms.qestn_answ_info
+           set redng_at ='Y'
+             /*, mdfr */
+             , mdfy_dt = NOW()
+         where qestn_id in (select id
+                              from aidt_lms.qestn_info
+                             where wrter_id = #{userId}
+                               and tab_id = #{tabId}
+                               and module_id = #{moduleId}
+                                AND sub_id = #{subId}
+                            )
+           and redng_at ='N'
+    </update>
+
+    <select id="findStntMdulQuestCall" parameterType="map" resultType="camelHashMap">
+        /* StntMdulMapper.findStntMdulQuestCall */
+        select count(*) cnt
+          from aidt_lms.qestn_answ_info
+         where qestn_id in (select id
+                              from aidt_lms.qestn_info
+                             where wrter_id = #{userId}
+                               and tab_id = #{tabId}
+                               and module_id = #{moduleId}
+                                AND sub_id = #{subId}
+                            )
+           and redng_at = 'N'
+    </select>
+
+    <update id="modifyTchMdulQuestReadall" parameterType="map">
+        /* StntMdulMapper.modifyTchMdulQuestReadall */
+        update aidt_lms.qestn_info
+           set redng_at ='Y'
+         where rcve_id = #{userId}
+           and tab_id = #{tabId}
+           and module_id = #{moduleId}
+           AND sub_id = #{subId}
+           and redng_at = 'N'
+    </update>
+
+    <select id="findTchMdulQuestCall" parameterType="map" resultType="camelHashMap">
+        /* StntMdulMapper.findTchMdulQuestCall */
+        select count(*) cnt
+          from aidt_lms.qestn_info
+         where rcve_id = #{userId}
+           and tab_id = #{tabId}
+           and module_id = #{moduleId}
+            AND sub_id = #{subId}
+           and redng_at ='N'
+    </select>
+
+    <select id="findQestnInfoById" parameterType="map" resultType="camelHashMap">
+        /* StntMdulMapper.findQestnInfoById */
+        select
+            qi.id as id
+            , qi.wrter_id as wrter_id
+            , qi.rcve_id as rcve_id
+            , case us.user_se_cd
+            when "S"
+            then (select cla_id from aidt_lms.tc_cla_mb_info where stdt_id = qi.wrter_id and actvtn_at = 'Y' )
+            else (select cla_id from aidt_lms.tc_cla_mb_info where user_id = qi.wrter_id and actvtn_at = 'Y' limit 1)
+            end as cla_id
+            , flnm as wrterNm
+            , us.user_se_cd
+        from aidt_lms.qestn_info qi
+        left join aidt_lms.user us on us.user_id = qi.wrter_id
+        where qi.id = #{qestnId}
+    </select>
+
+    <select id="findUserById" parameterType="map" resultType="camelHashMap">
+        /* StntMdulMapper.findUserById */
+        select user_se_cd, flnm
+          from aidt_lms.user
+         where user_id = #{userId}
+    </select>
+</mapper>

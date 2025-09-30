@@ -1,0 +1,29 @@
+### 빠른 API 테스트
+GET http://localhost:15000/test/perf/api/fast
+
+
+### 느린 API 테스트
+GET http://localhost:15000/test/perf/api/slow
+
+
+### 사용자 정의 지연 API
+GET http://localhost:15000/test/perf/api/custom?
+    delayMs=2000
+
+
+### 빠른 쿼리 테스트
+GET http://localhost:15000/test/perf/query/fast
+
+
+### 느린 쿼리 테스트
+GET http://localhost:15000/test/perf/query/slow
+
+
+### 복합 테스트
+GET http://localhost:15000/test/perf/combined?
+    apiDelay=3000&
+    queryType=slow
+
+
+### 에러 테스트
+GET http://localhost:15000/test/perf/error

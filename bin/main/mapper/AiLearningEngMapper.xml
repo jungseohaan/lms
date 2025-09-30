@@ -1,0 +1,1258 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.learning.mapper.AiLearningEngMapper">
+    <select id="selectAiCustomLearningCommonArticles" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.selectAiCustomLearningArticles */
+        select
+            RANK() over ( partition by studyMap1, evaluationArea, evaluationArea3, contentsItem order by frequency, id	) as rankInfo,
+                (
+                    select
+                        text
+                    from
+                        aidt_lms.tc_curriculum
+                    where
+                        1=1
+                      and textbk_id = #{textbkId}
+                      and `key` = #{crculId} /* 수업중인 커리큘럼 ID */
+                      and cla_id = #{claId}
+                      limit 1
+                ) as name, /* studyMapNm */
+            a.evaluationArea,
+            a.evaluationArea3,
+            a.contentsItem,
+            a.id as article_id
+        from
+            (
+                select
+                    a.id,
+                    a.name,
+                    e.meta_id,
+                    e.meta_name,
+                    (select y.id from aidt_lcms.article_meta_map x inner join aidt_lcms.meta y where 1=1 and x.article_id = a.id and x.meta_name = 'studyMap1' and x.meta_id = y.id and x.sub_id = 0 order by RAND() limit 1) as studyMap1,   /* 학습맵(단원) */ /* META SUB_ID 추가 - CSH 20240524 */
+                    (select y.id from aidt_lcms.article_meta_map x inner join aidt_lcms.meta y where 1=1 and x.article_id = a.id and x.meta_name = 'difficulty' and x.meta_id = y.id and x.sub_id = 0 order by RAND() limit 1) as difficulty, /* 난이도 */ /* META SUB_ID 추가 - CSH 20240524 */
+                    (select y.id from aidt_lcms.article_meta_map x inner join aidt_lcms.meta y where 1=1 and x.article_id = a.id and x.meta_name = 'evaluationArea' and x.meta_id = y.id and x.sub_id = 0 order by RAND() limit 1) as evaluationArea, /* 유형 1 */ /* META SUB_ID 추가 - CSH 20240524 */
+                    (select y.id from aidt_lcms.article_meta_map x inner join aidt_lcms.meta y where 1=1 and x.article_id = a.id and x.meta_name = 'evaluationArea3' and x.meta_id = y.id and x.sub_id = 0 order by RAND() limit 1) as evaluationArea3, /* 유형 2 */ /* META SUB_ID 추가 - CSH 20240524 */
+                    (select y.id from aidt_lcms.article_meta_map x inner join aidt_lcms.meta y where 1=1 and x.article_id = a.id and x.meta_name = 'contentsItem'   and x.meta_id = y.id and x.sub_id = 0 order by RAND() limit 1) as contentsItem, /* 유형 3 */ /* META SUB_ID 추가 - CSH 20240524 */
+                    (select m.code from aidt_lcms.meta m where m.id = d.meta_id) difyNm,
+                    (
+                        select sum(in_frequency.cnt) as frequency
+                        from (
+                            /* 수업중에 푼 문제정보 조회 */
+                            select
+                                count(*) as cnt
+                            from
+                                aidt_lms.tab_info x
+                                    inner join aidt_lms.std_dta_result_info y
+                                               on x.id = y.textbk_tab_id
+                                    inner join aidt_lms.std_dta_result_detail z
+                                               on y.id = z.dta_result_id
+                                                   and z.mrk_ty = 1 /* 자동채점 문항만 */
+                                                   /* and c.eak_at = 'Y' */
+                                                  /* and (z.sub_mit_anw is not null or z.sub_mit_anw_url is not null) */ /* 2024-10-04 답안 제출 여부와 상관없이 체크 */
+                            /* and z.dta_iem_id = a.id */
+                            where
+                                1=1
+                              and x.textbk_id = #{textbkId}
+                              and x.crcul_id = #{crculId} /* 수업중인 커리큘럼 ID */
+                              and x.tab_add_at = 'N' /* 교사가 추가한 tab은 제외 */
+                              and z.dta_iem_id = a.id
+                              and x.cla_id = #{claId}
+
+
+                            union all
+
+                            select count(*) as cnt
+                            from aidt_lms.task_info t1
+                            join aidt_lms.task_result_info t2 on t2.task_id = t1.id
+                            join aidt_lms.task_result_detail t3 on t3.task_result_id = t2.id and t3.mrk_ty = 1
+                            where 1 = 1
+                            and t1.cla_id = #{claId}
+                            and t1.textbk_id = #{textbkId}
+                            and t3.task_iem_id = a.id
+
+                            union all
+
+                            select count(*) as cnt
+                            from aidt_lms.evl_info t1
+                            join aidt_lms.evl_result_info t2 on t2.evl_id = t1.id
+                            join aidt_lms.evl_result_detail t3 on t3.evl_result_id = t2.id and t3.mrk_ty = 1
+                            where 1=1
+                            and t1.cla_id = #{claId}
+                            and t1.textbook_id = #{textbkId}
+                            and t3.evl_iem_id = a.id
+
+                        ) as in_frequency
+
+
+            ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+                from
+                    aidt_lcms.article a
+                        join aidt_lcms.article_meta_map i
+                                on a.id = i.article_id
+                                and i.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                and i.meta_id in (
+                                                    SELECT meta_id
+                                                    FROM aidt_lcms.textbookcurriculum_meta_map tmm
+                                                    JOIN aidt_lms.tc_textbook tt ON tmm.textbookIndex_id = tt.textbk_idx_id
+                                                    WHERE 1=1
+                                                    AND tt.textbk_id = #{textbkId}
+                                                    AND tmm.`key` = #{crculId}
+                                                    AND tmm.meta_name = 'studyMap2'
+                                                    AND tt.cla_id = #{claId}
+                                                    )
+                        inner join aidt_lcms.article_meta_map b
+                                   on a.id = b.article_id
+                                       and b.meta_name = 'questionType'
+                                        and b.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                       and b.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+                        inner join aidt_lcms.article_meta_map c
+                                   on a.id = c.article_id
+                                       and c.meta_name = 'articleCategory'
+                                    and c.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                       and c.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+                        inner join aidt_lcms.article_meta_map d
+                                   on a.id = d.article_id
+                                       and d.meta_name = 'difficulty'
+                                        and d.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                       and d.meta_id in (select id from aidt_lcms.meta where name = 'difficulty' and val = #{difficulty}) /* 난이도, 교사가 설정한 난이도에 대해서만 조회 */
+                                inner join aidt_lcms.article_meta_map e
+                                   on a.id = e.article_id and e.sub_id = 0
+                        inner join aidt_lcms.meta b1 on b1.description in (
+                                            select description from aidt_lcms.meta where id = (SELECT meta_id
+                                                                                                  FROM (
+                                                                                                    SELECT tmm.meta_name, tmm.meta_id,
+                                                                                                           ROW_NUMBER() OVER (ORDER BY FIELD(tmm.meta_name, 'studyMap_1','studyMap2','studyMap1')) AS row_num
+                                                                                                      FROM aidt_lcms.textbookcurriculum_meta_map tmm
+                                                                                                      JOIN aidt_lms.tc_textbook tt ON tmm.textbookIndex_id = tt.textbk_idx_id
+                                                                                                     WHERE 1=1
+                                                                                                       AND tt.textbk_id = #{textbkId}
+                                                                                                       AND tmm.`key` = #{crculId}
+                                                                                                       AND meta_name IN ('studyMap_1','studyMap2','studyMap1')
+                                                                                                       AND tt.cla_id = #{claId}
+                                                                                                  ) AS ordered_meta
+                                                                                                 WHERE row_num = 1)
+                                        )and b1.is_active = 1 and e.meta_id=b1.id and e.meta_name = b1.name
+        where
+                    1=1
+                  and a.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+                  and a.is_publicOpen = 1
+                  and a.is_active = 1
+                  and a.articleType in (
+                    select id from aidt_lcms.meta where name = 'articleType' and code = 'question' /* 유형(문항) */
+                    )
+            ) a
+        where 1=1
+            and	studyMap1 is not null
+        order by
+            rankInfo,
+            evaluationArea,
+            evaluationArea3,
+            contentsItem
+            limit #{cnt}	/* 난이도별 입력받은 갯수 */
+    </select>
+
+    <select id="selectAiCustomLearningCommonArticlesInfo" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.selectAiCustomLearningArticles */
+        select
+            (
+                select
+                    text
+                from
+                    aidt_lms.tc_curriculum
+                where wrter_id = #{wrterId}
+                  and textbk_id = #{textbkId}
+                  and `key` = #{crculId} /* 수업중인 커리큘럼 ID */
+                limit 1
+            ) as name, /* studyMapNm */
+            a.evaluationArea,
+            a.evaluationArea3,
+            a.contentsItem,
+            a.id as article_id
+        from
+            (
+                select
+                    a.id,
+                    MAX(IF(amm.meta_name = 'evaluationArea',amm.meta_id, 0)) as evaluationArea,
+                    MAX(IF(amm.meta_name = 'evaluationArea3',amm.meta_id, 0)) as evaluationArea3,
+                    MAX(IF(amm.meta_name = 'contentsItem',amm.meta_id, 0)) as contentsItem
+                from
+                    aidt_lcms.article a
+                        join aidt_lcms.article_meta_map amm
+                            on a.id = amm.article_id
+                                   and amm.meta_name in ('studyMap1', 'evaluationArea', 'evaluationArea3', 'contentsItem')
+                                   and amm.sub_id = 0
+                where a.id in (<foreach collection="articleList" item="id" separator=",">#{id}</foreach> )
+                group by a.id
+        ) a
+        order by
+            a.evaluationArea,
+            a.evaluationArea3,
+            a.contentsItem
+    </select>
+
+    <select id="selectAiCustomEachLearningArticles" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.selectAiCustomEachLearningArticles */
+        select
+                RANK() over ( partition by aa.studyMap1, aa.evaluationArea, aa.evaluationArea3, aa.contentsItem order by aa.frequency, aa.article_id	) as rankInfo,
+                aa.*
+                from (select a.id                 AS article_id
+                            , ifnull(b.meta_id, 0) AS studyMap1
+                            , ifnull(c.meta_id, 0) AS difficulty
+                            , ifnull(d.meta_id, 0) AS evaluationArea
+                            , group_concat(d_m.code) as evaluationAreaCode
+                            , ifnull(e.meta_id, 0) AS evaluationArea3
+                            , ifnull(f.meta_id, 0) AS contentsItem
+                            ,(
+                                select sum(in_frequency.cnt) as frequency
+                                from (
+                                    /* 수업중에 푼 문제정보 조회 */
+                                    select count(*) as cnt
+                                    from aidt_lms.tab_info x
+                                    inner join aidt_lms.std_dta_result_info y on x.id = y.textbk_tab_id
+                                    inner join aidt_lms.std_dta_result_detail z on y.id = z.dta_result_id and z.mrk_ty = 1 /* 자동채점 문항만 */
+                                    where
+                                        1=1
+                                      and x.textbk_id = #{paramData.textbkId}
+                                      and x.crcul_id = #{paramData.crculId} /* 수업중인 커리큘럼 ID */
+                                      and x.tab_add_at = 'N' /* 교사가 추가한 tab은 제외 */
+                                      and z.dta_iem_id = a.id
+                                      and y.mamoym_id = #{paramData.stntId}
+
+                                    union all
+
+                                    select count(*) as cnt
+                                    from aidt_lms.task_info t1
+                                    join aidt_lms.task_result_info t2 on t2.task_id = t1.id
+                                    join aidt_lms.task_result_detail t3 on t3.task_result_id = t2.id and t3.mrk_ty = 1
+                                    where 1 = 1
+                                    and t1.cla_id = #{paramData.claId}
+                                    and t1.textbk_id = #{paramData.textbkId}
+                                    and t2.mamoym_id = #{paramData.stntId}
+                                    and t3.task_iem_id = a.id
+
+                                    union all
+
+                                    select count(*) as cnt
+                                    from aidt_lms.evl_info t1
+                                    join aidt_lms.evl_result_info t2 on t2.evl_id = t1.id
+                                    join aidt_lms.evl_result_detail t3 on t3.evl_result_id = t2.id and t3.mrk_ty = 1
+                                    where 1=1
+                                    and t1.cla_id = #{paramData.claId}
+                                    and t1.textbook_id = #{paramData.textbkId}
+                                    and t2.mamoym_id = #{paramData.stntId}
+                                    and t3.evl_iem_id = a.id
+                                ) as in_frequency
+
+                            ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+
+                       from (aidt_lcms.article a join aidt_lcms.article_meta_map b
+                             on a.id = b.article_id and b.meta_name = 'studyMap1'and b.sub_id = 0) /* META SUB_ID 추가 - CSH 20240524 */
+                                join aidt_lcms.article_meta_map i
+                                          on a.id = i.article_id
+                                                 and i.sub_id = 0  /* META SUB_ID 추가 - CSH 20240524 */
+                                                 and i.meta_id = (
+                                                                    SELECT meta_id
+                                                                     FROM aidt_lcms.textbookcurriculum_meta_map tmm
+                                                                     JOIN aidt_lms.tc_textbook tt ON tmm.textbookIndex_id = tt.textbk_idx_id
+                                                                     WHERE 1=1
+                                                                     AND tt.cla_id = #{paramData.claId}
+                                                                     AND tt.textbk_id = #{paramData.textbkId}
+                                                                     AND tmm.`key` = #{paramData.crculId}
+                                                                     AND tmm.meta_name = 'studyMap2'
+                                                                     LIMIT 1
+                                                                    )
+                                left join aidt_lcms.article_meta_map c
+                                          on a.id = c.article_id and c.meta_name = 'difficulty'
+        and c.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                              and c.meta_id in
+                                                  (select id from aidt_lcms.meta where name = 'difficulty' and val = #{paramData.avgUsdAchScrNm})
+                                left join aidt_lcms.article_meta_map d
+                                          on a.id = d.article_id and d.meta_name = 'evaluationArea'
+        and d.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                left join aidt_lcms.meta d_m on d.meta_id = d_m.id
+                                left join aidt_lcms.article_meta_map e
+                                          on a.id = e.article_id and e.meta_name = 'evaluationArea3'
+        and e.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                left join aidt_lcms.article_meta_map f
+                                          on a.id = f.article_id and f.meta_name = 'contentsItem'
+        and f.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                inner join aidt_lcms.article_meta_map g
+                                           on a.id = g.article_id
+                                               and g.meta_name = 'questionType'
+        and g.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                               and g.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+                                inner join aidt_lcms.article_meta_map h
+                                           on a.id = h.article_id
+                                               and h.meta_name = 'articleCategory'
+        and h.sub_id = 0 /* META SUB_ID 추가 - CSH 20240524 */
+                                               and h.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+                       where 1 = 1
+                         and a.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+                         and (a.articleCategory = 61)
+                         and (a.articleType = 21)
+                         and (a.is_publicOpen = 1)
+                         and (a.is_active = 1)
+                         and (a.brand_id = 3)
+                         group by article_id
+                       ) aa
+        where aa.difficulty <![CDATA[<>]]> 0
+                <foreach item="item" collection="totalArticleList" open="and aa.article_id not in (" close=")" separator=",">#{item.article_id}</foreach>
+                <if test="paramData.usdClsfCd == 'listening'">
+                    and evaluationAreaCode like concat('%',#{paramData.usdClsfCd},'%')
+                </if>
+                <if test="paramData.usdClsfCd == 'speaking'">
+                    and evaluationAreaCode like concat('%',#{paramData.usdClsfCd},'%')
+                </if>
+                <if test="paramData.usdClsfCd == 'reading'">
+                    and evaluationAreaCode like concat('%',#{paramData.usdClsfCd},'%')
+                </if>
+                <if test="paramData.usdClsfCd == 'writing'">
+                    and evaluationAreaCode like concat('%',#{paramData.usdClsfCd},'%')
+                </if>
+                <if test="paramData.usdClsfCd == 'grammar'">
+                    and contentsItem <![CDATA[<>]]> 0
+                </if>
+                <if test="paramData.usdClsfCd == 'vocabulary'">
+                    and evaluationArea3 <![CDATA[<>]]> 0
+                </if>
+                <if test="paramData.usdClsfCd == 'avg'">
+                    <foreach item="map" collection="paramCountList">
+                        <if test="map.usdClsfCd == 'listening'">
+                            and evaluationAreaCode like concat('%',#{map.usdClsfCd},'%')
+                        </if>
+                        <if test="map.usdClsfCd == 'speaking'">
+                            and evaluationAreaCode like concat('%',#{map.usdClsfCd},'%')
+                        </if>
+                        <if test="map.usdClsfCd == 'reading'">
+                            and evaluationAreaCode like concat('%',#{map.usdClsfCd},'%')
+                        </if>
+                        <if test="map.usdClsfCd == 'writing'">
+                            and evaluationAreaCode like concat('%',#{map.usdClsfCd},'%')
+                        </if>
+                        <if test="map.usdClsfCd == 'grammar'">
+                            and contentsItem <![CDATA[<>]]> 0
+                        </if>
+                        <if test="map.usdClsfCd == 'vocabulary'">
+                            and evaluationArea3 <![CDATA[<>]]> 0
+                        </if>
+                    </foreach>
+                </if>
+        order by
+            rankInfo,
+            evaluationArea,
+            evaluationArea3,
+            contentsItem
+        limit #{paramData.iemSize}
+    </select>
+
+    <select id="selectAiCustomEachLearningArticlesInfo" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.selectAiCustomEachLearningArticles */
+        SELECT
+            a.id as article_id,
+            a.name,
+            MAX(IF(amm.meta_name = 'studyMap1', amm.meta_id, 0)) as studyMap1,
+            MAX(IF(amm.meta_name = 'difficulty', amm.meta_id, 0)) as difficulty,
+            MAX(IF(amm.meta_name = 'evaluationArea', amm.meta_id, 0)) as evaluationArea,
+            COALESCE(GROUP_CONCAT(IF(amm.meta_name = 'evaluationArea', m.code, NULL)), '') as evaluationAreaCode,
+            MAX(IF(amm.meta_name = 'evaluationArea3', amm.meta_id, 0)) as evaluationArea3,
+            MAX(IF(amm.meta_name = 'contentsItem', amm.meta_id, 0)) as contentsItem
+        FROM aidt_lcms.article a
+                 JOIN aidt_lcms.article_meta_map amm
+                      ON a.id = amm.article_id
+                          AND amm.sub_id = 0
+                          AND amm.meta_name IN ('studyMap1', 'difficulty', 'evaluationArea', 'evaluationArea3', 'contentsItem')
+                 JOIN aidt_lcms.meta m
+                      ON amm.meta_id = m.id
+        where a.id in (<foreach collection="articles" item="id" separator=",">#{id}</foreach> )
+        group by a.id
+    </select>
+
+    <select id="findUsdAchScrCnt" parameterType="map" resultType="int">
+        /* AiLearningEngMapper.findUsdAchScrCnt */
+        select count(1) cnt
+        from (select stdt_id, cla_id from tc_cla_mb_info where cla_id = #{claId}) a and actvtn_at = 'Y'
+                 left outer join (select distinct stdt_id
+                                  from usd_ach_src2_info
+                                  where cla_id = #{claId}
+                                    and std_at = 'Y'
+                                    and usd_ach_scr <![CDATA[<>]]> 0) b on a.stdt_id = b.stdt_id
+        where b.stdt_id is null
+    </select>
+
+    <!-- 사용하지 않음 -->
+    <select id="findStntList" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findStntList */
+        select *
+        from aidt_lms.tc_cla_mb_info
+        where cla_id = #{claId}
+        and actvtn_at = 'Y'
+    </select>
+
+    <select id="findCurriUnit2List" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findCurriUnit2List */
+        SELECT val
+          FROM aidt_lcms.meta
+         WHERE id = (SELECT tmm.meta_id
+                       FROM aidt_lcms.textbookcurriculum_meta_map tmm
+                       JOIN aidt_lms.tc_textbook tt ON tmm.textbookIndex_id = tt.textbk_idx_id
+                                                   AND tt.textbk_id = #{textbkId}
+                      WHERE 1=1
+                        AND tmm.`key` = #{crculId}
+                        AND tmm.meta_name = 'studyMap2'
+                      LIMIT 1)
+    </select>
+
+    <select id="selectUsdAchId" parameterType="map" resultType="string">
+        /* AiLearningEngMapper.findCurriUnit2List */
+        select m.code
+        from aidt_lms.tc_textbook tt
+                 join aidt_lcms.textbookcurriculum_meta_map tmm
+                      on tt.textbk_idx_id = tmm.textbookIndex_id
+                          and tmm.`key` = #{crculId}
+                 join aidt_lcms.meta m
+                      on tmm.meta_id = m.id
+                          and m.name in ('contentsItem', 'evaluationArea' , 'evaluationArea3')  /* 유형1, 유형2, 유형3 */
+        where 1=1
+          AND tt.textbk_id = #{textbkId}
+          and tt.cla_id = #{claId}
+    </select>
+
+    <select id="findUsdAchScrList" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findUsdAchScrList */
+    select * from (
+        select  d.usd_ach_id as usdClsfCd, a.stdt_id, b.flnm, ifnull (round((c.usd_ach_scr/c.rflt_actv_cnt)*100,2),0) as avg_usd_ach_scr, max(c.std_at) as std_at
+        ,       (case when round((c.usd_ach_scr/c.rflt_actv_cnt)*100,2) >= 80 then '상' when round((c.usd_ach_scr/c.rflt_actv_cnt)*100,2)  >=  50 then '중' else '하' end) as avgUsdAchScrNm
+        from    aidt_lms.tc_cla_mb_info a
+            inner join aidt_lms.stdt_reg_info b on a.stdt_id = b.user_id
+           join (
+                <foreach item="item" collection="curriUnit2Val" separator=" union all ">
+                select #{item} as usd_ach_id
+                </foreach>
+            ) d
+            left join (
+                        select  a.stdt_id, a.usd_ach_id, sum(a.usd_ach_scr) as usd_ach_scr, sum(a.rflt_actv_cnt) as rflt_actv_cnt, a.std_at
+                        from    aidt_lms.usd_ach_src2_info a
+                        where   1=1
+                          and   a.std_at = 'Y'
+                          and   a.cla_id          = #{paramData.claId}
+                          and   a.textbk_id       = #{paramData.textbkId}
+                          and   a.unit_num = (
+                                select unit_num
+                                from aidt_lms.usd_ach_src2_info
+                                where 1=1
+                                    and   textbk_id = #{paramData.textbkId}
+                                    and   cla_id    = #{paramData.claId}
+                                    and   usd_tg_id = #{paramData.crculId}
+                                order by std_dt desc
+                                limit 1
+                              )
+                          and a.std_dt = (
+                                    select max(b.std_dt)
+                                    from aidt_lms.usd_ach_src2_info b
+                                    where   1=1
+                                        and   b.cla_id      = #{paramData.claId}
+                                        and   b.textbk_id   = #{paramData.textbkId}
+
+                                )
+                        group by a.stdt_id, a.usd_ach_id
+            ) c on a.stdt_id = c.stdt_id and d.usd_ach_id = c.usd_ach_id
+        where   a.cla_id =  #{paramData.claId}
+        and a.stdt_id = #{strStdtId}
+        and a.actvtn_at = 'Y'
+        group by c.usd_ach_id
+    ) aa where std_at is not null
+    </select>
+
+    <select id="findUsdAchScrListGrammarOrVocabulary" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findUsdAchScrListGrammarOrVocabulary */
+        select  a.usd_ach_id  as usdClsfCd, a.stdt_id, c.flnm
+        , ifnull (round((sum(b.usd_ach_scr)/sum(b.rflt_actv_cnt))*100,2),0) as avg_usd_ach_scr, max(a.std_at) as std_at
+         ,       (case when round((sum(b.usd_ach_scr)/sum(b.rflt_actv_cnt))*100,2) >= 80 then '상' when round((sum(b.usd_ach_scr)/sum(b.rflt_actv_cnt))*100,2)  >=  50 then '중' else '하' end) as avgUsdAchScrNm
+                from aidt_lms.usd_ach_src2_info a
+                    inner join aidt_lms.usd_ach_src2_detail b on a.id = b.usd_ach_src_id
+                 inner join aidt_lms.stdt_reg_info c on a.stdt_id = c.user_id
+                where   a.std_at        = 'Y'
+                and     a.usd_ach_id    in (
+                    <foreach item="item" collection="curriUnit2Val" separator=" , ">
+                        #{item}
+                    </foreach>
+                )
+                  and   a.cla_id        = #{paramData.claId}
+                  and   a.stdt_id       = #{strStdtId}
+                  and   a.textbk_id     = #{paramData.textbkId}
+                  and   a.unit_num      = (
+                                    select unit_num
+                                    from aidt_lms.usd_ach_src2_info
+                                    where 1=1
+                                    and   textbk_id = #{paramData.textbkId}
+                                    and   cla_id    = #{paramData.claId}
+                                    and   usd_tg_id = #{paramData.crculId}
+                                    order by std_dt desc
+                                    limit 1
+                              )
+                and a.std_dt = (
+                    select max(b.std_dt)
+                    from aidt_lms.usd_ach_src2_info b
+                    where 1=1
+                        and b.cla_id        = #{paramData.claId}
+                        and b.textbk_id     = #{paramData.textbkId}
+                )
+                    group by a.usd_ach_id
+    </select>
+
+    <select id="findUsdAchScrListAll" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findUsdAchScrListAll */
+        select
+          a.stdt_id
+              from usd_ach_src2_info a
+          where 1=1
+            and a.textbk_id = #{paramData.textbkId}
+            and a.cla_id = #{paramData.claId}
+            /* and std_at = 'Y' */
+            and a.usd_ach_id in
+                (<foreach item="item" collection="curriUnit2Val" separator=",">#{item}</foreach>)
+            and a.std_dt = (
+                select max(b.std_dt)
+                from usd_ach_src2_info b
+                where 1=1
+                  and b.textbk_id   = #{paramData.textbkId}
+                  and b.cla_id      = #{paramData.claId}
+            )
+          group by a.stdt_id
+    </select>
+
+    <select id="findUsdAchScrListAll2" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findUsdAchScrListAll2 */
+        select a.stdt_id, sum(b.usd_ach_scr) as usd_ach_scr
+        from tc_cla_mb_info a
+        left join usd_ach_src2_info b on a.stdt_id = b.stdt_id
+                                     and a.cla_id = b.cla_id
+                                     and b.textbk_id = #{paramData.textbkId}
+                                     /* and b.usd_tg_id = # {paramData.crculId} */
+                                     and b.unit_num = (
+                                         select unit_num
+                                         from aidt_lms.usd_ach_src2_info
+                                         where 1=1
+                                         and   textbk_id = #{paramData.textbkId}
+                                         and   cla_id    = #{paramData.claId}
+                                         and   usd_tg_id = #{paramData.crculId}
+                                         order by std_dt desc
+                                         limit 1
+                                     )
+                                     and b.std_at = 'Y'
+                                     and b.usd_ach_id in (<foreach item="item" collection="curriUnit2Val" separator=",">#{item}</foreach>)
+                                     and b.std_dt = (
+                                            select max(c.std_dt)
+                                            from aidt_lms.usd_ach_src2_info c
+                                            where 1=1
+                                                and c.cla_id        = #{paramData.claId}
+                                                and c.textbk_id     = #{paramData.textbkId}
+                                     )
+        where a.cla_id = #{paramData.claId}
+        and   a.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        <if test="paramData.stntIdList != null and paramData.stntIdList.size() > 0">
+            and a.stdt_id in (<foreach item="item" collection="paramData.stntIdList" separator=",">#{item.stntId}</foreach>)
+        </if>
+        group by a.stdt_id
+    </select>
+
+    <select id="findTargetWrongEvlList" parameterType="map" resultType="camelHashMap">
+        /* EvalReportMapper.findTargetWrongEvlList */
+        select
+            ei.id,
+            ei.wrter_id,
+            ei.textbook_id,
+            ei.cla_id,
+            ei.evl_nm,
+            ei.evl_se_cd,
+            DATE_FORMAT(ei.mrk_cp_dt, '%Y-%m-%d %H:%i') as pd_evl_st_dt,
+            DATE_FORMAT(DATE_ADD(ei.mrk_cp_dt, INTERVAL 7 DAY), '%Y-%m-%d %H:%i') as pd_evl_ed_dt /* 평가 종료일 7일 후 */
+        from aidt_lms.evl_info ei
+        where 	1=1
+          and   ei.id = #{evlId}
+          and   ei.evl_stts_cd = 5
+          and 	ei.prscr_std_crt_at ='N' /* 처방학습생성여부 */
+    </select>
+
+    <select id="findTargetWrongEvlListTest" parameterType="map" resultType="camelHashMap">
+        /* EvalReportMapper.findTargetWrongEvlList */
+        select
+            ei.id,
+            ei.wrter_id,
+            ei.textbook_id,
+            ei.cla_id,
+            ei.evl_nm,
+            ei.evl_se_cd,
+            DATE_FORMAT(ei.mrk_cp_dt, '%Y-%m-%d %H:%i') as pd_evl_st_dt,
+            DATE_FORMAT(DATE_ADD(ei.mrk_cp_dt, INTERVAL 7 DAY), '%Y-%m-%d %H:%i') as pd_evl_ed_dt /* 평가 종료일 7일 후 */
+        from aidt_lms.evl_info ei
+        where 	1=1
+          and   ei.id = #{evlId}
+          and   ei.evl_stts_cd = 5
+    </select>
+
+
+    <select id="findTargetEvlList" parameterType="map" resultType="map">
+        /* AiLearningEngMapper.findTargetEvlList */
+        select
+            ei.id,
+            ei.wrter_id as wrterId,
+            ei.textbook_id as textbkId,
+            ei.cla_id as claId
+        from 	aidt_lms.evl_info ei
+        join    aidt_lcms.textbook t  on t.id = ei.textbook_id and t.brand_id = 3 /* 1: 수학, 3: 영어 */
+        /* join    aidt_lcms.meta m on m.id = t.curriSubject and m.name = 'curriSubject' and m.val = '영어' */
+        where 	1=1
+        and 	ei.prscr_std_set_at ='Y' /* 처방학습 출제여부 */
+        and 	ei.prscr_std_crt_at ='N' /* 처방학습생성여부 */
+        <if test="fromDt != null and fromDt != '' ">
+            and 	ei.evl_cp_dt <![CDATA[ > ]]> DATE(#{fromDt}) /* from Dt 초과 */
+        </if>
+        <if test="fromDt == null or fromDt == '' ">
+            and 	ei.evl_cp_dt <![CDATA[ > ]]> DATE(DATE_SUB(NOW(), INTERVAL 3 DAY)) /* d-3 00시 초과 (평가완료일시 기준) */
+        </if>
+    </select>
+
+    <select id="findTargetTaskList" parameterType="map" resultType="map">
+        /* AiLearningEngMapper.findTargetTaskList */
+        select
+            ti.id,
+            ti.wrter_id as wrterId,
+            ti.textbk_id as textbkId,
+            ti.cla_id as claId
+        from 	aidt_lms.task_info ti
+        join    aidt_lcms.textbook t  on t.id = ti.textbk_id and t.brand_id = 3 /* 1: 수학, 3: 영어 */
+        /* join    aidt_lcms.meta m on m.id = t.curriSubject and m.name = 'curriSubject' and m.val = '영어' */
+        where 	1=1
+        and 	ti.prscr_std_set_at ='Y' /* 처방학습 출제여부 */
+        and 	ti.prscr_std_crt_at ='N' /* 처방학습생성여부 */
+        <if test="fromDt != null and fromDt != '' ">
+            and 	ti.task_cp_dt <![CDATA[ > ]]> DATE(#{fromDt}) /* from Dt 초과 */
+        </if>
+        <if test="fromDt == null or fromDt == '' ">
+            and 	ti.task_cp_dt <![CDATA[ > ]]> DATE(DATE_SUB(NOW(), INTERVAL 3 DAY)) /* d-3 00시 초과 (평가완료일시 기준) */
+        </if>
+    </select>
+
+    <select id="findAutoCreateAiLearningEvlStep1" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.findAutoCreateAiLearningEvlStep1 */
+        /* 평가id 에 해당하는 오답 항목을 학생별로 조회한다. */
+        select eri.mamoym_id
+             , ei.textbook_id
+             , eri.evl_id
+             , a.id                                                       as article_id
+             , amm.sub_id
+             , max(if(amm.meta_name = 'studyMap1', amm.meta_id, 0))       as studyMap1
+             , max(if(amm.meta_name = 'studyMap2', amm.meta_id, 0))       as studyMap2
+             , max(if(amm.meta_name = 'difficulty', amm.meta_id, 0))      as difficulty
+             , max(if(amm.meta_name = 'evaluationArea', amm.meta_id, 0))  as evaluationArea
+             , max(if(amm.meta_name = 'evaluationArea3', amm.meta_id, 0)) as evaluationArea3
+             , max(if(amm.meta_name = 'contentsItem', amm.meta_id, 0))    as contentsItem
+             , CONCAT_WS('_', max(if(amm.meta_name = 'studyMap1', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'difficulty', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'evaluationArea', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'evaluationArea3', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'contentsItem', amm.meta_id, 0)))    as gubun
+        from aidt_lms.evl_info ei
+                 join aidt_lms.evl_result_info eri on eri.evl_id = ei.id
+                 join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                 join aidt_lcms.article a on erd.evl_iem_id = a.id
+                 join aidt_lcms.article_meta_map amm
+                      on erd.evl_iem_id = amm.article_id
+                     and amm.sub_id = erd.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                          /* 대분류, 난이도, 유형1, 유형2, 유형3 */
+                          and amm.meta_name in ('studyMap1', 'studyMap2', 'difficulty', 'evaluationArea', 'evaluationArea3', 'contentsItem')
+        where 1 = 1
+          and eri.subm_at = 'Y'   /* 제출 여부 */
+          and eri.mrk_cp_at = 'Y' /* 채점 여부 */
+          and erd.errata = 2      /* 오답 */
+          and erd.mrk_ty = 1      /* 자동채점 */
+         and 	eri.evl_id = #{evlId} /* 평가id */
+        group by eri.mamoym_id
+               , eri.evl_id
+               , a.id
+               , erd.sub_id
+    </select>
+
+    <select id="findAutoCreateAiLearningTaskStep1" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.findAutoCreateAiLearningTaskStep1 */
+        # 과제id 에 해당하는 오답 항목을 학생별로 조회한다.
+        <![CDATA[
+        select tri.mamoym_id
+             , ti.textbk_id
+             , tri.task_id
+             , trd.task_iem_id                                                       as article_id
+             , max(if(amm.meta_name = 'studyMap1', amm.meta_id, 0))       as studyMap1
+             , max(if(amm.meta_name = 'difficulty', amm.meta_id, 0))      as difficulty
+             , max(if(amm.meta_name = 'evaluationArea', amm.meta_id, 0))  as evaluationArea
+             , max(if(amm.meta_name = 'evaluationArea3', amm.meta_id, 0)) as evaluationArea3
+             , max(if(amm.meta_name = 'contentsItem', amm.meta_id, 0))    as contentsItem
+             , CONCAT_WS('_', max(if(amm.meta_name = 'studyMap1', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'difficulty', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'evaluationArea', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'evaluationArea3', amm.meta_id, 0))
+            , max(if(amm.meta_name = 'contentsItem', amm.meta_id, 0)))    as gubun
+        from aidt_lms.task_info ti
+                 join aidt_lms.task_result_info tri on tri.task_id = ti.id
+                 join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+                 join aidt_lcms.article_meta_map amm
+                      on trd.task_iem_id = amm.article_id
+                        and trd.sub_id = amm.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                          /* 대분류, 난이도, 유형1, 유형2, 유형3 */
+                          and amm.meta_name in ('studyMap1', 'difficulty', 'evaluationArea', 'evaluationArea3', 'contentsItem')
+        where 1 = 1
+          and tri.subm_at = 'Y'   /* 제출 여부 */
+          and tri.mrk_cp_at = 'Y' /* 채점 여부 */
+          and trd.errata = 2      /* 오답 */
+          and trd.mrk_ty = 1      /* 자동채점 */
+         and 	tri.task_id = #{taskId} /* 과제id */
+        group by tri.mamoym_id
+               , tri.task_id
+               , trd.task_iem_id
+        ]]>
+    </select>
+
+    <select id="findAutoCreateAiLearningEvlStep2" parameterType="map" resultType="map">
+        /* AiLearningEngMapper.findAutoCreateAiLearningEvlStep2 */
+        /* 학생별로 학습이력을 조회한다. */
+        select tt.article_id,
+               tt.sub_id, /* META SUB_ID 추가 - CSH 20240524 */
+               tt.textbook_id,
+               ifnull(b.meta_id, 0) as studyMap1,
+               ifnull(c.meta_id, 0) as studyMap2,
+               ifnull(d.meta_id, 0) as difficulty,
+               ifnull(e.meta_id, 0) as evaluationArea,
+               ifnull(f.meta_id, 0) as evaluationArea3,
+               ifnull(g.meta_id, 0) as contentsItem,
+               CONCAT_WS('_', ifnull(b.meta_id, 0)
+                   , ifnull(d.meta_id, 0)
+                   , ifnull(e.meta_id, 0)
+                   , ifnull(f.meta_id, 0)
+                   , ifnull(g.meta_id, 0)
+               )                    as gubun,
+               a.articleCategory,
+               a.articleType,
+               tt.eak_ed_dt
+        from (select c.evl_iem_id as article_id,
+                     c.sub_id, /* META SUB_ID 추가 - CSH 20240524 */
+                     a.textbook_id,
+                     b.eak_ed_dt
+              from aidt_lms.evl_info a
+                       inner join aidt_lms.evl_result_info b
+                                  on a.id = b.evl_id
+                    and b.mamoym_id = #{mamoymId}
+                       inner join aidt_lms.evl_result_detail c
+                                  on b.id = c.evl_result_id
+                                      and (c.sub_mit_anw is not null or c.sub_mit_anw_url is not null)
+              where 1 = 1
+                    and a.cla_id = #{claId}
+                    and a.textbook_id = #{textbookId}
+              union all
+              /* 과제 */
+              select c.task_iem_id as article_id,
+                     c.sub_id, /* META SUB_ID 추가 - CSH 20240524 */
+                     a.textbk_id,
+                     b.eak_ed_dt
+              from aidt_lms.task_info a
+                       inner join aidt_lms.task_result_info b
+                                  on a.id = b.task_id
+                      and b.mamoym_id = #{mamoymId}
+                       inner join aidt_lms.task_result_detail c
+                                  on b.id = c.task_result_id
+                                      and (c.sub_mit_anw is not null or c.sub_mit_anw_url is not null)
+              where 1 = 1
+                    and a.cla_id = #{claId}
+                    and a.textbk_id = #{textbookId}
+              union all
+              /* 학습자료 */
+              select c.dta_iem_id as article_id,
+                     c.sub_id, /* META SUB_ID 추가 - CSH 20240524 */
+                     a.textbk_id,
+                     b.eak_ed_dt
+              from aidt_lms.tab_info a
+                       inner join aidt_lms.std_dta_result_info b
+                                  on a.id = b.textbk_tab_id
+                   and b.mamoym_id = #{mamoymId}
+                       inner join aidt_lms.std_dta_result_detail c
+                                  on b.id = c.dta_result_id
+                                      and (c.sub_mit_anw is not null or c.sub_mit_anw_url is not null)
+              where 1 = 1
+                    and a.cla_id = #{claId}
+                    and a.textbk_id = #{textbookId}
+              union all
+              /* 자기주도학습 */
+              select b.module_id as article_id,
+                     0 as sub_id, /* META SUB_ID 추가 - CSH 20240524 */
+                     a.textbk_id,
+                     b.std_ed_dt
+              from aidt_lms.slf_std_info a
+                       inner join aidt_lms.slf_std_result_info b
+                                  on a.id = b.std_id
+                                      and (b.sub_mit_anw is not null or b.sub_mit_anw_url is not null)
+              where 1 = 1
+                  and a.textbk_id = #{textbookId}
+                  and a.cla_id = #{claId}
+                  and a.stdt_id = #{mamoymId}
+             ) tt
+                 left join aidt_lcms.article_meta_map b
+                           on tt.article_id = b.article_id
+                                and b.sub_id = tt.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                               and b.meta_name = 'studyMap1'
+                 left join aidt_lcms.article_meta_map c
+                           on tt.article_id = c.article_id
+                                and c.sub_id = tt.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                               and c.meta_name = 'studyMap2'
+                 left join aidt_lcms.article_meta_map d
+                           on tt.article_id = d.article_id
+                                and d.sub_id = tt.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                               and d.meta_name = 'difficulty'
+                 left join aidt_lcms.article_meta_map e
+                           on tt.article_id = e.article_id
+                                and e.sub_id = tt.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                               and e.meta_name = 'evaluationArea'
+                 left join aidt_lcms.article_meta_map f
+                           on tt.article_id = f.article_id
+                                and f.sub_id = tt.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                               and f.meta_name = 'evaluationArea3'
+                 left join aidt_lcms.article_meta_map g
+                           on tt.article_id = g.article_id
+                                and g.sub_id = tt.sub_id /* META SUB_ID 추가 - CSH 20240524 */
+                               and g.meta_name = 'contentsItem'
+                 join aidt_lcms.article a
+                      on tt.article_id = a.id
+        where 1 = 1
+          and a.is_active = 1
+          and a.is_publicOpen = 1
+          <if test="studyMap1List != null and studyMap1List.size() > 0">
+            and b.meta_id in
+                <foreach collection="studyMap1List" item="studyMap1" open="(" separator="," close=")">
+                #{studyMap1}
+                </foreach>
+          </if>
+          <if test="studyMap2List != null and studyMap2List.size() > 0">
+            and c.meta_id in
+                <foreach collection="studyMap2List" item="studyMap2" open="(" separator="," close=")">
+                #{studyMap2}
+                </foreach>
+          </if>
+        order by tt.eak_ed_dt desc
+    </select>
+
+
+    <select id="findAutoCreateAiLearningEvlStep3" parameterType="map" resultType="com.visang.aidt.lms.api.learning.vo.AiArticleVO">
+        /* AiLearningEngMapper.findAutoCreateAiLearningEvlStep3 */
+        WITH article_meta AS (
+            SELECT
+                article_id,
+                meta_name,
+                meta_id
+            FROM aidt_lcms.article_meta_map
+            WHERE sub_id = 0
+              AND meta_name IN (
+                'studyMap1',
+                'difficulty',
+                'evaluationArea',
+                'evaluationArea3',
+                'contentsItem'
+              )
+            <if test="studyMap1 != null and studyMap1 > 0 ">
+                AND (article_id IN (
+                SELECT article_id
+                FROM aidt_lcms.article_meta_map
+                WHERE meta_name = 'studyMap1'
+                AND meta_id = #{studyMap1}
+                AND sub_id = 0
+                ))
+            </if>
+            <if test="studyMap2 != null and studyMap2 > 0 ">
+                AND (article_id IN (
+                SELECT article_id
+                FROM aidt_lcms.article_meta_map
+                WHERE meta_name = 'studyMap2'
+                AND meta_id = #{studyMap2}
+                AND sub_id = 0
+                ))
+            </if>
+            <if test="difficulty != null and difficulty > 0 ">
+                AND (article_id IN (
+                SELECT article_id
+                FROM aidt_lcms.article_meta_map
+                WHERE meta_name = 'difficulty'
+                AND meta_id = #{difficulty}
+                AND sub_id = 0
+                ))
+            </if>
+        )
+        SELECT
+            ab.id AS article_id,
+            MAX(IF(am.meta_name = 'studyMap1', am.meta_id, 0)) AS studyMap1,
+            MAX(IF(am.meta_name = 'difficulty', am.meta_id, 0)) AS difficulty,
+            MAX(IF(am.meta_name = 'evaluationArea', am.meta_id, 0)) AS evaluationArea,
+            MAX(IF(am.meta_name = 'evaluationArea3', am.meta_id, 0)) AS evaluationArea3,
+            MAX(IF(am.meta_name = 'contentsItem', am.meta_id, 0)) AS contentsItem,
+            CONCAT_WS('_',
+                MAX(IF(am.meta_name = 'studyMap1', am.meta_id, 0)),
+                MAX(IF(am.meta_name = 'difficulty', am.meta_id, 0)),
+                MAX(IF(am.meta_name = 'evaluationArea', am.meta_id, 0)),
+                MAX(IF(am.meta_name = 'evaluationArea3', am.meta_id, 0)),
+                MAX(IF(am.meta_name = 'contentsItem', am.meta_id, 0))
+            ) AS gubun,
+            ab.thumbnail,
+            ab.name,
+            ab.creator_ty
+        FROM aidt_lcms.article ab
+            INNER JOIN article_meta am ON ab.id = am.article_id
+        WHERE ab.articleCategory = 61
+          AND ab.articleType = 21
+          AND ab.is_publicOpen = 1
+          AND ab.is_active = 1
+          AND ab.creator_ty = 1
+            <if test = "removeIdList != null and removeIdList.size() > 0 " >
+                AND ab.id NOT IN
+                <foreach item="item" collection="removeIdList" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+            <if test="addedIdList != null and addedIdList.size() > 0 ">
+                AND ab.id NOT IN
+                <foreach item="item" collection="addedIdList" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+        GROUP BY
+            ab.id,
+            ab.thumbnail,
+            ab.name,
+            ab.creator_ty
+        HAVING gubun LIKE CONCAT(#{gubun}, '%')
+        ORDER BY RAND()
+        LIMIT 1
+    </select>
+
+    <insert id="createStdDtaResultInfoForAiCustomLearningEach" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* AiLearningEngMapper.createStdDtaResultInfoForAiCustomLearningEach */
+        insert into aidt_lms.std_dta_result_info
+            (dta_id, mamoym_id, textbk_tab_id, sets_id, eak_stts_cd, rgtr, mdfr)
+        select  #{dtaId} as dta_id
+             , tcmi.stdt_id as mamoym_id
+             , #{tabId} as textbk_tab_id
+             , #{setsId} as sets_id
+             , 1 as eak_stts_cd
+             , #{wrterId} as rgtr
+             , #{wrterId} as mdfr
+        from 	aidt_lms.tc_cla_mb_info tcmi
+        where 	1=1
+          and 	tcmi.cla_id = #{claId}
+          and   tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        <if test="stntId != null and stntId != '' ">
+          and   tcmi.stdt_id = #{stntId}
+        </if>
+    </insert>
+
+    <insert id="createStdDtaResultInfoForAiCustomLearning" parameterType="map">
+        /* AiLearningEngMapper.createStdDtaResultInfoForAiCustomLearning */
+        insert into aidt_lms.std_dta_result_info
+            (dta_id, mamoym_id, textbk_tab_id, sets_id, eak_stts_cd, rgtr, mdfr)
+        select  #{dtaId} as dta_id
+             , tcmi.stdt_id as mamoym_id
+             , #{tabId} as textbk_tab_id
+             , #{setsId} as sets_id
+             , 1 as eak_stts_cd
+             , #{wrterId} as rgtr
+             , #{wrterId} as mdfr
+        from 	aidt_lms.tc_cla_mb_info tcmi
+        where 1=1
+          and 	tcmi.cla_id = #{claId}
+          and   tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        <if test="stntIds != null and stntIds.size() > 0">
+            and tcmi.stdt_id in (<foreach item="stntId" collection="stntIds" separator=",">#{stntId}</foreach>)
+        </if>
+    </insert>
+
+    <insert id="createStdDtaResultDetailForAiCustomLearning" parameterType="map" >
+        /* AiLearningEngMapper.createStdDtaResultDetailForAiCustomLearning */
+        insert into aidt_lms.std_dta_result_detail
+            (dta_result_id, dta_iem_id, sub_id, src_detail_id, mrk_ty, eak_stts_cd, eak_at, mrk_cp_at, rgtr, mdfr)
+        select 	sdri.id as dta_result_id
+                 , ss.article_id as dta_iem_id
+                 , ss.sub_id
+                 , 0 as src_detail_id
+                 , 1 as mrk_ty
+                 , 1 as eak_stts_cd
+                 , 'N' as eak_at
+                 , 'N' as mrk_cp_at
+                 , #{wrterId} as rgtr
+                 , #{wrterId} as mdfr
+        from 	aidt_lcms.setsummary ss
+        join aidt_lms.std_dta_result_info sdri
+        where ss.set_id = #{setsId}
+          and sdri.dta_id = #{dtaId}
+          and  sdri.id in (
+            select id
+            from aidt_lms.std_dta_result_info
+            where 1 = 1
+            <if test="stntIds != null and stntIds.size() > 0">
+                and mamoym_id in (<foreach item="stntId" collection="stntIds" separator=",">#{stntId}</foreach>)
+            </if>
+            and dta_id = #{dtaId}
+            and textbk_tab_id = #{tabId}
+            and sets_id = #{setsId}
+            and rgtr = #{wrterId}
+            and mdfr = #{wrterId}
+            )
+        group by sdri.id, ss.article_id, ss.sub_id
+        order by sdri.id, ss.id
+    </insert>
+
+    <insert id="createTaskResultInfoForAiCustomLearningEach" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* AiLearningEngMapper.createTaskResultInfoForAiCustomLearningEach */
+        insert into aidt_lms.task_result_info
+            (task_id, mamoym_id, sets_id, eak_stts_cd, mrk_cp_at, rgtr, mdfr)
+        select  #{taskId} as task_id
+             , tcmi.stdt_id as mamoym_id
+             , #{setsId} as sets_id
+             , 1 as eak_stts_cd
+             , 'N' as mrk_cp_at
+             , #{wrterId} as rgtr
+             , #{wrterId} as mdfr
+        from 	aidt_lms.tc_cla_mb_info tcmi
+        where 1=1
+          and 	tcmi.cla_id = #{claId}
+          and   tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        <if test="stntId != null and stntId != '' ">
+          and   tcmi.stdt_id = #{stntId}
+        </if>
+    </insert>
+
+    <insert id="createTaskResultInfoForAiCustomLearning" parameterType="map">
+        /* AiLearningEngMapper.createTaskResultInfoForAiCustomLearning */
+        insert into aidt_lms.task_result_info
+            (task_id, mamoym_id, sets_id, eak_stts_cd, mrk_cp_at, rgtr, mdfr)
+        select  #{taskId} as task_id
+             , tcmi.stdt_id as mamoym_id
+             , #{setsId} as sets_id
+             , 1 as eak_stts_cd
+             , 'N' as mrk_cp_at
+             , #{wrterId} as rgtr
+             , #{wrterId} as mdfr
+        from 	aidt_lms.tc_cla_mb_info tcmi
+        where 1=1
+          and 	tcmi.cla_id = #{claId}
+          and   tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        <if test="stntIds != null and stntIds.size() > 0">
+            and tcmi.stdt_id in (<foreach item="stntId" collection="stntIds" separator=",">#{stntId}</foreach>)
+        </if>
+          <if test="targetStntList != null and targetStntList.size() > 0">
+            and tcmi.stdt_id in (<foreach item="item" collection="targetStntList" separator=",">#{item.stntId}</foreach>)
+          </if>
+    </insert>
+
+    <insert id="createTaskResultDetailForAiCustomLearning" parameterType="map">
+        /* AiLearningMapper.createTaskResultDetailForAiCustomLearning */
+        insert into aidt_lms.task_result_detail
+            (task_result_id, task_iem_id, sub_id, mrk_ty, eak_stts_cd, rgtr, mdfr)
+        select 	tri.id as task_result_id
+             ,ss.article_id as task_iem_id
+             , ss.sub_id
+             , 1 as mrk_ty
+             , 1 as eak_stts_cd
+             , #{wrterId} as rgtr
+             , #{wrterId} as mdfr
+        from 	aidt_lcms.setsummary ss
+        join aidt_lms.task_result_info tri
+        where 	ss.set_id = #{setsId}
+          and 	tri.task_id = #{taskId}
+        <if test="id != null and id != '' ">
+          and   tri.id = #{id}
+        </if>
+        <if test="stntIds != null and stntIds.size() > 0">
+            and mamoym_id in (<foreach item="stntId" collection="stntIds" separator=",">#{stntId}</foreach>)
+        </if>
+        group by tri.id, ss.article_id, ss.sub_id
+        order by tri.id, ss.id
+    </insert>
+
+    <select id="findCurriculumMap" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findCurriculumMap */
+        select
+            *
+        from
+            aidt_lms.tc_curriculum
+        where
+            1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbkId}
+          and `key` = #{crculId}
+        limit 1
+    </select>
+
+    <select id="getEamScp" parameterType="map" resultType="string">
+        /* AiLearningMapper.getStudyMapNm */
+        select
+            group_concat(distinct d.id) as meta_id /* 출제범위 */
+        from
+            aidt_lms.tc_curriculum a
+            inner join aidt_lcms.textbook b
+                on a.textbk_id = b.id
+            inner join aidt_lcms.textbookcurriculum_meta_map c
+                on b.textbookIndex_id = c.textbookIndex_id
+                    and c.`key` = a.`key`
+                    /* 대/중/소/지식요인 */
+                    and c.meta_name in ('studyMap1','studyMap2','studyMap3','studyMap_1')
+            inner join aidt_lcms.meta d
+                on c.meta_id = d.id and d.is_active = 1
+        where
+            1=1
+            and a.cla_id = #{claId}
+            and a.textbk_id = #{textbkId}
+            and a.`key` = #{crculId} /* 수업중인 커리큘럼 ID */
+    </select>
+
+    <select id="findAiCustomLrnCreateEngTargetList" parameterType="map" resultType="camelHashMap">
+        /* AiLearningEngMapper.findAiCustomLrnCreateEngTargetList */
+         select a.stdt_id
+             , sum(b.usd_ach_scr) as usd_ach_scr
+             , u.flnm
+             , inCnt.cnt
+             , (case when b.stdt_id IS NULL then 'no_data'
+                     when round((sum(b.usd_ach_scr)/sum(b.rflt_actv_cnt))*100,2) >= 80 then 'gd'
+                     when round((sum(b.usd_ach_scr)/sum(b.rflt_actv_cnt))*100,2) >= 50 then 'av'
+                     else 'lw' end) AS lev
+        from tc_cla_mb_info a
+        left join user u on a.stdt_id = u.user_id
+        left join usd_ach_src2_info b on a.stdt_id = b.stdt_id
+                                     and a.cla_id = b.cla_id
+                                     and b.textbk_id = #{textbkId}
+                                     and b.unit_num = (
+                                         select unit_num
+                                         from aidt_lms.usd_ach_src2_info
+                                         where 1=1
+                                         and   textbk_id = #{textbkId}
+                                         and   cla_id    = #{claId}
+                                         and   usd_tg_id = #{crculId}
+                                         order by std_dt desc
+                                         limit 1
+                                     )
+                                     and b.std_at = 'Y'
+                                     and b.usd_ach_id in (<foreach item="item" collection="curriUnit2Val" separator=",">#{item}</foreach>)
+                                     and b.std_dt = (
+                                            select max(c.std_dt)
+                                            from aidt_lms.usd_ach_src2_info c
+                                            where 1=1
+                                                and c.cla_id        = #{claId}
+                                                and c.textbk_id     = #{textbkId}
+                                     )
+        left join (select a.mamoym_id, count(1) cnt from
+                        (SELECT sdri.mamoym_id
+                         FROM aidt_lms.tab_info ti
+                                  JOIN aidt_lms.ai_cstmzd_std_set_info acssi ON ti.id = acssi.tab_id
+                                  JOIN aidt_lms.std_dta_result_info sdri ON acssi.tab_id = sdri.textbk_tab_id
+                         WHERE 1=1
+                           AND ti.cla_id = #{claId}
+                           AND ti.textbk_id = #{textbkId}
+                           AND ti.crcul_id = #{crculId}
+                           AND ti.ai_cstmzd_std_crt_at = 'Y'
+                           AND acssi.ai_cstmzd_std_mthd_se_cd = 1
+                         UNION ALL
+                         SELECT tri.mamoym_id
+                         FROM aidt_lms.tab_info ti
+                                  JOIN aidt_lms.ai_cstmzd_std_set_info acssi ON ti.id = acssi.tab_id
+                                  JOIN aidt_lms.task_info tai ON acssi.task_id = tai.id
+                                  JOIN aidt_lms.task_result_info tri ON tai.id = tri.task_id
+                         WHERE 1=1
+                           AND ti.cla_id = #{claId}
+                           AND ti.textbk_id = #{textbkId}
+                           AND ti.crcul_id = #{crculId}
+                           AND ti.ai_cstmzd_std_crt_at = 'Y'
+                           AND acssi.ai_cstmzd_std_mthd_se_cd = 2) a
+                        group by a.mamoym_id) inCnt on a.stdt_id = inCnt.mamoym_id
+        LEFT JOIN aidt_lms.stdt_reg_info sri ON a.stdt_id = sri.user_id
+        where a.cla_id = #{claId}
+        and   a.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+        group by a.stdt_id
+        ORDER BY sri.num
+    </select>
+
+    <select id="findTabNmForAiCustomLearning" parameterType="map" resultType="string">
+        select
+            ti.tab_nm,
+            ti.id
+        from aidt_lms.tab_info ti
+        where ti.id = #{tabId}
+    </select>
+
+    <insert id="createTabInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* AiLearningMapper.createTabInfo */
+        INSERT INTO aidt_lms.tab_info
+        (wrter_id
+        ,smte_cd
+        ,cla_id
+        ,textbk_id
+        ,crcul_id
+        ,tab_nm
+        ,tab_seq
+        ,sets_id
+        ,use_at
+        ,expos_at
+        ,tab_add_at
+        ,ai_cstmzd_std_crt_at
+        ,setCategory
+        ,ebk_id
+        ,ebk_use_at
+        ,startPage
+        ,endPage
+        ,thm_cd
+        ,thm_path
+        ,thm_desc
+        ,rgtr
+        ,reg_dt
+        ,mdfr
+        ,mdfy_dt)
+        select
+        wrter_id
+        ,smte_cd
+        ,cla_id
+        ,textbk_id
+        ,crcul_id
+        , (SELECT CONCAT('AI 맞춤 학습(', COUNT(1) + 1, ')')
+             FROM aidt_lms.tab_info ti
+            WHERE 1=1
+              AND ti.cla_id = #{claId}
+              AND ti.textbk_id = #{textbkId}
+              AND ti.crcul_id = #{crculId}
+              AND tab_nm like 'AI 맞춤 학습%')
+        , (select ifnull(max(ti.tab_seq), 0) + 1 as tab_seq
+             from aidt_lms.tab_info ti
+            where 1=1
+              and ti.cla_id = #{claId}
+              and ti.textbk_id = #{textbkId}
+              and ti.crcul_id = #{crculId} )
+        ,null   /* sets_id */
+        ,use_at
+        ,expos_at
+        ,tab_add_at
+        ,'Y'    /* ai_cstmzd_std_crt_at */
+        ,setCategory
+        ,ebk_id
+        ,ebk_use_at
+        ,startPage
+        ,endPage
+        ,thm_cd
+        ,thm_path
+        ,thm_desc
+        ,#{wrterId}
+        ,now()
+        ,#{wrterId}
+        ,now()
+        FROM aidt_lms.tab_info ti
+       WHERE 1=1
+         AND ti.cla_id = #{claId}
+         AND ti.textbk_id = #{textbkId}
+         AND ti.crcul_id = #{crculId}
+         AND tab_nm = 'AI 맞춤 학습'
+        limit 1
+    </insert>
+
+</mapper>

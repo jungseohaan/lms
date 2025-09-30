@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.integration.mapper.IntegTextbkMapper">
+
+    <select id="listTextbkInfo" parameterType="map" resultType="camelHashMap" >
+        SELECT tb.id AS textbk_id
+             , tb.textbookIndex_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+             , m1.code AS curriYear
+             , m2.code AS curriSchool
+             , m3.code AS curriSubject
+             , m4.code AS curriGrade
+             , m5.code AS curriSemester
+             , tb.brand_id AS brandId
+             , m6.code AS curriBook
+             , m6.val AS curriBookNm
+        FROM aidt_lcms.deploy_textbook tb
+        LEFT JOIN (
+            SELECT t.id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+                 , t.curriBook
+            FROM aidt_lcms.textbook t
+            LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on tb.id = t2.id
+        LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+        LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+        LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+        LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+        LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        LEFT JOIN aidt_lcms.meta m6 ON t2.curriBook = m6.id
+        WHERE 1=1
+        <if test="curriYear != null and curriYear != '' ">
+            AND m1.code = #{curriYear}
+        </if>
+        <if test="curriSchool != null and curriSchool != '' ">
+            AND m2.code = #{curriSchool}
+        </if>
+        <if test="curriSubject != null and curriSubject != '' ">
+            AND m3.code = #{curriSubject}
+        </if>
+        <if test="curriGrade != null and curriGrade != '' ">
+            AND m4.code = #{curriGrade}
+        </if>
+        <if test="curriSemester != null and curriSemester != '' ">
+            AND m5.code = #{curriSemester}
+        </if>
+        <if test="brandId != null and brandId != '' ">
+            AND tb.brand_id = #{brandId}
+        </if>
+        <if test="curriBook != null and curriBook != '' ">
+            AND m6.code = #{curriBook}
+        </if>
+    </select>
+
+    <select id="getTextbkInfo" parameterType="map" resultType="camelHashMap" >
+        SELECT tb.id AS textbk_id
+        , tb.textbookIndex_id AS textbk_idx_id
+        , tb.name AS textbk_nm
+        , m1.code AS curriYear
+        , m2.code AS curriSchool
+        , m3.code AS curriSubject
+        , m4.code AS curriGrade
+        , m5.code AS curriSemester
+        , tb.brand_id AS brandId
+        FROM aidt_lcms.deploy_textbook tb
+        LEFT JOIN (
+            SELECT t.id
+            , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+            , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+            , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+            , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+            , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+            FROM aidt_lcms.textbook t
+            LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on tb.id = t2.id
+        LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+        LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+        LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+        LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+        LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        WHERE 1=1
+          AND tb.id = #{textbkId}
+    </select>
+
+    <select id="listTextbkCrcuListByMeta" parameterType="map" resultType="camelHashMap" >
+        select
+        *
+        from (
+            with recursive curriculum as (
+                select
+                    b.id,
+                    b.parent_id,
+                    b.`code`,
+                    b.name,
+                    b.val,
+                    cast(b.id as char(1000) character set utf8) as pk_path,
+                    cast(b.`code` as char(1000) character set utf8) as id_path,
+                    cast(b.val as char(1000) character set utf8) as id_path_nm,
+                    (b.depth -1) as depth,
+                    #{textbkId} AS textbkId
+                from aidt_lcms.meta a
+                inner join aidt_lcms.meta b on a.`code` = b.description and b.is_active = 1 and b.name = 'studyMap1'
+                inner join aidt_lcms.meta c on c.id = b.parent_id and c.is_active = 1
+                where 1=1
+                and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                and a.is_active = 1
+
+                union all
+
+                select
+                    b.id,
+                    b.parent_id,
+                    b.`code`,
+                    b.name,
+                    b.val,
+                    concat(c.pk_path, ',', b.id) as pk_path,
+                    concat(c.id_path, ' > ', b.`code`) as id_path,
+                    concat(c.id_path_nm, ' > ', b.val) as id_path_nm,
+                    1 + c.depth as depth,
+                    #{textbkId} AS textbkId
+                from aidt_lcms.meta b
+                inner join curriculum c on c.id = b.parent_id and b.is_active = 1
+                where 1=1
+                and b.name <![CDATA[<>]]> 'studyMap_2'
+            )
+            select
+                id,
+                parent_id,
+                `code`,
+                row_number() over () as `order`,
+                name,
+                val,
+                SUBSTRING_INDEX(pk_path,',',1) as meta_id, /* 대단원 ID */
+                pk_path,
+                id_path,
+                id_path_nm,
+                depth,
+                textbkId,
+                <choose>
+                    <when test="curriSubject == 'english' ">
+                        case
+                        /* 공통 */
+                        /* 중등영어 */
+                        when id_path_nm = 'Vocabulary' then 'N'
+                        when id_path_nm = 'Grammar' then 'N'
+                        else 'Y'
+                        end as displayYn
+                    </when>
+                    <otherwise>
+                        'Y' as displayYn
+                    </otherwise>
+                </choose>
+            from curriculum
+            /* 영어인 경우 */
+            <if test="curriSubject == 'english'"> where depth <![CDATA[<=]]> 2 </if>
+            order by id_path
+        ) A
+        where 1=1
+    </select>
+</mapper>

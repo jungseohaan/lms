@@ -1,0 +1,747 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.report.mapper.HomewkReportMapper">
+
+    <!-- 교사) 과제 리포트 요약 -->
+    <select id="findTaskReportSummary" parameterType="map" resultType="camelHashMap">
+        /* HomewkReportMapper.findTaskReportSummary */
+        SELECT
+            ti.id  AS taskId,
+            ti.task_nm,
+            COUNT(DISTINCT trd.task_iem_id, trd.sub_id) as eamExmNum, /* 총 문항 수 */
+            DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d %H:%i:%s') as task_prg_dt, /* 과제 시작 일시 */
+            DATE_FORMAT(ti.task_cp_dt, '%Y-%m-%d %H:%i:%s') as task_cp_dt, /* 과제 종료 일시 */
+            DATEDIFF(ti.task_cp_dt, CURRENT_DATE) as deadline, /* 디데이 */
+            ti.tim_st_at,
+            ti.tim_time,
+            (SELECT ifnull(TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(SECOND, tri3.eak_st_dt, tri3.subm_dt)))), '%H:%i:%s'), 0)
+             FROM aidt_lms.task_result_info tri3
+             WHERE tri3.task_id = ti.id
+               AND tri3.subm_at = 'Y'
+            ) AS avgSolvingTime, /* 평균 풀이시간 */
+            (
+                SELECT
+                    ROUND(
+                        COUNT(CASE WHEN tri2.subm_at = 'Y' THEN 1 END) * 100.0 / COUNT(*),
+                        0
+                    )
+                FROM aidt_lms.task_result_info tri2
+                WHERE tri2.task_id = ti.id
+            ) as submissionRate, /* 제출률 */
+            (
+                SELECT COUNT(*)
+                FROM aidt_lms.task_result_info tri2
+                WHERE tri2.task_id = ti.id
+            ) as totalStudents, /* 총 학생수 */
+            (
+                SELECT COUNT(*)
+                FROM aidt_lms.task_result_info tri2
+                WHERE tri2.task_id = ti.id
+                AND tri2.subm_at = 'Y'
+            ) as submittedStudents /* 제출한 학생 수 */
+        FROM aidt_lms.task_info ti
+        INNER JOIN aidt_lms.task_result_info tri
+            ON ti.id = tri.task_id
+        INNER JOIN aidt_lms.task_result_detail trd
+            ON tri.id = trd.task_result_id
+        WHERE 1=1
+            AND ti.id = #{taskId}
+            GROUP BY ti.id
+    </select>
+
+    <!-- 학생) 과제 리포트 요약 -->
+    <select id="findStntTaskReportSummary" parameterType="map" resultType="camelHashMap">
+        /* HomewkReportMapper.findStntTaskReportSummary */
+        SELECT
+            COUNT(DISTINCT trd.task_iem_id,sub_id) as eamExmNum
+             , ti.task_prg_dt /* 과제 시작 일시 */
+             , ti.task_cp_dt /* 과제 종료 일시 */
+             , DATEDIFF(ti.task_cp_dt, CURRENT_DATE) as deadline /* 디데이 */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(SECOND, tri.eak_st_dt, tri.subm_dt))), '%H:%i:%s') AS solvingTime /* 과제 풀이시간 */
+             , ROUND(
+                 SUM(CASE
+                    WHEN IFNULL(IF(tsmi_info.md_rflt_at = 'N', trd.errata, tsmi_info.errata), trd.errata) = 1 THEN 1
+                    WHEN IFNULL(IF(tsmi_info.md_rflt_at = 'N', trd.errata, tsmi_info.errata), trd.errata) = 3 THEN 0.5
+                    ELSE 0 END)
+                    /
+                    sum(CASE WHEN aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) in (1,2,3) AND tri.subm_at = 'Y' THEN 1 ELSE 0 END)
+                * 100, 2
+               ) AS avgCorrectRate /* 정답률 */
+             , tri.subm_at /* 학생 제출 여부 */
+             , DATE_FORMAT(tri.subm_dt , '%Y-%m-%d %H:%i:%s') as subm_dt /* 학생의 제출 시간 */
+             , ti.tim_time /* 주어진 타이머 */
+        FROM aidt_lms.task_result_detail trd
+            INNER JOIN aidt_lms.task_result_info tri
+                ON trd.task_result_id = tri.id
+            INNER JOIN aidt_lms.task_info ti
+                ON tri.task_id = ti.id
+            LEFT JOIN (
+                    SELECT tsmi.task_result_detail_id, tsmi.md_rflt_at, tsmi.errata
+                    FROM aidt_lms.task_scr_md_info tsmi
+                    WHERE tsmi.md_rflt_at = 'N'
+                ) tsmi_info
+              ON tsmi_info.task_result_detail_id = trd.id
+        WHERE 1=1
+            AND ti.id = #{taskId}
+            AND tri.mamoym_id = #{stntId}
+    </select>
+
+    <!-- 교사) 리포트 요약 > 과제 평균 정답률 -->
+    <select id="findAvgCorrectRateInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findAvgCorrectRateInfo */
+        SELECT
+            IFNULL(
+                ROUND(
+                    SUM(CASE aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                        WHEN 1 THEN 1
+                        WHEN 2 THEN 0
+                        WHEN 3 THEN 0.5
+                        END)
+                        / SUM(CASE WHEN aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) in (1,2,3) AND tri.subm_at = 'Y' THEN 1 ELSE 0 END)
+                    * 100, 0)
+            , 0)AS avgCorrectRate
+        FROM aidt_lms.task_result_info tri
+            INNER JOIN aidt_lms.task_result_detail trd ON trd.task_result_id = tri.id
+        WHERE tri.task_id = #{taskId}
+    </select>
+
+    <!-- 과제 미제출 학생 목록 조회 -->
+    <select id="findUnsubmittedStudentsByTaskId" parameterType="map" resultType="camelHashMap">
+        /* HomewkReportMapper.findUnsubmittedStudentsByTaskId */
+        SELECT tri.mamoym_id, u.flnm
+        FROM aidt_lms.task_info ti
+        INNER JOIN aidt_lms.task_result_info tri
+            ON ti.id = tri.task_id
+        INNER JOIN aidt_lms.`user` u
+            ON tri.mamoym_id = u.user_id
+        WHERE 1=1
+            AND ti.id = #{taskId}
+            AND tri.subm_at = 'N'
+    </select>
+
+    <!-- 교사용 과제 리포트 목록 조회 -->
+    <select id="findHomewkListForTeacher" parameterType="pagingParam" resultType="camelHashMap">
+        /* HomewkReportMapper.findHomewkListForTeacher */
+        SELECT COUNT(*) OVER () AS fullCount
+            , ti.id
+            , ti.task_nm
+            , CASE
+                WHEN (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth') = '처방 학습'
+                    THEN 'AI 처방 과제'
+                ELSE (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth')
+                END as eam_mth /* 출제방법 */
+            , CASE
+                WHEN ti.eam_mth IN (2, 3, 6, 7)
+                    THEN 'general'
+                WHEN ti.eam_mth = 8
+                    THEN 'groupTask'
+                WHEN ti.eam_mth = 5
+                    THEN 'aiCustom'
+                WHEN ti.eam_mth = 4
+                    THEN 'aiPrescription'
+            END AS taskDetailDivision /* 출제상세구분 */
+            , ti.tmpr_strg_at /* 임시저장 여부 */
+            , ti.task_stts_cd /* 과제상태 */
+            , CASE
+                WHEN ti.task_stts_cd = 2
+                    THEN aidt_lms.F_CODE_NM('task_stts_cd', ti.task_stts_cd)
+                WHEN (
+                    SELECT IF(COUNT(1) = SUM(IF(trd.mrk_ty = 3, 1, 0) = 1), 'T', 'F')
+                    FROM aidt_lms.task_result_info tri
+                    JOIN aidt_lms.task_result_detail trd
+                        ON tri.id = trd.task_result_id
+                    WHERE tri.task_id = ti.id
+                    GROUP BY tri.task_id
+                ) = 'F'
+                THEN (
+                    SELECT
+                        CASE
+                            WHEN COUNT(CASE WHEN tri2.eak_stts_cd != 5 THEN 1 END) > 0
+                            THEN '채점 필요'
+                            ELSE '채점 완료'
+                        END
+                    FROM aidt_lms.task_result_info tri2
+                    WHERE tri2.task_id = ti.id
+                )
+                ELSE '채점 불필요'
+            END AS taskSttsNm
+            , DATE_FORMAT(ti.task_prg_dt, "%Y-%m-%d") AS task_prg_dt
+            , DATE_FORMAT(ti.task_cp_dt, "%Y-%m-%d") AS task_cp_dt
+            , CASE
+                WHEN ti.tmpr_strg_at = 'Y'
+                THEN DATE_FORMAT(ti.reg_dt, "%Y-%m-%d")
+                ELSE NULL
+            END AS reg_dt
+            , COALESCE(
+                (SELECT COUNT(1)
+                FROM aidt_lms.task_result_info tri3
+                WHERE tri3.task_id = ti.id
+                GROUP BY tri3.task_id), 0
+            ) AS target_cnt
+            , COALESCE(
+                (SELECT COUNT(1)
+                FROM aidt_lms.task_result_info tri4
+                WHERE tri4.task_id = ti.id AND tri4.subm_at = 'Y'
+                GROUP BY tri4.task_id), 0
+            ) AS submit_cnt
+            , ti.sets_id
+            , ( SELECT MAX(tch_rpt_chk_at)
+                  FROM aidt_lms.task_result_info tri2
+                 WHERE tri2.task_id = ti.id ) AS tch_rpt_chk_at /* 교사 리포트 확인 여부 */
+            , #{param.taskDivision} AS taskDivision
+         FROM aidt_lms.task_info ti
+        WHERE 1=1
+        AND ti.cla_id = #{param.claId}
+        AND ti.textbk_id = #{param.textbookId}
+        AND ti.tmpr_strg_at = 'N'
+        <choose>
+            <when test="param.reportStatusType == 'ing'">
+                and ti.task_stts_cd = 2
+            </when>
+            <when test="param.reportStatusType == 'end'">
+                and ti.task_stts_cd >= 3
+            </when>
+        </choose>
+        <choose>
+            <when test="param.taskDivision == 'all'">
+                AND ti.eam_mth in (2, 3, 4, 5, 6, 7, 8)
+            </when>
+            <when test="param.taskDivision == 'aiCustom'">
+                AND ti.eam_mth = 5
+            </when>
+            <when test="param.taskDivision == 'aiPrescription'">
+                AND ti.eam_mth = 4
+            </when>
+            <when test="param.taskDivision == 'general'">
+                AND ti.eam_mth in (2, 3, 6, 7)
+            </when>
+            <when test="param.taskDivision == 'groupTask'">
+                AND ti.eam_mth = 8
+            </when>
+        </choose>
+        GROUP BY ti.id
+        <choose>
+            <when test="param.reportStatusType == 'ing'">
+                ORDER BY ti.task_prg_dt DESC, ti.id DESC
+            </when>
+            <when test="param.reportStatusType == 'end'">
+                ORDER BY ti.task_cp_dt DESC, ti.id DESC
+            </when>
+        </choose>
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <!-- 학생용 과제 리포트 목록 조회 -->
+    <select id="findHomewkListForStudent" parameterType="pagingParam" resultType="camelHashMap">
+        /* HomewkReportMapper.findHomewkListForStudent */
+        SELECT COUNT(*) OVER () AS fullCount
+            , ti.id
+            , ti.task_nm
+            , CASE
+                WHEN (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth') = '처방 학습'
+                    THEN 'AI 처방 과제'
+                ELSE (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth')
+                END as eam_mth /* 출제방법 */
+            , CASE
+                WHEN ti.eam_mth IN (2, 3, 6, 7)
+                    THEN 'general'
+                WHEN ti.eam_mth = 8
+                    THEN 'groupTask'
+                WHEN ti.eam_mth = 5
+                    THEN 'aiCustom'
+                WHEN ti.eam_mth = 4
+                    THEN 'aiPrescription'
+            END AS taskDetailDivision /* 출제상세구분 */
+            , ti.tmpr_strg_at /* 임시저장 여부 */
+            , ti.task_stts_cd /* 과제상태 */
+            , CASE
+                WHEN ti.task_stts_cd = 2
+                    THEN aidt_lms.F_CODE_NM('task_stts_cd', ti.task_stts_cd)
+                WHEN (
+                    SELECT IF(COUNT(1) = SUM(IF(trd.mrk_ty = 3, 1, 0) = 1), 'T', 'F')
+                    FROM aidt_lms.task_result_info tri
+                    JOIN aidt_lms.task_result_detail trd
+                        ON tri.id = trd.task_result_id
+                    WHERE tri.task_id = ti.id
+                    GROUP BY tri.task_id
+                ) = 'F'
+                THEN (
+                    SELECT
+                        CASE
+                            WHEN COUNT(CASE WHEN tri2.eak_stts_cd != 5 THEN 1 END) > 0
+                            THEN '채점 필요'
+                            ELSE '채점 완료'
+                        END
+                    FROM aidt_lms.task_result_info tri2
+                    WHERE tri2.task_id = ti.id
+                )
+                ELSE '채점 불필요'
+            END AS taskSttsNm
+            , DATE_FORMAT(ti.task_prg_dt, "%Y-%m-%d") AS task_prg_dt
+            , DATE_FORMAT(ti.task_cp_dt, "%Y-%m-%d") AS task_cp_dt
+            , CASE
+                WHEN ti.tmpr_strg_at = 'Y'
+                THEN DATE_FORMAT(ti.reg_dt, "%Y-%m-%d")
+                ELSE NULL
+            END AS reg_dt
+            , COALESCE(
+                (SELECT COUNT(1)
+                   FROM aidt_lms.task_result_info tri3
+                   LEFT JOIN aidt_lms.tc_cla_mb_info tcmi
+                          ON tcmi.stdt_id = tri3.mamoym_id AND tcmi.cla_id = ti.cla_id and actvtn_at = 'Y'
+                  WHERE tri3.task_id = ti.id
+                    AND (tcmi.reg_dt IS NULL OR tcmi.reg_dt <![CDATA[<=]]> COALESCE(ti.task_cp_dt, ti.task_prg_dt))
+                GROUP BY tri3.task_id), 0) AS target_cnt
+            , COALESCE(
+                (SELECT COUNT(1)
+                FROM aidt_lms.task_result_info tri4
+                WHERE tri4.task_id = ti.id AND tri4.subm_at = 'Y'
+                GROUP BY tri4.task_id), 0
+            ) AS submit_cnt
+            , ti.sets_id
+            , tri.tch_rpt_chk_at /* 교사 리포트 확인 여부 */
+            , #{param.taskDivision} AS taskDivision
+        FROM aidt_lms.task_info ti
+        INNER JOIN aidt_lms.task_result_info tri
+            ON ti.id = tri.task_id
+        WHERE 1=1
+        AND ti.cla_id = #{param.claId}
+        AND ti.textbk_id = #{param.textbookId}
+        AND ti.tmpr_strg_at = 'N'
+        AND tri.mamoym_id = #{param.stntId}
+        AND (ti.rpt_othbc_at = 'Y' or ti.rpt_auto_othbc_at = 'Y')
+        <choose>
+            <when test="param.reportStatusType == 'ing'">
+                and ti.task_stts_cd = 2
+            </when>
+            <when test="param.reportStatusType == 'end'">
+                and ti.task_stts_cd >= 3
+            </when>
+        </choose>
+        <choose>
+            <when test="param.taskDivision == 'all'">
+                AND ti.eam_mth in (2, 3, 4, 5, 6, 7, 8)
+            </when>
+            <when test="param.taskDivision == 'aiCustom'">
+                AND ti.eam_mth = 5
+            </when>
+            <when test="param.taskDivision == 'aiPrescription'">
+                AND ti.eam_mth = 4
+            </when>
+            <when test="param.taskDivision == 'general'">
+                AND ti.eam_mth in (2, 3, 6, 7)
+            </when>
+            <when test="param.taskDivision == 'groupTask'">
+                AND ti.eam_mth = 8
+            </when>
+        </choose>
+        GROUP BY ti.id
+        <choose>
+            <when test="param.reportStatusType == 'ing'">
+                ORDER BY ti.task_prg_dt DESC, ti.id DESC
+            </when>
+            <when test="param.reportStatusType == 'end'">
+                ORDER BY ti.task_cp_dt DESC, ti.id DESC
+            </when>
+        </choose>
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <!-- 우리반 과제 채점 결과표 헤더 (모듈별 반평균 풀이시간,정답률) -->
+    <select id="findScoringClassResultIemInfoHeader" parameterType="pagingParam" resultType="camelHashMap">
+        /* HomewkReportMapper.findScoringClassResultIemInfoHeader */
+        SELECT
+            COUNT(*) OVER () AS fullCount,
+            trd.task_iem_id,
+            trd.sub_id,
+            IFNULL(ROUND(SUM(CASE
+                                <choose>
+                                    <when test="param.tchId != null and param.tchId !=''">
+                                        aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                                    </when>
+                                    <otherwise>
+                                        trd.errata
+                                    </otherwise>
+                                </choose> WHEN 1 THEN 1 WHEN 2 THEN 0 WHEN 3 THEN 0.5 END)
+                      / COUNT(CASE WHEN tri.subm_at = 'Y' AND
+                                    <choose>
+                                        <when test="param.tchId != null and param.tchId !=''">
+                                            aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                                        </when>
+                                        <otherwise>
+                                            trd.errata
+                                        </otherwise>
+                                    </choose> != 4 THEN trd.id END) * 100, 0),0) AS avgCorrectRate, /* 반평균 정답률 */
+            CASE
+                WHEN (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) = 20
+                    OR ((SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) = 22 AND trd.eak_stts_cd != 5)
+                THEN '00:00'
+                ELSE 
+                    CASE 
+                        WHEN TIME_FORMAT(
+                            SEC_TO_TIME(
+                                AVG(IF(trd.eak_at = 'Y', TIMESTAMPDIFF(SECOND, trd.eak_st_dt, trd.eak_ed_dt), NULL))
+                            ),'%H') > 0 
+                        THEN 
+                            TIME_FORMAT(
+                                SEC_TO_TIME(
+                                    AVG(IF(trd.eak_at = 'Y', TIMESTAMPDIFF(SECOND, trd.eak_st_dt, trd.eak_ed_dt), NULL))
+                                ),'%H:%i:%s'
+                            )
+                        ELSE 
+                            TIME_FORMAT(
+                                SEC_TO_TIME(
+                                    AVG(IF(trd.eak_at = 'Y', TIMESTAMPDIFF(SECOND, trd.eak_st_dt, trd.eak_ed_dt), NULL))
+                                ),'%i:%s'
+                            )
+                    END
+            END AS classAvgSolvingTime /* 반평균 풀이시간 */
+        FROM aidt_lms.task_result_info tri
+        INNER JOIN aidt_lms.task_result_detail trd
+            ON trd.task_result_id = tri.id
+        WHERE 1=1
+            AND tri.task_id = #{param.taskId}
+        <if test="param.submAt != null and param.submAt != '' ">
+            AND tri.subm_at = #{param.submAt}
+        </if>
+        GROUP BY trd.task_iem_id, sub_id
+        ORDER BY trd.id
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+
+    <select id="findReportHomewkResultList_stntTaskErrataInfList" parameterType="map" resultType="camelHashMap" >
+        /* HomewkReportMapper.findReportHomewkResultList_stntTaskErrataInfList */
+        select tri.mamoym_id as user_id /* 학생id */
+             , tri.subm_at
+             , sri.flnm /* 학생명 */
+             , sum(case
+                    when
+                    <choose>
+                        <when test="tchId != null and tchId !=''">
+                            aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                        </when>
+                        <otherwise>
+                            trd.errata
+                        </otherwise>
+                    </choose> = 1 and trd.mrk_ty != 3 then 1 else 0
+                    end) as anwNum /* 정답수 */
+             , sum(case
+                    when
+                    <choose>
+                        <when test="tchId != null and tchId !=''">
+                            aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                        </when>
+                        <otherwise>
+                            trd.errata
+                        </otherwise>
+                    </choose> = 2 and trd.mrk_ty != 3 and tri.subm_at = 'Y' then 1 else 0
+                    end) as wrngNum /* 오답수 */
+             , sum(case
+                    when
+                    <choose>
+                        <when test="tchId != null and tchId !=''">
+                            aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                        </when>
+                        <otherwise>
+                            trd.errata
+                        </otherwise>
+                    </choose> = 3 and trd.mrk_ty != 3 then 1 else 0
+                    end) as triNum /* 세모수 */
+             , sum(case
+                    when
+                    <choose>
+                        <when test="tchId != null and tchId !=''">
+                            aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                        </when>
+                        <otherwise>
+                            trd.errata
+                        </otherwise>
+                    </choose> IN (1, 2, 3) 
+                    and trd.mrk_ty != 3 
+                    and (aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) != 2 OR tri.subm_at = 'Y')
+                    then 1 else 0
+                    end) as totalQuestionNum /* 총 문항수 */
+             , IFNULL(
+                 ROUND(
+                     SUM(
+                        CASE
+                            <choose>
+                                <when test="tchId != null and tchId !=''">
+                                    aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                                </when>
+                                <otherwise>
+                                    trd.errata
+                                </otherwise>
+                            </choose>
+                         WHEN 1 THEN 1
+                         WHEN 2 THEN 0
+                         WHEN 3 THEN 0.5
+                         END)
+                     /
+                     COUNT(CASE
+                           WHEN
+                            <choose>
+                                <when test="tchId != null and tchId !=''">
+                                    aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                                </when>
+                                <otherwise>
+                                    trd.errata
+                                </otherwise>
+                            </choose> != 4 AND tri.subm_at = 'Y' THEN trd.id END)
+                 * 100, 0)
+              , 0) AS correctRate /* 총 정답률 */
+             , TIME_FORMAT(
+                SEC_TO_TIME(
+                        SUM(TIMESTAMPDIFF(SECOND, tri.eak_st_dt, tri.subm_dt))
+                ), '%H:%i:%s'
+               ) AS totalSolvingTime, /* 총 풀이시간 */
+                cch.class_change_type AS classChangeType  /* 반 이동/추가 여부 */
+        from aidt_lms.task_result_info tri
+            left join aidt_lms.stdt_reg_info sri
+                on sri.user_id COLLATE utf8mb4_unicode_ci = tri.mamoym_id COLLATE utf8mb4_unicode_ci
+            join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+            left join aidt_lms.task_info ti ON ti.id = tri.task_id
+            left join aidt_lms.class_change_history cch
+                on cch.stdt_id COLLATE utf8mb4_unicode_ci = tri.mamoym_id COLLATE utf8mb4_unicode_ci
+                and cch.new_class_id COLLATE utf8mb4_unicode_ci = ti.cla_id COLLATE utf8mb4_unicode_ci
+                and cch.reg_date = (
+                    select MAX(reg_date)
+                    from aidt_lms.class_change_history cch2
+                    where cch2.stdt_id COLLATE utf8mb4_unicode_ci = cch.stdt_id COLLATE utf8mb4_unicode_ci
+                    and cch2.new_class_id COLLATE utf8mb4_unicode_ci = cch.new_class_id COLLATE utf8mb4_unicode_ci
+                )  /* 해당 학생의 해당 클래스에 대한 최신 이력만 */
+        where 1=1
+            and tri.task_id = #{taskId}
+        <if test="submAt != null and submAt != '' ">
+            and tri.subm_at = #{submAt}
+        </if>
+        <if test="stntId != null and stntId != '' ">
+            and tri.mamoym_id = #{stntId}
+        </if>
+        group by tri.mamoym_id, sri.flnm
+        order by sri.num
+    </select>
+
+    <select id="findReportHomewkResultList_mdulList" parameterType="map" resultType="camelHashMap" >
+        /* HomewkReportMapper.findReportHomewkResultList_mdulList */
+        select tri.mamoym_id, vtrd.task_iem_id
+                , vtrd.sub_id
+                , va.thumbnail
+                , IFNULL(
+                    ROUND(
+                        SUM(CASE
+                                <choose>
+                                    <when test="param.tchId != null and param.tchId !=''">
+                                        aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id)
+                                    </when>
+                                    <otherwise>
+                                        vtrd.errata
+                                    </otherwise>
+                                </choose>
+                                WHEN 1 THEN 1
+                                WHEN 3 THEN 0.5
+                                WHEN 2 THEN 0 END)
+                            /
+                        SUM(CASE WHEN
+                                    <choose>
+                                        <when test="param.tchId != null and param.tchId !=''">
+                                            aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id)
+                                        </when>
+                                        <otherwise>
+                                            vtrd.errata
+                                        </otherwise>
+                                    </choose>
+                                in (1,2,3) AND tri.subm_at = 'Y' THEN 1 ELSE 0 END)
+                    * 100, 2), 0) AS avgCorrectRate
+                , min(va.articleType) as articleType
+                , min(m.val) as articleTypeNm
+        from aidt_lms.task_result_info tri
+        left join aidt_lms.task_result_detail vtrd on vtrd.task_result_id = tri.id
+        left join aidt_lcms.article va on vtrd.task_iem_id = va.id
+        left join aidt_lcms.meta m on va.articleType = m.id
+        where 1=1
+          and tri.task_id = #{param.taskId}
+        <if test="param.submAt != null and param.submAt != '' ">
+          AND tri.subm_at = #{param.submAt}
+        </if>
+        <if test="param.stntId != null and param.stntId != '' ">
+            and tri.mamoym_id = #{param.stntId}
+        </if>
+        <if test="param.taskIemId != null and param.taskIemId != '' ">
+            and vtrd.task_iem_id = #{param.taskIemId}
+        </if>
+        group by vtrd.task_iem_id
+                , vtrd.sub_id
+        order by vtrd.id, vtrd.task_iem_id, vtrd.sub_id
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+
+    <!-- 교사) 평가 리포트 확인 여부 수정 -->
+    <update id="modifyTeacherTaskReportChkAt" parameterType="map" >
+        /* HomewkReportMapper.modifyTeacherTaskReportChkAt */
+        update aidt_lms.task_result_info
+        set tch_rpt_chk_at = 'Y'
+          , mdfy_dt = now()
+          , mdfr = '/report/task/change/check'
+        where id = #{taskResultId}
+    </update>
+
+    <!-- 과제 리포트 독려 알림대상 조회 -->
+    <select id="selectTaskEncouragementTargets" parameterType="map" resultType="map">
+        /* HomewkReportMapper.selectTaskEncouragementTargets */
+        SELECT
+            ti.cla_id as claId,
+            ti.textbk_id as textbkId,
+            tri.mamoym_id as stntId,
+            ti.wrter_id AS tchId,
+            DATEDIFF(ti.task_cp_dt , CURRENT_DATE) as deadline,
+            ti.id as taskId,
+            u.flnm as flNm
+        FROM aidt_lms.task_info ti
+        INNER JOIN aidt_lms.task_result_info tri
+            ON ti.id = tri.task_id
+        INNER JOIN aidt_lms.`user` u
+            ON tri.mamoym_id = u.user_id
+        WHERE 1=1
+            AND ti.id = #{taskId}
+            AND tri.subm_at = 'N'
+    </select>
+
+    <select id="findLatestTaskForTeacher" parameterType="com.visang.aidt.lms.api.report.dto.HomewkReportListReqDto" resultType="camelHashMap">
+        /* HomewkReportMapper.findLatestTaskForTeacher */
+        select ti.id as taskId
+             , ti.task_nm as taskNm
+             , ti.task_stts_cd
+             , (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth') as eam_mth
+             , CASE
+                 WHEN ti.eam_mth IN (2, 3, 6, 7)
+                    THEN 'general'
+                 WHEN ti.eam_mth = 8
+                    THEN 'groupTask'
+                 WHEN ti.eam_mth = 5
+                    THEN 'aiCustom'
+                 WHEN ti.eam_mth = 4
+                    THEN 'aiPrescription'
+             END AS taskDetailDivision /* 출제상세구분 */
+             , ti.rpt_othbc_at
+        from aidt_lms.task_info ti
+        where 1=1
+            and ti.cla_id = #{claId}
+            and ti.task_stts_cd >= 2
+            <if test="stntId != null and stntId != ''">
+                and ti.rpt_othbc_at = 'Y'
+            </if>
+        ORDER BY
+            CASE WHEN ti.task_stts_cd = 2 THEN 0 ELSE 1 END,
+            ti.task_cp_dt DESC
+        limit 1
+    </select>
+
+    <select id="findLatestTaskForStudent" parameterType="com.visang.aidt.lms.api.report.dto.HomewkReportListReqDto" resultType="camelHashMap">
+        /* HomewkReportMapper.findLatestTaskForStudent */
+        select ti.id as taskId
+             , ti.task_nm as taskNm
+             , ti.task_stts_cd
+             , (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth') as eam_mth
+             , CASE
+                   WHEN ti.eam_mth IN (2, 3, 6, 7)
+                       THEN 'general'
+                   WHEN ti.eam_mth = 8
+                       THEN 'groupTask'
+                   WHEN ti.eam_mth = 5
+                       THEN 'aiCustom'
+                   WHEN ti.eam_mth = 4
+                       THEN 'aiPrescription'
+             END AS taskDetailDivision /* 출제상세구분 */
+             , ti.rpt_othbc_at
+        from aidt_lms.task_info ti
+            inner join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        where 1=1
+            and ti.cla_id = #{claId}
+            and ti.task_stts_cd >= 2
+                AND tri.mamoym_id = #{stntId}
+                and ti.rpt_othbc_at = 'Y'
+        ORDER BY
+            CASE WHEN ti.task_stts_cd = 2 THEN 0 ELSE 1 END,
+            ti.task_cp_dt DESC
+        limit 1
+        </select>
+
+    <select id="findTaskkProgressCountForTeacher" parameterType="com.visang.aidt.lms.api.report.dto.HomewkReportListReqDto" resultType="camelHashMap">
+        /* HomewkReportMapper.findTaskkProgressCountForTeacher */
+        SELECT
+            ifnull(COUNT(CASE WHEN ti.task_stts_cd = 2 THEN 1 END), 0) AS inProgressTaskCount,
+            ifnull(COUNT(CASE WHEN ti.task_stts_cd IN (3, 4, 5) THEN 1 END), 0) AS completedTaskCount
+        FROM aidt_lms.task_info ti
+        WHERE 1 = 1
+            AND ti.cla_id = #{claId}
+            AND ti.textbk_id = #{textbookId}
+            AND ti.tmpr_strg_at = 'N'
+            <choose>
+                <when test="taskDivision == 'all'">
+                    AND ti.eam_mth in (2, 3, 4, 5, 6, 7, 8)
+                </when>
+                <when test="taskDivision == 'aiCustom'">
+                    AND ti.eam_mth = 5
+                </when>
+                <when test="taskDivision == 'aiPrescription'">
+                    AND ti.eam_mth = 4
+                </when>
+                <when test="taskDivision == 'general'">
+                    AND ti.eam_mth in (2, 3, 6, 7)
+                </when>
+                <when test="taskDivision == 'groupTask'">
+                    AND ti.eam_mth = 8
+                </when>
+            </choose>
+    </select>
+
+    <select id="findTaskkProgressCountForStudent" parameterType="com.visang.aidt.lms.api.report.dto.HomewkReportListReqDto" resultType="camelHashMap">
+        /* HomewkReportMapper.findTaskkProgressCountForStudent */
+        SELECT
+            ifnull(COUNT(CASE WHEN ti.task_stts_cd = 2 THEN 1 END), 0) AS inProgressTaskCount,
+            ifnull(COUNT(CASE WHEN ti.task_stts_cd IN (3, 4, 5) THEN 1 END), 0) AS completedTaskCount
+        FROM aidt_lms.task_info ti
+            inner join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        WHERE 1 = 1
+            AND ti.cla_id = #{claId}
+            AND ti.textbk_id = #{textbookId}
+            AND tri.mamoym_id = #{stntId}
+            AND ( ti.rpt_othbc_at = 'Y' or ti.rpt_auto_othbc_at = 'Y')
+            AND ti.tmpr_strg_at = 'N'
+            <choose>
+                <when test="taskDivision == 'all'">
+                    AND ti.eam_mth in (2, 3, 4, 5, 6, 7, 8)
+                </when>
+                <when test="taskDivision == 'aiCustom'">
+                    AND ti.eam_mth = 5
+                </when>
+                <when test="taskDivision == 'aiPrescription'">
+                    AND ti.eam_mth = 4
+                </when>
+                <when test="taskDivision == 'general'">
+                    AND ti.eam_mth in (2, 3, 6, 7)
+                </when>
+                <when test="taskDivision == 'groupTask'">
+                    AND ti.eam_mth = 8
+                </when>
+            </choose>
+    </select>
+
+    <update id="updateTchReportHomewkReviewSave" parameterType="map">
+        UPDATE aidt_lms.task_result_info
+        SET stdt_prnt_rls_at = #{stdtPrntRlsAt}
+          ,genrvw = #{genrvw}
+          ,mdfr = #{mdfr}
+          ,mdfy_dt = NOW()
+        WHERE task_id = #{taskId}
+          AND mamoym_id = #{userId}
+    </update>
+
+</mapper>

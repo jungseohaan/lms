@@ -1,0 +1,75 @@
+{
+  "groups": [
+    {
+      "name": "spring.datasource.hikari.master",
+      "type": "javax.sql.DataSource",
+      "sourceType": "com.visang.aidt.lms.api.configuration.db.RoutingDataSourceConfig",
+      "sourceMethod": "public javax.sql.DataSource masterDataSource() "
+    },
+    {
+      "name": "spring.datasource.hikari.slave",
+      "type": "javax.sql.DataSource",
+      "sourceType": "com.visang.aidt.lms.api.configuration.db.RoutingDataSourceConfig",
+      "sourceMethod": "public javax.sql.DataSource slaveDataSource() "
+    },
+    {
+      "name": "spring.jpa",
+      "type": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties",
+      "sourceType": "com.visang.aidt.lms.api.configuration.db.RoutingDataSourceConfig",
+      "sourceMethod": "public org.springframework.boot.autoconfigure.orm.jpa.JpaProperties jpaProperties() "
+    },
+    {
+      "name": "spring.topic",
+      "type": "com.visang.aidt.lms.api.configuration.NatsTopicConfig",
+      "sourceType": "com.visang.aidt.lms.api.configuration.NatsTopicConfig"
+    }
+  ],
+  "properties": [
+    {
+      "name": "spring.jpa.database",
+      "type": "org.springframework.orm.jpa.vendor.Database",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.jpa.database-platform",
+      "type": "java.lang.String",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.jpa.generate-ddl",
+      "type": "java.lang.Boolean",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.jpa.mapping-resources",
+      "type": "java.util.List<java.lang.String>",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.jpa.open-in-view",
+      "type": "java.lang.Boolean",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.jpa.properties",
+      "type": "java.util.Map<java.lang.String,java.lang.String>",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.jpa.show-sql",
+      "type": "java.lang.Boolean",
+      "sourceType": "org.springframework.boot.autoconfigure.orm.jpa.JpaProperties"
+    },
+    {
+      "name": "spring.topic.bulk-send-name",
+      "type": "java.lang.String",
+      "sourceType": "com.visang.aidt.lms.api.configuration.NatsTopicConfig"
+    },
+    {
+      "name": "spring.topic.realtime-send-name",
+      "type": "java.lang.String",
+      "sourceType": "com.visang.aidt.lms.api.configuration.NatsTopicConfig"
+    }
+  ],
+  "hints": []
+}

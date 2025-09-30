@@ -1,0 +1,2858 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.stress.StressMapper">
+
+    <sql id = "languageCodesSql">
+        <foreach collection="languageCodes" item="c" open="(" separator="," close=")">
+            #{c}
+        </foreach>
+    </sql>
+
+    <delete id="removeVocalEvlScrInfo" parameterType="map">
+        /* StntMdulVocalScrMapper.removeVocalEvlScrInfo */
+        DELETE a, b, c,d
+        FROM aidt_lms.vocal_evl_scr_info a
+                 inner join aidt_lms.vocal_evl_info_phone_level d on a.id = d.vocal_evl_scr_id
+                 inner join aidt_lms.vocal_evl_info_detail b on a.id = b.vocal_evl_scr_id
+                 inner join aidt_lms.vocal_evl_info_color_letter c on c.vocal_detail_id  = b.id
+        WHERE 1=1
+          AND a.menu_se_cd = #{menuSeCd}
+          AND a.std_cd = #{stdCd}
+          AND a.trgt_id = #{trgtId}
+    </delete>
+
+    <select id="findStntMdulQstnView" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnView */
+        select
+            sdrd.id as detailId
+             ,sdrd.dta_result_id
+             ,sdrd.dta_iem_id
+             ,sdrd.sub_id
+             ,sdrd.mrk_ty
+             ,sdrd.eak_stts_cd
+             ,sdrd.eak_at
+             ,sdrd.mrk_cp_at
+             ,sdrd.eak_st_dt
+             ,sdrd.eak_ed_dt
+             ,sdrd.sub_mit_anw
+             ,sdrd.sub_mit_anw_url
+             ,sdrd.errata
+             ,sdrd.re_idf_cnt
+             ,sdrd.anw_chg_cnt
+             ,sdrd.sm_exm_at
+             ,sdrd.textbk_dta_iem_id
+             ,sdrd.re_exm_cnt
+             , if ((sdrd.std_fdb_dc is not null), 'Y', 'N') stdFdbAt
+             , sdrd.std_fdb_dc
+             ,sdrd.fdb_url
+             ,sdrd.fdb_exp_at
+             ,sdrd.hdwrt_cn
+             ,sdrd.dft_ques_beffat_chk_at as preCheckAt
+             ,sdrd.hnt_use_at
+        from aidt_lms.stress_std_dta_result_info sdri
+                 join aidt_lms.stress_std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where sdri.textbk_tab_id = #{tabId}
+          and sdri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findStntMdulQstnViewHist" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnViewHist */
+        select dta_result_detail_id, errata
+        from aidt_lms.stress_std_dta_result_hist a
+        where dta_result_detail_id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.detailId}
+        </foreach>
+    </select>
+
+    <select id="getStdtRegInfo" parameterType="map" resultType="camelHashMap">
+        SELECT sri.user_id AS stdt_id
+             , tcmi.cla_id AS cla_id
+             , tcmi.user_id AS tc_id
+             , IFNULL(tci.id, -1) AS cla_idx
+        FROM stress_stdt_reg_info sri
+        LEFT JOIN stress_tc_cla_mb_info tcmi ON sri.user_id = tcmi.stdt_id
+        LEFT JOIN stress_tc_cla_info tci ON tci.cla_id = tcmi.cla_id
+        WHERE sri.user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <select id="findStntMdulQstnViewOtherList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnViewOtherList */
+        select
+          id as resultDetailId
+          , dta_iem_id
+          , sub_id
+          , eak_stts_cd
+          , eak_at
+          , sub_mit_anw
+          , sub_mit_anw_url
+          , errata
+        ,src_detail_id
+        from
+        aidt_lms.stress_std_dta_result_detail
+        where src_detail_id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.detailId}
+        </foreach>
+        and sm_exm_at ='Y'
+    </select>
+
+    <select id="findTchSlfperEvlSlfSet" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfSet */
+        select *
+          from aidt_lms.stress_slf_per_evl_set_info si
+         where si.gb_cd = #{gbCd}
+           and si.slf_per_evl_clsf_cd = #{slfPerEvlSetInfo}
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test=" (setsId != null and setsId != '') or (moduleId != null and moduleId != '') or (dtaIemId != null and dtaIemId != '')  ">
+                <if test="setsId != null and setsId != '' ">
+                    AND si.sets_id = #{setsId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <if test="dtaIemId != null and dtaIemId != '' ">
+                    AND si.module_id = #{dtaIemId}
+                </if>
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+                AND si.module_id is null
+            </otherwise>
+        </choose>
+        <if test="subId != null and subId != '' ">
+            AND si.sub_id = #{subId}
+        </if>
+        order by reg_dt desc
+        limit 1
+    </select>
+
+    <select id="findTchSlfperEvlSlfViewSl" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfViewSl */
+        select a.id as slfPerEvlSetId
+            , a.tmplt_itm_seq
+            , a.evl_dmi
+            , a.evl_iem
+            , a.evl_stdr_cd
+            , a.evl_stdr_dc
+            , a.evl_result
+            , (select evl_asw
+                 from aidt_lms.stress_slf_per_evl_result_info
+                where slf_per_evl_detail_id = a.id
+                  and apraser_id = #{stntId}
+                    limit 1
+               )  as evl_asw
+          from aidt_lms.stress_slf_per_evl_set_detail_info a
+         where a.slf_per_evl_set_id = #{selInfoId}
+         order by tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlSlfViewPerInfo" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfViewPerInfo */
+        select distinct per_apraser_id
+             , u.flnm
+          from aidt_lms.stress_slf_per_evl_result_info eri
+          left outer join aidt_lms.stress_user u on u.user_id = eri.per_apraser_id
+         where eri.slf_per_evl_detail_id in (select id
+                                               from aidt_lms.stress_slf_per_evl_set_detail_info
+                                              where slf_per_evl_set_id = #{perInfoId})
+           and eri.apraser_id = #{stntId}
+           and eri.per_apraser_id is not null
+         order by per_apraser_id
+    </select>
+
+    <select id="findTchSlfperEvlSlfView_perResultInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfView_perResultInfoList */
+        select
+             sdi.id as slfPerEvlDetailId
+            ,sdi.tmplt_itm_seq
+            ,sdi.evl_dmi
+            ,sdi.evl_iem
+            ,sdi.evl_stdr_cd
+            ,sdi.evl_stdr_dc
+            ,sdi.evl_result
+            ,eri.per_apraser_id
+            ,eri.evl_asw
+        FROM aidt_lms.stress_slf_per_evl_set_detail_info sdi
+        join aidt_lms.stress_slf_per_evl_result_info eri on eri.slf_per_evl_detail_id = sdi.id and eri.per_apraser_id is not null
+        WHERE sdi.slf_per_evl_set_id = #{perInfoId}
+          and eri.apraser_id = #{stntId}
+    </select>
+
+    <select id="findSTchSlfperEvlSlfViewTemplt" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findSTchSlfperEvlSlfViewTemplt */
+        select id as slfPerEvlDetailId
+             , tmplt_itm_seq
+             , evl_dmi
+             , evl_iem
+             , evl_stdr_cd
+             , evl_stdr_dc
+          from aidt_lms.stress_slf_per_evl_set_detail_info
+         where slf_per_evl_set_id = #{perInfoId}
+         order by tmplt_itm_seq
+    </select>
+
+    <!--<select id="findMdulSlfPerEvlAt" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findMdulSlfPerEvlAt */
+        select if(use_evaluation > 0 ,'Y','N') as mdulSlfPerEvlAt
+        from aidt_lcms.stress_article
+        where id = #{moduleId}
+        LIMIT 1
+    </select>-->
+
+    <select id="findShopUserInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopUserInfo */
+        SELECT
+        a.user_id           as user_id
+        , a.flnm            as flnm
+        , a.user_se_cd      as user_se_cd
+        , c.prchs_gds_se_cd    as prchs_gds_se_cd
+        , aidt_lms.F_CODE_NM('prchs_gds_se_cd', 'P')     as prchs_gds_se_nm
+        , aidt_lms.F_CODE_NM('prchs_gds_se_cd', #{prchsGdsSeCd})     as prchs_gds_se_nm2
+        , c.rprs_gds_id     as rprs_gds_id
+        , c.rprs_gds_anct   as rprs_gds_anct
+        , IFNULL(b.ht_blnc, 0) as ht_blnc
+        , IFNULL(b.st_blnc, 0) as st_blnc
+        FROM aidt_lms.stress_user a
+        LEFT JOIN aidt_lms.stress_rwd_earn_info b /* 리워드 획득정보 */
+        ON a.user_id = b.user_id
+        LEFT JOIN aidt_lms.stress_sp_prchs_info c /* 상점구매정보 */
+        ON a.user_id = c.user_id
+        AND c.prchs_gds_se_cd = 'P' /* 프로필 */
+        WHERE
+        a.user_id = #{userId}
+        limit 1
+    </select>
+
+    <select id="findShopItemProfileInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemProfileInfo */
+        SELECT
+        spi.id
+        , spi.korn_img_nm
+        , spi.eng_img_nm
+        , spi.tme
+        , spi.tme as theme
+        , IFNULL(spi.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(spi.st_ntsl_amt, 0) as st_ntsl_amt
+        , spi.gds_indct_img
+        , spi.sp_indct_img
+        , spi.pf_all_img as pf_all_img_196
+        , spi.pf_ct_img
+        , spi.pf_ui_img
+        , spi.mr_sd_img
+        , spi.mr_cp_img
+        , spi.mr_ep_img
+        , spi.tb_st_img
+        , spi.tb_cp_img
+        , spi.tb_ep_img
+        , spi.cp_mk_img
+        , spi.rm_tit_img
+        , spi.rm_wal_img
+        , spi.dc_lf_img
+        , spi.dc_rt_img
+        , spi.dc_dr_img
+        , spi.dc_dr_ani_img
+        FROM    aidt_lms.stress_sp_pf_info spi /* 샵 프로필 이미지정보 */
+        WHERE spi.id = (SELECT spri.rprs_gds_id
+        FROM aidt_lms.stress_sp_prchs_info spri /* 상점구매정보 */
+        WHERE spri.prchs_gds_se_cd = 'P' /* 구분 : 프로필 */
+        AND spri.user_id = #{userId}
+        )
+        limit 1
+    </select>
+
+    <select id="findShopItemGameInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemGameInfo */
+        SELECT
+        sgi.id
+        , sgi.korn_img_nm
+        , sgi.eng_img_nm
+        , sgi.tme
+        , sgi.tme as theme
+        , IFNULL(sgi.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(sgi.st_ntsl_amt, 0) as st_ntsl_amt
+        , sgi.gds_indct_img
+        , sgi.sp_indct_img
+        FROM aidt_lms.stress_sp_gm_info sgi /* 샵 게임 이미지정보 */
+        WHERE sgi.id = (SELECT spri.rprs_gds_id
+        FROM aidt_lms.stress_sp_prchs_info spri /* 상점구매정보 */
+        WHERE spri.prchs_gds_se_cd = 'G' /* 구분 : 게임 */
+        AND spri.user_id = #{userId}
+        )
+    </select>
+
+    <select id="findShopItemSkinInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemSkinInfo */
+        SELECT
+        ski.id
+        ,ski.korn_img_nm
+        ,ski.eng_img_nm
+        ,ski.tme
+        ,ski.tme as theme
+        , IFNULL(ski.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(ski.st_ntsl_amt, 0) as st_ntsl_amt
+        ,ski.gds_indct_img
+        ,ski.sp_indct_img
+        ,ski.load_img
+        ,ski.alm_img
+        ,ski.tst_start_img
+        ,ski.qz_img
+        ,ski.tst_wait_img
+        ,ski.scr_mv_img
+        ,ski.rwd_img
+        ,ski.lk_ahead_img
+        ,ski.mk_wait_img
+        ,ski.hi_img
+        ,ski.tnk_img
+        ,ski.std_img
+        ,ski.ui_loading
+        ,ski.ui_alarm
+        ,ski.ui_test_start
+        ,ski.ui_quiz
+        ,ski.ui_test_wait
+        ,ski.ui_screen_move
+        ,ski.ui_reward
+        ,ski.ui_look_ahead
+        ,ski.ui_make_wait
+        ,ski.ui_hi
+        ,ski.ui_thankyou
+        ,ski.ui_study
+        FROM aidt_lms.stress_sp_sk_info ski /* 샵 스킨 이미지정보 */
+        WHERE ski.id = (SELECT spri.rprs_gds_id
+        FROM aidt_lms.stress_sp_prchs_info spri /* 상점구매정보 */
+        WHERE spri.prchs_gds_se_cd = 'S'    /* 구분 : 스킨 */
+        AND spri.user_id = #{userId}
+        )
+    </select>
+
+    <select id="findShopItemProfileInfoDefault" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemProfileInfoDefault */
+        SELECT
+            spi.id
+            , spi.korn_img_nm
+            , spi.eng_img_nm
+            , spi.tme
+            , IFNULL(spi.ht_ntsl_amt, 0) as ht_ntsl_amt
+            , IFNULL(spi.st_ntsl_amt, 0) as st_ntsl_amt
+            , spi.gds_indct_img
+            , spi.sp_indct_img
+            , spi.pf_all_img as pf_all_img_196
+            , spi.pf_ct_img
+            , spi.pf_ui_img
+            , spi.mr_sd_img
+            , spi.mr_cp_img
+            , spi.mr_ep_img
+            , spi.tb_st_img
+            , spi.tb_cp_img
+            , spi.tb_ep_img
+            , spi.cp_mk_img
+            , spi.rm_tit_img
+            , spi.rm_wal_img
+            , spi.dc_lf_img
+            , spi.dc_rt_img
+            , spi.dc_dr_img
+            , spi.dc_dr_ani_img
+        FROM    aidt_lms.stress_sp_pf_info spi /* 상점구매정보 */
+        WHERE spi.initl_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findShopItemGameInfoDefault" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemGameInfoDefault */
+        SELECT
+        sgi.id
+        , sgi.korn_img_nm
+        , sgi.eng_img_nm
+        , sgi.tme
+        , IFNULL(sgi.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(sgi.st_ntsl_amt, 0) as st_ntsl_amt
+        , sgi.gds_indct_img
+        , sgi.sp_indct_img
+        FROM aidt_lms.stress_sp_gm_info sgi /* 샵 게임 이미지정보 */
+        WHERE sgi.initl_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findShopItemSkinInfoDefault" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemSkinInfoDefault */
+        SELECT
+        ski.id
+        ,ski.korn_img_nm
+        ,ski.eng_img_nm
+        ,ski.tme
+        , IFNULL(ski.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(ski.st_ntsl_amt, 0) as st_ntsl_amt
+        ,ski.gds_indct_img
+        ,ski.sp_indct_img
+        ,ski.load_img
+        ,ski.alm_img
+        ,ski.tst_start_img
+        ,ski.qz_img
+        ,ski.tst_wait_img
+        ,ski.scr_mv_img
+        ,ski.rwd_img
+        ,ski.lk_ahead_img
+        ,ski.mk_wait_img
+        ,ski.hi_img
+        ,ski.tnk_img
+        ,ski.std_img
+        ,ski.ui_loading
+        ,ski.ui_alarm
+        ,ski.ui_test_start
+        ,ski.ui_quiz
+        ,ski.ui_test_wait
+        ,ski.ui_screen_move
+        ,ski.ui_reward
+        ,ski.ui_look_ahead
+        ,ski.ui_make_wait
+        ,ski.ui_hi
+        ,ski.ui_thankyou
+        ,ski.ui_study
+        FROM aidt_lms.stress_sp_sk_info ski /* 샵 스킨 이미지정보 */
+        WHERE ski.initl_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findStntSlfperEvlSlfSet" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfSet */
+        select *
+          from aidt_lms.stress_slf_per_evl_set_info si
+         where si.gb_cd = #{gbCd}
+           and si.slf_per_evl_clsf_cd = #{slfPerEvlSetInfo}
+           /* and module_subm_at = # {moduleSubmAt} */
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <if test="subId != null and subId != '' ">
+                    AND si.sub_id = #{subId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test="setsId != null and setsId != '' ">
+                AND si.sets_id = #{setsId}
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+            </otherwise>
+        </choose>
+        limit 1
+    </select>
+
+    <select id="findStntSlfperEvlSlfSetSlList" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfSetSlList */
+        select
+        sdi.id as slfPerEvlDetailId
+        ,sdi.slf_per_evl_set_id as selInfoId
+        ,sdi.tmplt_itm_seq
+        ,sdi.evl_dmi
+        ,sdi.evl_iem
+        ,sdi.evl_stdr_cd
+        ,sdi.evl_stdr_dc
+        from aidt_lms.stress_slf_per_evl_set_detail_info sdi
+        where sdi.slf_per_evl_set_id = #{selInfoId}
+        order by sdi.tmplt_itm_seq
+    </select>
+
+    <select id="findStntSlfperEvlSlfSetTempltList" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfSetTempltList */
+        select
+        sdi.id as slfPerEvlDetailId
+        ,sdi.slf_per_evl_set_id as selInfoId
+        ,sdi.tmplt_itm_seq
+        ,sdi.evl_dmi
+        ,sdi.evl_iem
+        ,sdi.evl_stdr_cd
+        ,sdi.evl_stdr_dc
+        from aidt_lms.stress_slf_per_evl_set_detail_info sdi
+        where sdi.slf_per_evl_set_id = #{perInfoId}
+        order by sdi.tmplt_itm_seq
+    </select>
+
+    <select id="findStntSlfperEvlSlfSetSlfperYn" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfSetSlfperYn */
+        select case esi.gb_cd
+               when 1
+                   then (esi.module_subm_at)
+               when 2
+                    then (select tri.slf_subm_at from aidt_lms.stress_task_result_info tri where tri.id = esi.result_dtl_id)
+               when 3
+                    then (select eri.slf_subm_at from aidt_lms.stress_evl_result_info eri where eri.id = esi.result_dtl_id)
+               else if(esi.module_id is not null, esi.module_subm_at, null) end as slfperYn
+        from aidt_lms.stress_slf_per_evl_set_info esi
+        where id = #{selInfoId}
+        and exists(select apraser_id from aidt_lms.stress_slf_per_evl_result_info where slf_per_evl_detail_id
+        in (
+        		select t2.id
+        		from aidt_lms.stress_slf_per_evl_set_info t1
+        		join aidt_lms.stress_slf_per_evl_set_detail_info t2 on t1.id = t2.slf_per_evl_set_id
+        		where t1.id = #{selInfoId}
+        		)
+        		 and apraser_id = #{stntId}
+         )
+
+    </select>
+
+    <select id="findStntSlfperEvlSlfPerinfo" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfPerinfo */
+        select u.user_id as perApraserId, u.flnm from
+        aidt_lms.stress_tc_cla_mb_info tcmi
+        left join stress_user u on u.user_id = tcmi.stdt_id
+        where tcmi.cla_id = #{claId}
+          AND tcmi.stdt_id <![CDATA[<>]]> #{stntId}
+    </select>
+
+    <select id="findStntSlfperEvlSlfSetTempltYn" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfSetTempltYn */
+        select case esi.gb_cd
+               when 1
+                   then (esi.module_subm_at)
+               when 2
+                    then (select tri.slf_subm_at from aidt_lms.stress_task_result_info tri where tri.id = esi.result_dtl_id)
+               when 3
+                    then (select eri.slf_subm_at from aidt_lms.stress_evl_result_info eri where eri.id = esi.result_dtl_id)
+               else if(esi.module_id is not null, esi.module_subm_at, null) end as slfperYn
+        from aidt_lms.stress_slf_per_evl_set_info esi
+        where id = #{perInfoId}
+        and exists(select apraser_id from aidt_lms.stress_slf_per_evl_result_info where slf_per_evl_detail_id
+        in (
+        		select t2.id
+        		from aidt_lms.stress_slf_per_evl_set_info t1
+        		join aidt_lms.stress_slf_per_evl_set_detail_info t2 on t1.id = t2.slf_per_evl_set_id
+        		where t1.id = #{perInfoId}
+        		)
+        		 and apraser_id = #{stntId}
+         )
+    </select>
+
+    <update id="modifyStntMdulQstnResetSDRI" parameterType="map" >
+        /* StntMdulQstnMapper.modifyStntMdulQstnResetSDRI */
+        update aidt_lms.stress_std_dta_result_info
+        set eak_stts_cd =2
+          , eak_st_dt = now()
+          /* mdfr */
+          , mdfy_dt = now()
+        where mamoym_id = #{userId}
+          and textbk_tab_id = #{textbkTabId}
+          and sets_id = #{setsId}
+    </update>
+
+    <insert id="createStntMdulQstnResetSDRI" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnResetSDRI */
+        INSERT INTO aidt_lms.stress_std_dta_result_info (mamoym_id, textbk_tab_id, sets_id, eak_stts_cd, eak_st_dt, rgtr, mdfr)
+        values (#{userId}, #{textbkTabId}, #{setsId}, 2, now(), 'system', 'system')
+    </insert>
+
+    <select id="findStntMdulQstnResetSetsId" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnResetSetsId */
+        select sets_id, tab_add_at  from
+        aidt_lms.stress_tab_info where id = #{textbkTabId}
+    </select>
+
+    <update id="modifyStntMdulQstnResetSDRD" parameterType="map" >
+        /* StntMdulQstnMapper.modifyStntMdulQstnResetSDRD */
+        update aidt_lms.std_dta_result_detail sdrd
+               join aidt_lms.stress_std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+               LEFT OUTER JOIN aidt_lcms.stress_meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.stress_article where id = sdrd.dta_iem_id)
+               LEFT OUTER JOIN aidt_lcms.stress_meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.stress_article_meta_map where article_id = sdrd.dta_iem_id and meta_name = 'articleType' and sub_id = #{subId})
+           set sdrd.re_idf_cnt = sdrd.re_idf_cnt + 1
+             , sdrd.eak_at = (CASE COALESCE(m1.code, m2.code)
+                              when 'concept' then sdrd.eak_at
+                              else 'Y'
+                              end)
+             , sdrd.eak_st_dt = (CASE COALESCE(m1.code, m2.code)
+                                 when 'concept' then sdrd.eak_st_dt
+                                 else (if(sdrd.eak_stts_cd = 1,now(),sdrd.eak_st_dt))
+                                 end)
+             , sdrd.eak_stts_cd  = (CASE COALESCE(m1.code, m2.code)
+                                    when 'concept' then sdrd.eak_stts_cd
+                                    else (if(sdrd.eak_stts_cd = 1,2,sdrd.eak_stts_cd))
+                                    end)
+             /*,mdfr*/
+             ,sdrd.mdfy_dt = now()
+        where sdri.mamoym_id = #{userId}
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.sets_id = #{setsId}
+          and sdrd.dta_iem_id = #{articleId}
+          and sdrd.sub_id = #{subId}
+          and sdrd.eak_stts_cd <![CDATA[<>]]> 3
+    </update>
+
+    <insert id="createStntMdulQstnResetSDRD" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnResetSDRD */
+        INSERT INTO aidt_lms.stress_std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, eak_at, mrk_cp_at, eak_st_dt, errata, re_idf_cnt, rgtr, mdfr, src_detail_id)
+        select sdri.id
+             , s.article_id
+             , s.sub_id
+             , CASE COALESCE(m1.code, m2.code)
+               when 'question' then 1
+               when 'concept' then 3
+               else 2
+               end as mrk_ty
+             , CASE COALESCE(m1.code, m2.code)
+               when 'concept' then 5
+               else 2
+               end as eak_stts_cd
+             , 'Y' as eak_at
+             , CASE COALESCE(m1.code, m2.code)
+               when 'concept' then 'Y'
+               else 'N'
+               end as mrk_cp_at
+             , CASE COALESCE(m1.code, m2.code)
+               when 'concept' then null
+               else now()
+               end as eak_st_dt
+             , CASE COALESCE(m1.code, m2.code)
+               when 'concept' then 4
+               else null
+               end as errata
+             , 1
+             , 'system'
+             , 'system'
+             , 0
+        FROM aidt_lms.stress_std_dta_result_info sdri
+          join aidt_lcms.stress_setsummary s on s.set_id = sdri.sets_id
+          LEFT OUTER JOIN aidt_lcms.stress_meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.stress_article where id = s.article_id)
+          LEFT OUTER JOIN aidt_lcms.stress_meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.stress_article_meta_map where article_id = s.article_id and meta_name = 'articleType' and sub_id = #{subId})
+         where sdri.mamoym_id = #{userId}
+           and sdri.textbk_tab_id = #{textbkTabId}
+           and sdri.sets_id = #{setsId}
+           and s.article_id = #{articleId}
+           and s.sub_id = #{subId}
+    </insert>
+
+    <select id="findStntMdulQstnRecheck" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnRecheck */
+        select sdri.id as infoId
+             , sdrd.id as detailId
+        from aidt_lms.stress_std_dta_result_info sdri
+        join aidt_lms.stress_std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where sdri.mamoym_id = #{userId}
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.sets_id = #{setsId}
+          and sdrd.dta_iem_id = #{articleId}
+          and sdrd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <select id="findStntMdulQstnResetSDRI" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnResetSDRI */
+        select *
+        from aidt_lms.stress_std_dta_result_info
+        where mamoym_id = #{userId}
+          and textbk_tab_id = #{textbkTabId}
+          and sets_id = #{setsId}
+    </select>
+
+     <select id="findStntMdulQstnResetSDRD" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnResetSDRD */
+        select sdrd.*
+        from aidt_lms.stress_std_dta_result_detail sdrd
+        join aidt_lms.stress_std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+        where sdri.mamoym_id = #{userId}
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.sets_id = #{setsId}
+          and sdrd.dta_iem_id = #{articleId}
+          and sdrd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <insert id="insertLesnRsc" parameterType="map" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    /* EngTemp.insertLesnRsc */
+        INSERT INTO aidt_lms.stress_std_dta_eng_temp_result_info
+        (
+              dta_result_detail_id
+            , eng_temp_id
+            , script_id
+            , tmplt_actv_id
+            , eak_st_dt
+            , rgtr
+        ) VALUES (
+              #{resultDetailId}
+            , #{engTempId}
+            , #{scriptId}
+            , #{tmpltActvId}
+            , NOW()
+            , 'admin'
+        )
+    </insert>
+
+    <select id="selectEngtempInfoByArticleId" resultType="map">
+        select a1.`id` as `engTempId`
+            , ( select max(b2_1.script_id)
+                from  aidt_lcms.stress_engtemp_library_map a2_1
+                      inner join aidt_lcms.stress_library b2_1 on a2_1.library_id = b2_1.`id`
+                where a2_1.engTemp_id = a1.`id`
+              ) as `scriptId`
+            , ifnull ( (
+                select b2_1.`code`
+                from  aidt_lcms.stress_engtemp_meta_map a2_1
+                      inner join aidt_lcms.`stress_meta` b2_1 on a2_1.meta_id = b2_1.`id`
+                where a2_1.meta_name = 'templateDiv'
+                and   a2_1.engTemp_id = a1.`id`
+                limit 1
+              ), a1.type_1) as templateDivCode
+        from  aidt_lcms.stress_engtemp a1
+              inner join aidt_lcms.stress_article_engtemp_map b1 on a1.`id` =  b1.engTemp_id
+        where b1.article_id = #{articleId}
+            <if test="subId != null and subId != '' ">
+                and b1.sub_id = #{subId}
+            </if>
+    </select>
+
+    <select id="selectEngtempExistsYn" resultType="string">
+        select ifnull( (
+            select 'Y'
+            from  aidt_lms.stress_std_dta_eng_temp_result_info a1
+            where a1.dta_result_detail_id = #{resultDetailId}
+            and   a1.eng_temp_id = #{engTempId}
+            and   a1.tmplt_actv_id = 0
+            and   a1.script_id = 0
+        ), 'N' )
+    </select>
+
+    <select id="selectEngtempAtivityList" resultType="map">
+        select a1.`engTempId`
+            , a1.`tmpltActvId`
+            , a1.`scriptId`
+            , ( select a2_1.`id`
+                from  aidt_lms.stress_std_dta_eng_temp_result_info a2_1
+                where a2_1.dta_result_detail_id = #{resultDetailId}
+                and   a2_1.eng_temp_id = a1.`engTempId`
+                and   a2_1.tmplt_actv_id = a1.`tmpltActvId`
+                and   a2_1.script_id = a1.`scriptId`
+              ) as `engTempResultInfoId`
+        from
+        (	select a2.engTemp_id as `engTempId`
+                , b2.`id` as `tmpltActvId`
+                , ( select max(b3_1.script_id)
+                    from  aidt_lcms.stress_engtemp_library_map a3_1
+                          inner join aidt_lcms.stress_library b3_1 on a3_1.library_id = b3_1.`id`
+                    where a3_1.engTemp_id = a2.engTemp_id
+                  ) as `scriptId`
+            from  aidt_lcms.stress_engtemp_meta_map a2
+                  inner join aidt_lcms.meta b2 on a2.meta_id = b2.`id`
+            where a2.meta_name = 'templateDiv1'
+            and   a2.engTemp_id = #{engTempId}
+        ) a1
+    </select>
+
+    <select id="findStntActMdulList" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.findStntActMdulList */
+        select ari.id
+             , ari.act_id
+             , ari.act_stts_cd
+             , aidt_lms.F_CODE_NM('act_stts_cd', ari.act_stts_cd) as act_stts_nm
+             , ati.act_wy
+             , aidt_lms.F_CODE_NM('act_wy', ati.act_wy) as act_wy_nm
+             , ari.thumbnail
+             , ari.act_submit_url
+             , ari.act_submit_dc
+             , DATE_FORMAT(ari.act_st_dt,'%Y-%m-%d %H:%i:%s') as act_st_dt
+             , DATE_FORMAT(ari.act_ed_dt,'%Y-%m-%d %H:%i:%s') as act_ed_dt
+             , ari.fdb_dc
+             , ari.fdb_url
+        from aidt_lms.stress_act_tol_info ati
+        join aidt_lms.stress_act_result_info ari on ari.act_id = ati.id
+        where ati.wrter_id = #{userId}
+          and ati.textbk_tab_id = #{textbkTabId}
+          and ati.act_iem_id = #{actIemId}
+          and ati.sub_id = #{subId}
+          and ari.mamoym_id = #{stntId}
+          and ari.subm_at = 'Y'
+    </select>
+
+    <select id="selectCurriculumList" parameterType="map" resultType="map">
+        select a1.`id`
+             , a1.wrter_id as wrterId
+             , a1.cla_id as claId
+             , a1.textbk_id as textbkId
+             , a1.textbk_idx_id as textbkIdxId
+             , a1.`key`
+             , a1.`order`
+             , a1.`parent`
+             , a1.`text`
+             , a1.`startPage`
+             , a1.`endPage`
+             , a1.use_at as useAt
+             , a1.del_at as delAt
+             , a1.addcon_at as addconAt
+            /*
+            , (select if(count(1) > 0, 'Y', 'N') from aidt_lms.tab_info
+               where textbk_id = a1.textbk_id and wrter_id = a1.wrter_id and cla_id = a1.cla_id) as addconAt
+            */
+             , a1.curriUnit1
+             , a1.curriUnit2
+             , a1.curriUnit3
+             , a1.curriUnit4
+             , a1.curriUnit5
+             , ifnull(a1.`depth`, 0) + 1 as `depth`
+        from  stress_tc_curriculum a1
+        where a1.wrter_id = #{userId}
+        and   a1.cla_id = #{claId}
+        and   a1.textbk_idx_id = #{textbkIdxId}
+    </select>
+
+    <select id="selectStntCrcuLastposition" parameterType="map" resultType="camelHashMap">
+        /* StntCrcuMapper.selectStntCrcuLastposition */
+        SELECT
+            id
+           ,wrter_id as user_id
+           ,cla_id
+           ,textbk_id
+           ,textbk_idx_id
+           ,crcul_id
+           ,brand_id
+           ,rgtr
+           ,reg_dt
+           ,mdfr
+           ,mdfy_dt
+        FROM  aidt_lms.stress_std_lastlesson
+        WHERE wrter_id = #{userId}
+        AND textbk_id = #{textbkId}
+        AND cla_id = #{claId}
+        <if test=' id != null and !("").equals(id) '>
+            AND id=#{id}
+        </if>
+
+    </select>
+
+    <insert id="createStntCrcuLastposition" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntCrcuMapper.createStntCrcuLastposition */
+        INSERT INTO aidt_lms.stress_std_lastlesson
+        (
+            id
+            ,wrter_id
+            ,cla_id
+            ,textbk_id
+            ,textbk_idx_id
+            ,crcul_id
+            ,brand_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{claId}
+            ,#{textbkId}
+            ,(SELECT textbookIndex_id FROM aidt_lcms.stress_textbook WHERE id = #{textbkId})
+            ,#{crculId}
+            ,null
+            ,#{userId}
+            ,now()
+            ,#{userId}
+            ,now()
+        )
+    </insert>
+
+    <update id="updateStntCrcuLastposition" parameterType="map">
+        /* StntCrcuMapper.updateStntCrcuLastposition */
+        UPDATE aidt_lms.stress_std_lastlesson
+        SET crcul_id = #{crculId}
+            ,mdfr = #{userId}
+            ,mdfy_dt = now()
+        WHERE id = #{id}
+    </update>
+
+    <select id="findCrcuTabList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuTabMapper.findCrcuTabList */
+        select
+            A.id,
+            A.wrter_id,
+            A.cla_id,
+            A.textbk_id,
+            A.crcul_id,
+            A.tab_nm,
+            A.tab_seq,
+            A.sets_id,
+            A.sets_nm,
+            A.sets_code,
+            A.sets_val,
+            A.mdul_cnt,
+            A.use_at,
+            A.expos_at,
+            A.tab_add_at,
+            A.ai_cstmzd_std_crt_at,
+            A.category_cd,
+            A.category_nm,
+            /* 편집가능하고 직접출제(3)인 경우 탭 편집가능 */
+            /* 편집가능하고 문항자동생성(2)-공통문항출제(1)인 경우 탭 편집가능 */
+            if(A.editable = 'Y' and (A.eam_mth = 3 or (A.eam_mth = 2 and A.eam_trget = 1)), 'Y', 'N') as editable,
+            A.ebk_id,
+            A.ebk_use_at,
+            A.pdf_url,
+            A.startPage,
+            A.endPage,
+            A.thm_cd,
+            A.thm_path,
+            A.rgtr,
+            A.reg_dt,
+            A.mdfr,
+            A.mdfy_dt,
+            /* 1: 수업중 풀기, 2: 과제로 내기 */
+            if(B.ai_cstmzd_std_mthd_se_cd is null,null,(select code_cd from aidt_lms.stress_se_code where code_gb_cd = B.ai_cstmzd_std_mthd_se_cd)) as ai_cstmzd_std_mthd_se_cd,
+            if(B.ai_cstmzd_std_mthd_se_cd is null,null,(select code_nm from aidt_lms.stress_se_code where code_gb_cd = B.ai_cstmzd_std_mthd_se_cd)) as ai_cstmzd_std_mthd_se_nm
+        from
+            (
+                select
+                    a.id,
+                    a.wrter_id,
+                    a.cla_id,
+                    a.textbk_id,
+                    a.crcul_id,
+                    a.tab_nm,
+                    a.tab_seq,
+                    a.sets_id,
+                    b.name as sets_nm,     /* 셋트지 명 */
+                    c.`code` as sets_code, /* 셋트지 유형(코드) */
+                    c.val as sets_val,     /* 셋트지 유형(명) */
+                    (select count(1) from aidt_lcms.stress_sets_article_map where sets_id = a.sets_id) as mdul_cnt, /* 문항 갯수 */
+                    a.use_at,
+                    a.expos_at,
+                    a.tab_add_at,
+                    a.ai_cstmzd_std_crt_at, /* AI맞춤학습 생성 여부 */
+                    if(a.setCategory is not null,(select code from aidt_lcms.stress_meta where name = 'setCategory' and id = a.setCategory),null) as category_cd,
+                    if(a.setCategory is not null,(select val from aidt_lcms.stress_meta where name = 'setCategory' and id = a.setCategory),null) as category_nm,
+                    (select if(count(y.id) > 0,'N','Y')
+                     from aidt_lms.stress_std_dta_result_info x
+                              inner join aidt_lms.stress_std_dta_result_detail y
+                                         on x.textbk_tab_id = a.id and x.id = y.dta_result_id
+                                             and (y.sub_mit_anw is not null or y.sub_mit_anw_url is not null)
+                    ) as editable, /* 학습이력 존재유무에 따른 편집가능 여부 */
+                    ifnull((select eam_mth
+                            from aidt_lms.stress_std_dta_info
+                            where wrter_id = a.wrter_id
+                              and cla_id = a.cla_id
+                              and textbk_id = a.textbk_id
+                              and crcul_id = a.crcul_id
+                              and textbk_tab_id = a.id
+                           ),3) as eam_mth, /* 출제방법, null 이면 직접출제(3)로 처리 */
+                    ifnull((select eam_trget
+                            from aidt_lms.stress_std_dta_info
+                            where wrter_id = a.wrter_id
+                              and cla_id = a.cla_id
+                              and textbk_id = a.textbk_id
+                              and crcul_id = a.crcul_id
+                              and textbk_tab_id = a.id
+                           ),1) as eam_trget, /* 출제대상, null 이면 공통문항출제(1)로 처리 */
+                    a.ebk_id, /* e북 textbook id */
+                    a.ebk_use_at, /* e북 사용여부 */
+                    (select pdf_url from aidt_lcms.stress_textbook where id = a.ebk_id) as pdf_url, /* PDF url */
+                    a.startPage, /* PDF 시작페이지 */
+                    a.endPage, /* PDF 종료페이지 */
+                    a.thm_cd,   /* 테마설정코드 */
+                    a.thm_path, /* 테마설정경로 */
+                    a.rgtr,
+                    a.reg_dt,
+                    a.mdfr,
+                    a.mdfy_dt
+                from
+                    aidt_lms.stress_tab_info a
+                        left join aidt_lcms.stress_sets b
+                                  on a.sets_id = b.id
+                        left join aidt_lcms.stress_meta c
+                                  on b.setCategory = c.id
+                where
+                    1=1
+                  and a.wrter_id = #{userId}
+                  and a.cla_id = #{claId}
+                  and a.textbk_id = #{textbkId}
+                  and a.crcul_id = #{crculId}
+                order by
+                    a.tab_seq
+            ) A
+                left join aidt_lms.stress_ai_cstmzd_std_set_info B
+                          on A.id = B.tab_id
+    </select>
+
+    <select id="findByUserId" parameterType="map" resultType="map">
+        /* UserMapper.findByUserId */
+        select a1.user_idx as `id`
+            , a1.user_id as `userId`
+            , a1.user_type as `userSeCd`
+            , a1.user_name as `flnm`
+        from  stress_user_mst a1
+        where a1.user_id = #{userId}
+    </select>
+
+    <select id="findStdtListByClass" parameterType="map" resultType="camelHashMap">
+        /* UserMapper.findStdtListByClass */
+        SELECT
+                (select id from stress_user where user_id = b.user_id) as id,
+                b.user_id,
+                b.flnm,
+                b.schl_nm,
+                b.grade_cd,
+                b.cla_cd,
+                concat(b.grade_cd,'-',b.cla_cd) as classroomName,
+                a.user_id as teacher_id,
+                a.cla_id
+        FROM
+            stress_tc_cla_mb_info a
+                inner join stress_stdt_reg_info b
+        WHERE
+            1=1
+          and a.user_id = #{userId}
+          and a.cla_id = #{claId}
+          and a.yr = b.yr
+          and a.grade_cd = b.grade_cd
+          and a.schl_nm = b.schl_nm
+          and a.cla_cd = b.cla_cd
+          and a.stdt_id = b.user_id
+    </select>
+
+    <select id="findStdtInfo" parameterType="map" resultType="camelHashMap">
+        /* UserMapper.findStdtInfo */
+        SELECT
+                (select id from stress_user where user_id = b.user_id) as id,
+                b.user_id,
+                b.flnm,
+                b.schl_nm,
+                b.grade_cd,
+                b.cla_cd,
+                concat(b.grade_cd,'-',b.cla_cd) as classroomName,
+                a.user_id as teacher_id,
+                (select id from stress_user where user_id = a.user_id) as teacher_idx,
+                a.cla_id
+        FROM
+            stress_tc_cla_mb_info a
+                inner join stress_stdt_reg_info b
+        WHERE
+            1=1
+          and a.stdt_id = #{userId}
+          and a.cla_id = #{claId}
+          and a.yr = b.yr
+          and a.grade_cd = b.grade_cd
+          and a.schl_nm = b.schl_nm
+          and a.cla_cd = b.cla_cd
+          and a.stdt_id = b.user_id
+    </select>
+
+    <select id="findClassInfo" parameterType="map" resultType="camelHashMap">
+        /* UserMapper.findClassInfo */
+        select
+            id,
+            user_id,
+            yr,
+            smt,
+            schl_nm,
+            grade_cd,
+            cla_cd
+        from
+            stress_tc_cla_info
+        where
+            1=1
+          and user_id = #{userId}
+          and cla_id = #{claId}
+    </select>
+
+    <select id="getTcTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ut.textbk_id AS textbk_id
+        , ut.textbk_idx_id AS textbk_idx_id
+        , tb.name AS textbk_nm
+        FROM stress_tc_textbook ut
+        LEFT JOIN aidt_lcms.stress_textbook tb ON ut.textbk_id = tb.id
+        WHERE ut.wrter_id = #{wrterId}
+        AND ut.cla_id = #{claId}
+        <!-- AND ut.smte_cd = #{curriSemester} -->
+        LIMIT 1
+    </select>
+
+    <select id="getStTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ut.textbk_id AS textbk_id
+             , ut.textbk_idx_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+        FROM stress_tc_textbook ut
+                 LEFT JOIN aidt_lcms.stress_textbook tb ON ut.textbk_id = tb.id
+        WHERE ut.wrter_id = #{tcId}
+          AND ut.cla_id = #{claId}
+    </select>
+
+     <update id="updateLgnSttsAt" parameterType="map">
+        UPDATE stress_user
+        SET lgn_stts_at = #{lgnSttsAt}
+        WHERE user_id = #{uuid}
+    </update>
+
+    <update id="modifyStntEvalSaveResultDetail" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSaveResultDetail */
+        UPDATE aidt_lms.evl_result_detail erd
+        INNER JOIN aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+        SET   erd.sub_mit_anw = #{subMitAnw}
+        , erd.eak_stts_cd = IF(erd.mrk_ty = 1, 5, 3)
+        , erd.eak_at = 'Y'
+        , erd.eak_st_dt = if(erd.eak_st_dt is null, now(), erd.eak_st_dt)
+        , erd.eak_ed_dt = if(erd.eak_ed_dt is null, now(), erd.eak_ed_dt)
+        , erd.anw_chg_cnt = COALESCE(anw_chg_cnt, 0) + 1
+        , erd.errata = #{errata}
+        , erd.sub_mit_anw_url = #{subMitAnwUrl}
+        , erd.evl_iem_scr = #{evlIemScr}
+        , erd.evl_iem_scr_result = #{evlIemScr}
+        , erd.mrk_cp_at = IF(erd.mrk_ty in (1, 2) and #{errata} <![CDATA[<>]]> 4, 'Y', 'N')
+        , erd.mdfr = '/stnt/eval/save'
+        , erd.mdfy_dt = now()
+        , erd.module_req_sec = erd.module_req_sec + IFNULL(#{evlTime}, 0)
+        <if test="hntUseAt != null and hntUseAt != '' ">
+            , erd.hnt_use_at = #{hntUseAt}
+        </if>
+        WHERE eri.evl_id = #{evlId}
+        AND   eri.mamoym_id = #{userId}
+        AND   erd.evl_result_id = #{evlResultId}
+        AND   erd.evl_Iem_Id = #{evlIemId}
+        AND   erd.sub_id = #{subId}
+    </update>
+
+    <update id="modifyStntEvalResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalResultInfo */
+        UPDATE aidt_lms.evl_result_info
+        set eak_stts_cd = #{eakSttsCd}
+          , mrk_cp_at = 'Y'
+          , mdfr = '/stnt/eval/save'
+          , mdfy_dt = now()
+        WHERE id = #{evlResultId}
+          AND mamoym_id = #{userId}
+    </update>
+
+    <update id="modifyStntEvalSaveResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSaveResultInfo */
+        UPDATE aidt_lms.evl_result_info eri
+        SET eri.evl_result_scr = (SELECT SUM(erd.evl_iem_scr_result)
+                                  FROM aidt_lms.evl_result_detail erd
+                                  WHERE erd.evl_result_id = eri.id
+        )
+          , mdfr = '/stnt/eval/save'
+          , mdfy_dt = now()
+        WHERE eri.id = #{evlResultId}
+          AND eri.mamoym_id = #{userId}
+    </update>
+
+    <select id="findTchMdulQstnAnswResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswResultInfo */
+        select u.id as userIdx
+             , u.user_id
+             , u.flnm
+             , sdrd.sub_mit_anw
+             , sdrd.errata
+             , sdrd.dta_iem_id
+             , sdrd.sub_id
+          from aidt_lms.stress_std_dta_result_info sdri
+          join aidt_lms.stress_std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+          join aidt_lms.stress_tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and tcmi.cla_id = #{paramMap.claId}
+          left outer join aidt_lms.stress_user u on tcmi.stdt_id = u.user_id
+         where 1=1
+           and sdri.textbk_tab_id = #{paramMap.tabId}
+           and sdri.sets_id = #{paramMap.setsId}
+           # and sdrd.eak_stts_cd = 3
+           and sdrd.sub_mit_anw is not null
+           and sdrd.sm_exm_at = 'N'
+           and (
+               <foreach collection="paramData" item="map" separator="or">
+                   (sdrd.dta_iem_id = #{map.dtaIemId} and sdrd.sub_id = #{map.subId})
+               </foreach>
+           )
+           order by sdrd.sub_mit_anw
+    </select>
+
+    <select id="selectTchToolExistCheck" parameterType="map" resultType="camelHashMap">
+         SELECT /* TchToolBarMapper.selectTchToolExistCheck */
+                id AS tolId,
+                cla_id,
+                textbk_id,
+                user_se_cd,
+                monitor,
+                attention,
+                pentool,
+                <choose>
+                    <when test="sbjctCd == 1">
+                        mathtool,
+                    </when>
+                    <when test="sbjctCd == 2">
+                        ai_spk as aiSpeaking,
+                        ai_wrt as aiWriting,
+                    </when>
+                </choose>
+                timer,
+                picker,
+                bookmark,
+                hide_show,
+                quiz,
+                opinion_board,
+                white_board,
+                sbjct_cd
+           FROM aidt_lms.stress_tc_tol_set
+         WHERE  cla_id   = #{claId}
+           AND  textbk_id= #{textbkId}
+           AND  user_se_cd = #{userSeCd}
+    </select>
+
+    <insert id="insertTchToolInfo" parameterType="map">
+        INSERT INTO aidt_lms.stress_tc_tol_set ( /* TchToolBarMapper.insertTchToolInfo */
+                    id,
+                    wrter_id,
+                    cla_id,
+                    textbk_id,
+                    user_se_cd,
+                    sbjct_cd,
+                    rgtr,
+                    reg_dt,
+                    mdfr,
+                    mdfy_dt,
+                    mathtool,
+                    ai_spk,
+                    ai_wrt
+        ) VALUES  (
+                    null,
+                    #{userId},
+                    #{claId},
+                    #{textbkId},
+                    #{userSeCd},
+                    #{sbjctCd},
+                    #{userId},
+                    NOW(),
+                    #{userId},
+                    NOW(),
+                    <choose>
+                        <when test='sbjctCd == 1 '>
+                             4,
+                            -1,
+                            -1
+                        </when>
+                        <when test="sbjctCd == 2">
+                            -1,
+                             5,
+                             6
+                        </when>
+                        <otherwise>
+                            -1,
+                            -1,
+                            -1
+                        </otherwise>
+                    </choose>
+        )
+    </insert>
+
+    <insert id="createVocalEvlScrInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntMdulVocalScrMapper.createVocalEvlScrInfo */
+        INSERT INTO aidt_lms.vocal_evl_scr_info
+        VALUES
+            (
+                null,
+                #{menuSeCd},
+                #{stdCd},
+                #{trgtId},
+                #{libTextId},
+                #{acoustic},
+                #{EN_HOLISTIC},
+                #{EN_INTONATION},
+                #{EN_SEGMENT},
+                #{EN_PITCH},
+                #{EN_STRESS},
+                'system',
+                now(),
+                'system',
+                now()
+            )
+    </insert>
+
+    <insert id="createVocalEvlScrDetail" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntMdulVocalScrMapper.createVocalEvlScrDetail */
+        INSERT INTO aidt_lms.vocal_evl_info_detail
+        VALUES
+            (
+              null
+            , #{vocal_evl_scr_id}
+            , #{word}
+            , #{intonation_difference}
+            , #{xPosition_reference}
+            , #{xPosition_user}
+            , #{yPosition_reference}
+            , #{yPosition_user}
+            , #{stress_difference}
+            , #{stress_reference}
+            , #{stress_user}
+            , #{word_index}
+            , #{start_time_sec}
+            , #{end_time_sec}
+            , #{word_stress}
+            , #{acoustic_score}
+            , 'system'
+            , now()
+            , 'system'
+            , now()
+            )
+    </insert>
+
+    <insert id="createVocalEvlScrColor" parameterType="map">
+        /* StntMdulVocalScrMapper.createVocalEvlScrDetail */
+        INSERT INTO aidt_lms.vocal_evl_info_color_letter
+        VALUES
+        <foreach item="item" collection="vocalColorList" separator=",">
+            (
+            null
+            , #{item.vocal_detail_id}
+            , #{item.letter}
+            , #{item.position}
+            , #{item.color}
+            , 'system'
+            , now()
+            , 'system'
+            , now()
+            )
+        </foreach>
+    </insert>
+
+    <insert id="createVocalEvlPhoneLevel" parameterType="map">
+        /* StntMdulVocalScrMapper.createVocalEvlScrDetail */
+        INSERT INTO aidt_lms.vocal_evl_info_phone_level
+        VALUES
+        <foreach item="item" collection="vocalPhoneList" separator=",">
+            (
+            null
+            , #{item.vocal_evl_scr_id}
+            , #{item.vocal_group_id}
+            , #{item.word_index}
+            , #{item.phone_index}
+            , #{item.text}
+            , #{item.ipa}
+            , #{item.scr}
+            , #{item.start_time_sec}
+            , #{item.end_time_sec}
+            , 'system'
+            , now()
+            , 'system'
+            , now()
+            )
+        </foreach>
+    </insert>
+
+    <select id="findTchMdulQstnAnswResultDetailInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswResultDetailInfo */
+        select sdrd.dta_iem_id, sdrd.sub_id
+                /*, COALESCE(sum(if(eak_stts_cd = 3 and errata = 1, 1, 0)), 0) as crrtStntCnt*/
+                , COALESCE(sum(if(sdrd.sm_exm_at = 'N' and tcmi.id is not null and sdrd.eak_stts_cd = 3, 1, 0)), 0) as submStntCnt
+                /*, count(*) as totalStntCnt*/
+                /*, COALESCE(ROUND(sum(if(eak_stts_cd = 3 and errata = 1, 1, 0)) / sum(if(eak_stts_cd = 3, 1, 0)) * 100, 2), 0) as rating*/
+                , if((select count(1) from aidt_lms.stress_bkmk_info where tab_id = #{tabId} and module_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id) > 0,'Y', 'N') AS bmkYn
+                , (select id from aidt_lms.stress_bkmk_info where tab_id = #{tabId} and module_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id limit 1) AS bmkId
+        from aidt_lms.stress_std_dta_result_info sdri
+        join aidt_lms.stress_std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        left join aidt_lms.stress_tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and tcmi.cla_id = #{claId}
+         where 1=1
+         and sdri.textbk_tab_id = #{tabId}
+         and sdri.sets_id = #{setsId}
+        group by dta_iem_id, sub_id
+        order by dta_iem_id, sub_id
+    </select>
+
+    <select id="findTchMdulQstnAnswSelfStd" parameterType="map" resultType="camelHashMap">
+        /* TchMdulQstnMapper.findTchMdulQstnAnswSelfStd */
+        select DISTINCT u.id as user_idx
+            , u.user_id
+            , u.flnm
+            , sdrd.dta_iem_id
+            , sdrd.sub_id
+         from aidt_lms.stress_std_dta_result_info sdri
+         join aidt_lms.stress_std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+         join aidt_lms.stress_tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and tcmi.cla_id = #{paramMap.claId}
+         join aidt_lms.stress_std_dta_result_detail sdrd2 on sdrd2.src_detail_id = sdrd.id and sdrd2.sm_exm_at = 'Y'
+         left outer join aidt_lms.stress_user u on tcmi.stdt_id = u.user_id
+        where 1=1
+        and sdri.textbk_tab_id = #{paramMap.tabId}
+        and sdri.sets_id = #{paramMap.setsId}
+        # and sdrd.eak_stts_cd = 3
+        and sdrd.sm_exm_at = 'N'
+        # and sdrd2.eak_stts_cd = 3
+        and (
+            <foreach collection="paramData" item="map" separator="or">
+                (sdrd.dta_iem_id = #{map.dtaIemId} and sdrd.sub_id = #{map.subId})
+            </foreach>
+        )
+    </select>
+
+    <select id="findTchSlfperEvlSlfSetList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findTchSlfperEvlSlfSetList */
+        select
+        si.id
+        , si.module_id
+        , si.sub_id
+        , slSdi.id as slfPerEvlSetId
+        , slSdi.tmplt_itm_seq
+        , slSdi.evl_dmi
+        , slSdi.evl_iem
+        , slSdi.evl_stdr_cd
+        , slSdi.evl_stdr_dc
+        , slSdi.evl_result
+        , (select evl_asw
+        from aidt_lms.stress_slf_per_evl_result_info
+        where slf_per_evl_detail_id = slSdi.id
+        and apraser_id = #{stntId}
+        limit 1
+        )  as evl_asw
+        ,si.st_expos_at
+        from aidt_lms.stress_slf_per_evl_set_info si
+        join aidt_lms.stress_slf_per_evl_set_detail_info slSdi on si.id = slSdi.slf_per_evl_set_id
+        where si.gb_cd = #{gbCd}
+        and si.slf_per_evl_clsf_cd = 1
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test=" (setsId != null and setsId != '') or (moduleId != null and moduleId != '') or (dtaIemId != null and dtaIemId != '')  ">
+                <if test="setsId != null and setsId != '' ">
+                    AND si.sets_id = #{setsId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <foreach collection="mdulList" item="map" open=" AND si.module_id in (" close=")" separator=",">
+                    #{map.dtaIemId}
+                </foreach>
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+                AND si.module_id is null
+            </otherwise>
+        </choose>
+        <foreach collection="mdulList" item="map" open=" AND si.sub_id in (" close=")" separator=",">
+            #{map.subId}
+        </foreach>
+        order by slSdi.tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlPerSetList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findTchSlfperEvlPerSetList */
+        select
+        si.id
+        ,si.module_id
+        ,si.sub_id
+        ,sdi.id as slfPerEvlDetailId
+        ,sdi.tmplt_itm_seq
+        ,sdi.evl_dmi
+        ,sdi.evl_iem
+        ,sdi.evl_stdr_cd
+        ,sdi.evl_stdr_dc
+        ,sdi.evl_result
+        ,eri.per_apraser_id
+        ,u.flnm
+        ,eri.evl_asw
+        ,si.st_expos_at
+        from aidt_lms.stress_slf_per_evl_set_info si
+        join aidt_lms.stress_slf_per_evl_set_detail_info sdi on si.id = sdi.slf_per_evl_set_id
+        left join aidt_lms.stress_slf_per_evl_result_info eri on eri.slf_per_evl_detail_id = sdi.id and eri.per_apraser_id is not null and eri.apraser_id = 're22mma14-s2'
+        left outer join aidt_lms.stress_user u on u.user_id = eri.per_apraser_id
+        where si.gb_cd = #{gbCd}
+        and si.slf_per_evl_clsf_cd = 2
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test=" (setsId != null and setsId != '') or (moduleId != null and moduleId != '') or (dtaIemId != null and dtaIemId != '')  ">
+                <if test="setsId != null and setsId != '' ">
+                    AND si.sets_id = #{setsId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <foreach collection="mdulList" item="map" open=" AND si.module_id in (" close=")" separator=",">
+                    #{map.dtaIemId}
+                </foreach>
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+                AND si.module_id is null
+            </otherwise>
+        </choose>
+        <foreach collection="mdulList" item="map" open=" AND si.sub_id in (" close=")" separator=",">
+            #{map.subId}
+        </foreach>
+        order by eri.per_apraser_id, si.module_id, sdi.tmplt_itm_seq
+    </select>
+
+    <select id="findMdulSlfPerEvlAt" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findMdulSlfPerEvlAt */
+        select
+        id as moduleId
+        , if(use_evaluation > 0 ,'Y','N') as mdulSlfPerEvlAt
+        from aidt_lcms.stress_article
+        where id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.dtaIemId}
+        </foreach>
+    </select>
+    <select id="selectTchDsbdAreaAchievementDistribution" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.selectTchDsbdAreaAchievementDistribution */
+        WITH grouped_data AS (
+            SELECT
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 'understanding'
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 'expression'
+                    WHEN a.code IN <include refid="languageCodesSql"/> THEN 'language'
+                    END AS category,
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 1
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 2
+                    WHEN a.code = 'vocabulary' THEN 3
+                    <if test="textbookId != 6981 and textbookId != 6982">
+                        WHEN a.code = 'grammar' THEN 4
+                    </if>
+                    WHEN a.code = 'pronunciation' THEN 5
+                    END AS category_order,
+                a.code,
+                a.val as code_nm,
+                IFNULL(b.usd_ach_scr, 0) as usd_ach_scr,
+                IFNULL(b.rflt_actv_cnt, 0) as rflt_actv_cnt,
+                IFNULL(b.usd_ach_scr_percent, 0) as usd_ach_scr_percent,
+                IFNULL(std_at, 'N') as std_at
+            FROM (
+                     SELECT id, code, val
+                     FROM aidt_lcms.meta
+                     WHERE name IN ('evaluationArea','contentsItem','evaluationArea3','evaluationCommu')
+                       AND brand_id = '3'
+                 ) a
+                     LEFT JOIN (
+                SELECT
+                    usd_ach_id,
+                    sum(c.usd_ach_scr) as usd_ach_scr,
+                    sum(c.rflt_actv_cnt) as rflt_actv_cnt,
+                    CASE
+                        WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                            THEN round((sum(c.usd_ach_scr_percent) * 100 / count(c.stdt_id)), 2)
+                        WHEN c.usd_ach_id = 'pronunciation'
+                            THEN round(avg(c.usd_ach_scr_percent), 2)
+                        ELSE round((avg(c.usd_ach_scr_percent) * 100), 2)
+                        END as usd_ach_scr_percent,
+                    c.std_at
+                FROM (
+                         SELECT
+                             usd_ach_id,
+                             sum(usd_ach_scr) as usd_ach_scr,
+                             sum(rflt_actv_cnt) as rflt_actv_cnt,
+                             sum(usd_ach_scr)/NULLIF(sum(rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                             stdt_id,
+                            (case when sum(rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                         FROM aidt_lms.usd_ach_src2_info
+                         WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                           AND cla_id = #{claId}
+                           AND textbk_id = #{textbookId}
+                           AND std_dt = (
+                             SELECT max(dt.std_dt)
+                             FROM aidt_lms.usd_ach_src2_info dt
+                             WHERE dt.cla_id = #{claId}
+                               AND dt.textbk_id = #{textbookId}
+                         )
+                         GROUP BY usd_ach_id, stdt_id
+
+                         UNION ALL
+
+                         SELECT
+                             b.usd_ach_id,
+                             sum(b.usd_ach_scr) as usd_ach_scr,
+                             sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                             AVG(b.usd_ach_scr_percent) as usd_ach_scr_percent,
+                             b.stdt_id,
+                             b.std_at
+                         FROM (
+                                  SELECT
+                                      a.usd_ach_id,
+                                      sum(a.usd_ach_scr) as usd_ach_scr,
+                                      sum(a.rflt_actv_cnt) as rflt_actv_cnt,
+                                      AVG(a.usd_ach_scr_percent) as usd_ach_scr_percent,
+                                      a.stdt_id,
+                                     (case when sum(a.rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                                  FROM (
+                                           SELECT
+                                               a.usd_ach_id,
+                                               b.iem_id,
+                                               b.iem_cd,
+                                               sum(b.usd_ach_scr) as usd_ach_scr,
+                                               sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                                               sum(b.usd_ach_scr)/NULLIF(sum(b.rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                                               a.stdt_id,
+                                               a.std_at
+                                           FROM aidt_lms.usd_ach_src2_info a
+                                                    INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                               ON a.id = b.usd_ach_src_id
+                                           WHERE 1=1
+                                             AND a.usd_ach_id IN <include refid="languageCodesSql"/>
+                                             AND a.cla_id = #{claId}
+                                             AND a.textbk_id = #{textbookId}
+                                             AND a.std_dt = (
+                                               SELECT max(dt.std_dt)
+                                               FROM aidt_lms.usd_ach_src2_info dt
+                                               WHERE dt.cla_id = #{claId}
+                                                 AND dt.textbk_id = #{textbookId}
+                                           )
+                                           GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd
+                                       ) a
+                                  GROUP BY a.usd_ach_id, a.iem_id
+                              ) b
+                         GROUP BY b.usd_ach_id
+                     ) c
+                GROUP BY c.usd_ach_id
+            ) b ON a.code = b.usd_ach_id
+        )
+        SELECT
+            code,
+            code_nm,
+            ifnull(usd_ach_scr, 0) as usd_ach_scr,
+            ifnull(rflt_actv_cnt, 0) as rflt_actv_cnt,
+            ifnull(ROUND(usd_ach_scr_percent, 2),0) as usd_ach_scr_percent,
+            ifnull(std_at, 'N') as std_at
+        FROM (
+                 /* 이해 영역 */
+                 SELECT
+                     'understanding' as code,
+                     '이해' as code_nm,
+                     SUM(usd_ach_scr) as usd_ach_scr,
+                     SUM(rflt_actv_cnt) as rflt_actv_cnt,
+                     ROUND(AVG(usd_ach_scr_percent), 2) as usd_ach_scr_percent,
+                     MAX(std_at) as std_at,
+                     1 as sort_order
+                 FROM grouped_data
+                 WHERE category = 'understanding'
+                   AND std_at = 'Y'
+
+                 UNION ALL
+
+                 /* 표현 영역 */
+                 SELECT
+                     'expression' as code,
+                     '표현' as code_nm,
+                     SUM(usd_ach_scr) as usd_ach_scr,
+                     SUM(rflt_actv_cnt) as rflt_actv_cnt,
+                     ROUND(AVG(usd_ach_scr_percent), 2) as usd_ach_scr_percent,
+                     MAX(std_at) as std_at,
+                     2 as sort_order
+                 FROM grouped_data
+                 WHERE category = 'expression'
+                   AND std_at = 'Y'
+
+                 UNION ALL
+
+                 /* 단어/문법/발음 */
+                 SELECT
+                     code,
+                     code_nm,
+                     usd_ach_scr as usd_ach_scr,
+                     rflt_actv_cnt as rflt_actv_cnt,
+                     ROUND(usd_ach_scr_percent, 2) as usd_ach_scr_percent,
+                     std_at,
+                     category_order as sort_order
+                 FROM grouped_data
+                 WHERE 1=1
+                     AND code IN <include refid="languageCodesSql"/>
+             ) result
+        ORDER BY sort_order;
+    </select>
+
+    <select id="selectTchDsbdAreaAchievementDistributionSummary" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.selectTchDsbdAreaAchievementDistributionSummary */
+        WITH grouped_data AS (
+            SELECT
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 'understanding'
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 'expression'
+                    WHEN a.code IN <include refid="languageCodesSql"/> THEN 'language'
+                    END AS category,
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 1
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 2
+                    WHEN a.code = 'vocabulary' THEN 3
+                    <if test="textbookId != 6981 and textbookId != 6982">
+                        WHEN a.code = 'grammar' THEN 4
+                    </if>
+                    WHEN a.code = 'pronunciation' THEN 5
+                    END AS category_order,
+                a.code,
+                a.val as code_nm,
+                IFNULL(b.usd_ach_scr, 0) as usd_ach_scr,
+                IFNULL(b.rflt_actv_cnt, 0) as rflt_actv_cnt,
+                IFNULL(b.usd_ach_scr_percent, 0) as usd_ach_scr_percent,
+                IFNULL(std_at, 'N') as std_at
+            FROM (
+                     SELECT id, code, val
+                     FROM aidt_lcms.meta
+                     WHERE name IN ('evaluationArea','contentsItem','evaluationArea3','evaluationCommu')
+                       AND brand_id = '3'
+                 ) a
+                     LEFT JOIN (
+                SELECT
+                    usd_ach_id,
+                    sum(c.usd_ach_scr) as usd_ach_scr,
+                    sum(c.rflt_actv_cnt) as rflt_actv_cnt,
+                    CASE
+                        WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                            THEN round((sum(c.usd_ach_scr_percent) * 100 / count(c.stdt_id)), 2)
+                        WHEN c.usd_ach_id = 'pronunciation'
+                            THEN round(avg(c.usd_ach_scr_percent), 2)
+                        ELSE round((avg(c.usd_ach_scr_percent) * 100), 2)
+                        END as usd_ach_scr_percent,
+                    c.std_at
+                FROM (
+                         SELECT
+                             usd_ach_id,
+                             sum(usd_ach_scr) as usd_ach_scr,
+                             sum(rflt_actv_cnt) as rflt_actv_cnt,
+                             sum(usd_ach_scr)/NULLIF(sum(rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                             stdt_id,
+                            (case when sum(rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                         FROM aidt_lms.usd_ach_src2_info
+                         WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                           AND cla_id = #{claId}
+                           AND textbk_id = #{textbookId}
+                           AND std_dt = (
+                             SELECT max(dt.std_dt)
+                             FROM aidt_lms.usd_ach_src2_info dt
+                             WHERE dt.cla_id = #{claId}
+                               AND dt.textbk_id = #{textbookId}
+                         )
+                         GROUP BY usd_ach_id, stdt_id
+
+                         UNION ALL
+
+                         SELECT
+                             b.usd_ach_id,
+                             sum(b.usd_ach_scr) as usd_ach_scr,
+                             sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                             AVG(b.usd_ach_scr_percent) as usd_ach_scr_percent,
+                             b.stdt_id,
+                             b.std_at
+                         FROM (
+                                  SELECT
+                                      a.usd_ach_id,
+                                      sum(a.usd_ach_scr) as usd_ach_scr,
+                                      sum(a.rflt_actv_cnt) as rflt_actv_cnt,
+                                      AVG(a.usd_ach_scr_percent) as usd_ach_scr_percent,
+                                      a.stdt_id,
+                                      a.std_at
+                                  FROM (
+                                           SELECT
+                                               a.usd_ach_id,
+                                               b.iem_id,
+                                               b.iem_cd,
+                                               sum(b.usd_ach_scr) as usd_ach_scr,
+                                               sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                                               sum(b.usd_ach_scr)/NULLIF(sum(b.rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                                               a.stdt_id,
+                                              (case when sum(b.rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                                           FROM aidt_lms.usd_ach_src2_info a
+                                                    INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                               ON a.id = b.usd_ach_src_id
+                                           WHERE 1=1
+                                            AND a.usd_ach_id IN <include refid="languageCodesSql"/>
+                                             AND a.cla_id = #{claId}
+                                             AND a.textbk_id = #{textbookId}
+                                             AND a.std_dt = (
+                                               SELECT max(dt.std_dt)
+                                               FROM aidt_lms.usd_ach_src2_info dt
+                                               WHERE dt.cla_id = #{claId}
+                                                 AND dt.textbk_id = #{textbookId}
+                                           )
+                                           GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd
+                                       ) a
+                                  GROUP BY a.usd_ach_id, a.iem_id
+                              ) b
+                         GROUP BY b.usd_ach_id
+                     ) c
+                GROUP BY c.usd_ach_id
+            ) b ON a.code = b.usd_ach_id
+        ),
+             achievement_summary as(
+                 select
+                     r.code,
+                     r.code_nm,
+                     round(r.usd_ach_scr_percent, 2) as class_avg_percent,
+                     std_at
+                 from (
+                      /* 이해 영역 */
+                      select
+                          'understanding' as code,
+                          '이해' as code_nm,
+                          round(avg(usd_ach_scr_percent), 2) as usd_ach_scr_percent,
+                          MAX(std_at) as std_at
+                      from grouped_data
+                      where category = 'understanding'
+                        AND std_at = 'Y'
+
+                      union all
+
+                      /* 표현 영역 */
+                      select
+                          'expression' as code,
+                          '표현' as code_nm,
+                          round(avg(usd_ach_scr_percent), 2) as usd_ach_scr_percent,
+                          MAX(std_at) as std_at
+                      from grouped_data
+                      where category = 'expression'
+                        AND std_at = 'Y'
+
+                      union all
+
+                      /* 단어/문법/발음 영역 */
+                      select
+                          code,
+                          code_nm,
+                          round(usd_ach_scr_percent, 2),
+                          std_at
+                      from grouped_data
+                      where code IN <include refid="languageCodesSql"/>
+                  ) r
+             ),
+             min_max_values as (
+                 select
+                     min(class_avg_percent) as min_value,
+                     max(class_avg_percent) as max_value
+                 from
+                     achievement_summary
+                 where std_at = 'Y'
+             )
+        select
+            code,
+            code_nm,
+            class_avg_percent as usd_ach_scr_percent /* 학급 평균 성취도 */,
+            case
+                when class_avg_percent = (select max_value from min_max_values) then 'high'
+                when class_avg_percent = (select min_value from min_max_values) then 'low'
+                end as diff_type  /* 최대, 최소 타입 */
+        from
+            achievement_summary
+        where
+            class_avg_percent = (select max_value from min_max_values)
+           or class_avg_percent = (select min_value from min_max_values)
+        order by
+            diff_type;
+    </select>
+
+    <!-- [교사] 학급관리 > 홈 대시보드 >  단원정보 -->
+    <select id="selectTchDsbdUnitInfo" resultType="camelHashMap">
+        /* TchDsbdMapper.selectTchDsbdUnitInfo */
+        SELECT  row_number() over (order by b.`code`) as unitNum
+        ,       b.id as meta_id
+        ,       b.parent_id
+        ,       b.code
+        ,       b.val AS unit_nm
+        <choose>
+            <when test="textbookId == 6981 or textbookId == 6982"> /* 초등영어는 lesson을 한글로 표시 */
+                /* Lesson n 은 n단원, 그 외는 문자열 그대로 */
+                ,CASE
+                WHEN b.val RLIKE '^Lesson [0-9]+' THEN
+                CONCAT(
+                REGEXP_SUBSTR(b.val, '[0-9]+'),
+                '단원'
+                )
+                ELSE
+                SUBSTRING_INDEX(b.val, '_', 1)
+                END AS unit
+            </when>
+            <when test="textbookId == 6979"> /* 중등 영어 2*/
+                , SUBSTRING_INDEX(b.val, '_', 1) AS unit
+            </when>
+            <otherwise>
+                , SUBSTRING_INDEX(b.val, ' ', 2) AS unit
+            </otherwise>
+        </choose>
+        ,       b.depth - 1 as depth
+        FROM    aidt_lcms.meta a
+        inner join aidt_lcms.meta b on a.`code` = b.description and b.is_active = 1 and b.name = 'studyMap1'
+        inner join aidt_lcms.meta c on c.id = b.parent_id and c.is_active = 1
+        left join aidt_lcms.meta_extension d on b.meta_extension_id = d.meta_extension_id
+        WHERE   a.is_active = 1
+        and   a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbookId})
+        <if test="isProject == 0">
+            and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+        </if>
+    </select>
+
+    <!-- [교사][영어] 단원별 성취도 조회 -->
+    <select id="selectTchDsbdUnitAchievementList" resultType="camelHashMap">
+        SELECT
+            d.unit_num,
+            ROUND(AVG(d.usd_ach_scr_percent), 2) AS avg_usd_ach_scr_percent
+        FROM (
+                 SELECT
+                     b.unit_num,
+                     IFNULL(b.usd_ach_scr_percent, 0) AS usd_ach_scr_percent
+                 FROM (
+                          SELECT id, code, val
+                          FROM aidt_lcms.meta
+                          WHERE 1=1
+                            AND name IN ('evaluationArea', 'contentsItem', 'evaluationArea3')
+                            AND brand_id = '3'
+                            AND code != 'sentence' /*문장 사용 안함*/
+                      ) a
+              INNER JOIN (
+                     /* 학습 이력 + 단원정보 포함 */
+                     SELECT
+                         usd_ach_id,
+                         SUM(c.usd_ach_scr) AS usd_ach_scr,
+                         SUM(c.rflt_actv_cnt) AS rflt_actv_cnt,
+                         CASE
+                             WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                                 THEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2)
+                             WHEN c.usd_ach_id = 'pronunciation'
+                                 THEN ROUND(AVG(c.usd_ach_scr_percent), 2)
+                             ELSE ROUND((AVG(c.usd_ach_scr_percent) * 100), 2)
+                             END AS usd_ach_scr_percent,
+                         CASE
+                             WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting') THEN
+                                 CASE
+                                     WHEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2) >= 80 THEN 1
+                                     WHEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2) > 50 THEN 2
+                                     ELSE 3
+                                     END
+                             WHEN c.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation') THEN
+                                 CASE
+                                     WHEN c.usd_ach_scr_percent >= 80 THEN 1
+                                     WHEN c.usd_ach_scr_percent > 50 THEN 2
+                                     ELSE 3
+                                     END
+                             END AS dfclt_lvl_ty,
+                         GROUP_CONCAT(REPLACE(IFNULL(c.article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                         c.std_at,
+                         c.unit_num
+                     FROM (
+                              SELECT
+                                  usd_ach_id,
+                                  SUM(usd_ach_scr) AS usd_ach_scr,
+                                  SUM(rflt_actv_cnt) AS rflt_actv_cnt,
+                                  SUM(usd_ach_scr) / SUM(rflt_actv_cnt) AS usd_ach_scr_percent,
+                                  GROUP_CONCAT(REPLACE(IFNULL(article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                                  stdt_id,
+                                  std_at,
+                                  unit_num
+                              FROM aidt_lms.usd_ach_src2_info
+                              WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                                AND cla_id = #{claId}
+                                AND textbk_id = #{textbookId}
+                                <if test="unitNum > 0">
+                                    AND unit_num = #{unitNum} /* 단원번호 */
+                                </if>
+                                AND std_dt = (
+                                  SELECT MAX(dt.std_dt)
+                                  FROM aidt_lms.usd_ach_src2_info dt
+                                  WHERE dt.cla_id = #{claId}
+                                    AND dt.textbk_id = #{textbookId}
+                              )
+                              GROUP BY usd_ach_id, stdt_id, unit_num
+                              UNION ALL
+                              SELECT
+                                  b.usd_ach_id,
+                                  SUM(b.usd_ach_scr) AS usd_ach_scr,
+                                  SUM(b.rflt_actv_cnt) AS rflt_actv_cnt,
+                                  AVG(b.usd_ach_scr_percent) AS usd_ach_scr_percent,
+                                  GROUP_CONCAT(REPLACE(IFNULL(b.article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                                  b.stdt_id,
+                                  b.std_at,
+                                  b.unit_num
+                              FROM (
+                                       SELECT
+                                           a.usd_ach_id,
+                                           SUM(a.usd_ach_scr) AS usd_ach_scr,
+                                           SUM(a.rflt_actv_cnt) AS rflt_actv_cnt,
+                                           AVG(a.usd_ach_scr_percent) AS usd_ach_scr_percent,
+                                           a.article_list,
+                                           a.iem_cd,
+                                           a.iem_id,
+                                           a.stdt_id,
+                                           a.std_at,
+                                           a.unit_num
+                                       FROM (
+                                                SELECT
+                                                    a.usd_ach_id,
+                                                    b.iem_id,
+                                                    b.iem_cd,
+                                                    SUM(b.usd_ach_scr) AS usd_ach_scr,
+                                                    SUM(b.rflt_actv_cnt) AS rflt_actv_cnt,
+                                                    SUM(b.usd_ach_scr) / SUM(b.rflt_actv_cnt) AS usd_ach_scr_percent,
+                                                    a.stdt_id,
+                                                    a.std_at,
+                                                    b.article_list,
+                                                    a.unit_num
+                                                FROM aidt_lms.usd_ach_src2_info a
+                                                         INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                                    ON a.id = b.usd_ach_src_id
+                                                WHERE a.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation')
+                                                  AND a.cla_id = #{claId}
+                                                  AND a.textbk_id = #{textbookId}
+                                                <if test="unitNum > 0">
+                                                    AND a.unit_num = #{unitNum} /* 단원번호 */
+                                                </if>
+                                                  AND a.std_dt = (
+                                                    SELECT MAX(dt.std_dt)
+                                                    FROM aidt_lms.usd_ach_src2_info dt
+                                                    WHERE dt.cla_id = #{claId}
+                                                      AND dt.textbk_id = #{textbookId}
+                                                )
+                                                GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd, a.unit_num
+                                            ) a
+                                       GROUP BY a.usd_ach_id, a.iem_id, a.unit_num
+                                   ) b
+                              GROUP BY b.usd_ach_id, b.unit_num
+                          ) c
+                     GROUP BY c.usd_ach_id, c.unit_num
+                 ) b ON a.code = b.usd_ach_id
+             ) d
+        GROUP BY d.unit_num
+        ORDER BY d.unit_num
+    </select>
+
+    <select id="selectTchDsbdAreaAchievementStudentDstribution" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.selectTchDsbdAreaAchievementStudentDstribution */
+        WITH student_data AS (
+            SELECT
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 'understanding'
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 'expression'
+                    <choose>
+                        <when test="textbookId != '6981' and textbookId != '6982'">
+                            WHEN a.code IN ('pronunciation', 'grammar', 'vocabulary') THEN 'language'
+                        </when>
+                        <otherwise>
+                            WHEN a.code IN ('pronunciation', 'vocabulary') THEN 'language'
+                        </otherwise>
+                    </choose>
+                END AS category,
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 1
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 2
+                    WHEN a.code = 'vocabulary' THEN 3
+                    <choose>
+                        <when test="textbookId != '6981' and textbookId != '6982'">
+                            WHEN a.code = 'grammar' THEN 4
+                        </when>
+                    </choose>
+                    WHEN a.code = 'pronunciation' THEN 5
+                END AS category_order,
+                a.code,
+                a.val as code_nm,
+                IFNULL(b.usd_ach_scr, 0) as usd_ach_scr,
+                IFNULL(b.rflt_actv_cnt, 0) as rflt_actv_cnt,
+                IFNULL(b.usd_ach_scr_percent, 0) as student_percent,
+                IFNULL(std_at, 'N') as std_at
+            FROM (
+                     SELECT id, code, val
+                     FROM aidt_lcms.meta
+                     WHERE name IN ('evaluationArea','contentsItem','evaluationArea3','evaluationCommu')
+                       AND brand_id = '3'
+                 ) a
+                     LEFT JOIN (
+                SELECT
+                    usd_ach_id,
+                    sum(c.usd_ach_scr) as usd_ach_scr,
+                    sum(c.rflt_actv_cnt) as rflt_actv_cnt,
+                    CASE
+                        WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                            THEN round((sum(c.usd_ach_scr_percent) * 100 / count(c.stdt_id)), 2)
+                        WHEN c.usd_ach_id = 'pronunciation'
+                            THEN round(avg(c.usd_ach_scr_percent), 2)
+                        ELSE round((avg(c.usd_ach_scr_percent) * 100), 2)
+                        END as usd_ach_scr_percent,
+                    c.std_at
+                FROM (
+                         /* 기본 능력치 */
+                         SELECT
+                             usd_ach_id,
+                             sum(usd_ach_scr) as usd_ach_scr,
+                             sum(rflt_actv_cnt) as rflt_actv_cnt,
+                             sum(usd_ach_scr)/NULLIF(sum(rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                             stdt_id,
+                            (case when sum(rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                         FROM aidt_lms.usd_ach_src2_info
+                         WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                           AND cla_id = #{claId}
+                           AND textbk_id = #{textbookId}
+                           AND stdt_id = #{userId}
+                           AND std_dt = (
+                             SELECT max(dt.std_dt)
+                             FROM aidt_lms.usd_ach_src2_info dt
+                             WHERE dt.cla_id = #{claId}
+                               AND dt.textbk_id = #{textbookId}
+                         )
+                         GROUP BY usd_ach_id, stdt_id
+
+                         UNION ALL
+
+                         /* 단어/문법/발음 능력치 */
+                         SELECT
+                             b.usd_ach_id,
+                             sum(b.usd_ach_scr) as usd_ach_scr,
+                             sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                             AVG(b.usd_ach_scr_percent) as usd_ach_scr_percent,
+                             b.stdt_id,
+                             b.std_at
+                         FROM (
+                                  SELECT
+                                      a.usd_ach_id,
+                                      sum(a.usd_ach_scr) as usd_ach_scr,
+                                      sum(a.rflt_actv_cnt) as rflt_actv_cnt,
+                                      AVG(a.usd_ach_scr_percent) as usd_ach_scr_percent,
+                                      a.stdt_id,
+                                      a.std_at
+                                  FROM (
+                                           SELECT
+                                               a.usd_ach_id,
+                                               b.iem_id,
+                                               b.iem_cd,
+                                               sum(b.usd_ach_scr) as usd_ach_scr,
+                                               sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                                               sum(b.usd_ach_scr)/NULLIF(sum(b.rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                                               a.stdt_id,
+                                               (case when sum(b.rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                                           FROM aidt_lms.usd_ach_src2_info a
+                                                    INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                               ON a.id = b.usd_ach_src_id
+                                           WHERE 1=1
+                                             <choose>
+                                                 <when test="textbookId == 6981 or textbookId == 6982">
+                                                     AND a.usd_ach_id IN ('vocabulary', 'pronunciation')
+                                                 </when>
+                                                 <otherwise>
+                                                     AND a.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation')
+                                                 </otherwise>
+                                             </choose>
+                                             AND a.cla_id = #{claId}
+                                             AND a.textbk_id = #{textbookId}
+                                             AND a.stdt_id = #{userId}
+                                             AND a.std_dt = (
+                                               SELECT max(dt.std_dt)
+                                               FROM aidt_lms.usd_ach_src2_info dt
+                                               WHERE dt.cla_id = #{claId}
+                                                 AND dt.textbk_id = #{textbookId}
+                                           )
+                                           GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd
+                                       ) a
+                                  GROUP BY a.usd_ach_id, a.iem_id
+                              ) b
+                         GROUP BY b.usd_ach_id
+                     ) c
+                GROUP BY c.usd_ach_id
+            ) b ON a.code = b.usd_ach_id
+        )
+        SELECT
+            code,
+            code_nm,
+            ifnull(usd_ach_scr, 0) as usd_ach_scr,
+            ifnull(rflt_actv_cnt, 0) as rflt_actv_cnt,
+            ifnull(usd_ach_scr_percent, 0) as usd_ach_scr_percent,
+            ifnull(std_at, 'N') as std_at
+        FROM (
+                 /* 이해 영역 */
+                 SELECT
+                     'understanding' as code,
+                     '이해' as code_nm,
+                     SUM(usd_ach_scr) as usd_ach_scr,
+                     SUM(rflt_actv_cnt) as rflt_actv_cnt,
+                     ROUND(AVG(student_percent), 2) as usd_ach_scr_percent,
+                     std_at,
+                     1 as sort_order
+                 FROM student_data
+                 WHERE category = 'understanding'
+                   AND std_at ='Y'
+
+                 UNION ALL
+
+                 /* 표현 영역 */
+                 SELECT
+                     'expression' as code,
+                     '표현' as code_nm,
+                     SUM(usd_ach_scr) as usd_ach_scr,
+                     SUM(rflt_actv_cnt) as rflt_actv_cnt,
+                     ROUND(AVG(student_percent), 2) as usd_ach_scr_percent,
+                     std_at,
+                     2 as sort_order
+                 FROM student_data
+                 WHERE category = 'expression'
+                   AND std_at ='Y'
+
+                 UNION ALL
+
+                 /* 단어 문법 발음 능력 */
+                 SELECT
+                     code,
+                     code_nm,
+                     usd_ach_scr as usd_ach_scr,
+                     rflt_actv_cnt as rflt_actv_cnt,
+                     ROUND(student_percent, 2) as usd_ach_scr_percent,
+                     std_at,
+                     category_order as sort_order
+                 FROM student_data
+                 WHERE 1=1
+                <choose>
+                    <when test="textbookId == 6981 or textbookId == 6982">
+                        AND code IN ('vocabulary', 'pronunciation')
+                    </when>
+                    <otherwise>
+                        AND code IN ('vocabulary', 'grammar', 'pronunciation')
+                    </otherwise>
+                </choose>
+             ) result
+        ORDER BY sort_order;
+    </select>
+
+    <select id="selectStntDsbdAreaAchievementStudentDistributionSummary" parameterType="map" resultType="camelHashMap">
+        /* stntDsbdMapper.selectStntDsbdAreaAchievementStudentDistributionSummary */
+        WITH student_data AS (
+            SELECT
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 'understanding'
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 'expression'
+                    <choose>
+                        <when test="textbookId != '6981' and textbookId != '6982'">
+                            WHEN a.code IN ('pronunciation', 'grammar', 'vocabulary') THEN 'language'
+                        </when>
+                        <otherwise>
+                            WHEN a.code IN ('pronunciation', 'vocabulary') THEN 'language'
+                        </otherwise>
+                    </choose>
+                END AS category,
+                CASE
+                    WHEN a.code IN ('listening', 'reading', 'viewing') THEN 1
+                    WHEN a.code IN ('speaking', 'writing', 'presenting') THEN 2
+                    WHEN a.code = 'vocabulary' THEN 3
+                    <choose>
+                        <when test="textbookId != '6981' and textbookId != '6982'">
+                            WHEN a.code = 'grammar' THEN 4
+                        </when>
+                    </choose>
+                    WHEN a.code = 'pronunciation' THEN 5
+                    END AS category_order,
+                a.code,
+                a.val as code_nm,
+                IFNULL(b.usd_ach_scr, 0) as usd_ach_scr,
+                IFNULL(b.rflt_actv_cnt, 0) as rflt_actv_cnt,
+                IFNULL(b.usd_ach_scr_percent, 0) as student_percent,
+                IFNULL(std_at, 'N') as std_at
+            FROM (
+                     SELECT id, code, val
+                     FROM aidt_lcms.meta
+                     WHERE name IN ('evaluationArea','contentsItem','evaluationArea3')
+                       AND brand_id = '3'
+                 ) a
+             LEFT JOIN (
+                SELECT
+                    usd_ach_id,
+                    sum(c.usd_ach_scr) as usd_ach_scr,
+                    sum(c.rflt_actv_cnt) as rflt_actv_cnt,
+                    CASE
+                        WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                            THEN round((sum(c.usd_ach_scr_percent) * 100 / count(c.stdt_id)), 2)
+                        WHEN c.usd_ach_id = 'pronunciation'
+                            THEN round(avg(c.usd_ach_scr_percent), 2)
+                        ELSE round((avg(c.usd_ach_scr_percent) * 100), 2)
+                        END as usd_ach_scr_percent,
+                    c.std_at
+                FROM (
+                         SELECT
+                             usd_ach_id,
+                             sum(usd_ach_scr) as usd_ach_scr,
+                             sum(rflt_actv_cnt) as rflt_actv_cnt,
+                             sum(usd_ach_scr)/NULLIF(sum(rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                             stdt_id,
+                            (case when sum(rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                         FROM aidt_lms.usd_ach_src2_info
+                         WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                           AND cla_id = #{claId}
+                           AND textbk_id = #{textbookId}
+                           AND stdt_id = #{userId}
+                           AND std_dt = (
+                             SELECT max(dt.std_dt)
+                             FROM aidt_lms.usd_ach_src2_info dt
+                             WHERE dt.cla_id = #{claId}
+                               AND dt.textbk_id = #{textbookId}
+                         )
+                         GROUP BY usd_ach_id, stdt_id
+
+                         UNION ALL
+                         SELECT
+                             b.usd_ach_id,
+                             sum(b.usd_ach_scr) as usd_ach_scr,
+                             sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                             AVG(b.usd_ach_scr_percent) as usd_ach_scr_percent,
+                             b.stdt_id,
+                             b.std_at
+                         FROM (
+                                  SELECT
+                                      a.usd_ach_id,
+                                      sum(a.usd_ach_scr) as usd_ach_scr,
+                                      sum(a.rflt_actv_cnt) as rflt_actv_cnt,
+                                      AVG(a.usd_ach_scr_percent) as usd_ach_scr_percent,
+                                      a.stdt_id,
+                                      a.std_at
+                                  FROM (
+                                           SELECT
+                                               a.usd_ach_id,
+                                               b.iem_id,
+                                               b.iem_cd,
+                                               sum(b.usd_ach_scr) as usd_ach_scr,
+                                               sum(b.rflt_actv_cnt) as rflt_actv_cnt,
+                                               sum(b.usd_ach_scr)/NULLIF(sum(b.rflt_actv_cnt), 0) as usd_ach_scr_percent,
+                                               a.stdt_id,
+                                               (case when sum(b.rflt_actv_cnt) > 0 then 'Y' else 'N' end) as std_at
+                                           FROM aidt_lms.usd_ach_src2_info a
+                                                    INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                               ON a.id = b.usd_ach_src_id
+                                           WHERE 1=1
+                                            <choose>
+                                                <when test="textbookId == 6981 or textbookId == 6982">
+                                                    AND a.usd_ach_id IN ('vocabulary', 'pronunciation')
+                                                </when>
+                                                <otherwise>
+                                                    AND a.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation')
+                                                </otherwise>
+                                            </choose>
+                                             AND a.cla_id = #{claId}
+                                             AND a.textbk_id = #{textbookId}
+                                             AND a.stdt_id = #{userId}
+                                             AND a.std_dt = (
+                                               SELECT max(dt.std_dt)
+                                               FROM aidt_lms.usd_ach_src2_info dt
+                                               WHERE dt.cla_id = #{claId}
+                                                 AND dt.textbk_id = #{textbookId}
+                                           )
+                                           GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd
+                                       ) a
+                                  GROUP BY a.usd_ach_id, a.iem_id
+                              ) b
+                         GROUP BY b.usd_ach_id
+                     ) c
+                GROUP BY c.usd_ach_id
+            ) b ON a.code = b.usd_ach_id
+        ),
+             achievement_summary AS (
+                 SELECT
+                     code,
+                     code_nm,
+                     usd_ach_scr,
+                     rflt_actv_cnt,
+                     student_percent,
+                     std_at,
+                     sort_order
+                 FROM (
+                          /* 이해 영역 */
+                          SELECT
+                              'understanding' as code,
+                              '이해' as code_nm,
+                              SUM(usd_ach_scr) as usd_ach_scr,
+                              SUM(rflt_actv_cnt) as rflt_actv_cnt,
+                              ROUND(AVG(student_percent), 2) as student_percent,
+                              MAX(std_at) as std_at,
+                              1 as sort_order
+                          FROM student_data
+                          WHERE category = 'understanding'
+                            AND std_at = 'Y'
+
+                          UNION ALL
+
+                          /* 표현 영역 */
+                          SELECT
+                              'expression' as code,
+                              '표현' as code_nm,
+                              SUM(usd_ach_scr) as usd_ach_scr,
+                              SUM(rflt_actv_cnt) as rflt_actv_cnt,
+                              ROUND(AVG(student_percent), 2) as student_percent,
+                              MAX(std_at) as std_at,
+                              2 as sort_order
+                          FROM student_data
+                          WHERE category = 'expression'
+                           AND std_at = 'Y'
+
+                          UNION ALL
+
+                          /* 단어 문법 발음 */
+                          SELECT
+                              code,
+                              code_nm,
+                              usd_ach_scr as usd_ach_scr,
+                              rflt_actv_cnt as rflt_actv_cnt,
+                              ROUND(student_percent, 2) as student_percent,
+                              std_at,
+                              category_order as sort_order
+                          FROM student_data
+                          WHERE 1=1
+                        <choose>
+                            <when test="textbookId == 6981 or textbookId == 6982">
+                                AND code IN ('vocabulary', 'pronunciation')
+                            </when>
+                            <otherwise>
+                                AND code IN ('vocabulary', 'grammar', 'pronunciation')
+                            </otherwise>
+                        </choose>
+                      ) result
+             ),
+             min_max_values AS (
+                 SELECT
+                     MIN(student_percent) AS min_value,
+                     MAX(student_percent) AS max_value
+                 FROM
+                     achievement_summary
+                 WHERE std_at = 'Y'
+             )
+        SELECT
+            (SELECT flnm FROM aidt_lms.stdt_reg_info WHERE user_id = #{userId}) AS flnm,
+            #{userId} AS stdt_id,
+            code,
+            code_nm,
+            student_percent AS usd_ach_scr_percent,
+            CASE
+                WHEN student_percent = (SELECT max_value FROM min_max_values) THEN 'high'
+                WHEN student_percent = (SELECT min_value FROM min_max_values) THEN 'low'
+                END AS diff_type
+        FROM
+            achievement_summary
+        where 1=1
+          AND (
+            student_percent = (SELECT max_value FROM min_max_values)
+                OR student_percent = (SELECT min_value FROM min_max_values)
+            )
+        ORDER BY
+            diff_type;
+    </select>
+
+    <!-- [학생] 학급관리 > 홈 대시보드 > 단원정보 -->
+    <select id="selectStntDsbdUnitInfo" resultType="camelHashMap">
+        /* StntSelfLrnMapper.selectStntDsbdUnitInfo */
+        SELECT
+            row_number() over (order by b.`code`) as unitNum
+            , b.id as meta_id
+            , b.parent_id
+            , b.code
+            , b.val AS unit_nm
+            <choose>
+                <when test="textbookId == 6981 or textbookId == 6982"> /* 초등영어는 lesson을 한글로 표시 */
+                    /* Lesson n 은 n단원, 그 외는 문자열 그대로 */
+                    ,CASE
+                        WHEN b.val RLIKE '^Lesson [0-9]+' THEN
+                            CONCAT(
+                                REGEXP_SUBSTR(b.val, '[0-9]+'),
+                                '단원'
+                            )
+                    ELSE
+                        SUBSTRING_INDEX(b.val, '_', 1)
+                    END AS unit
+                </when>
+                <when test="textbookId == 6979"> /* 중등 영어 2*/
+                    , SUBSTRING_INDEX(b.val, '_', 1) AS unit
+                </when>
+                <otherwise>
+                    , SUBSTRING_INDEX(b.val, ' ', 2) AS unit
+                </otherwise>
+            </choose>
+            , b.depth - 1 as depth
+        FROM    aidt_lcms.meta a
+            inner join aidt_lcms.meta b on a.`code` = b.description and b.is_active = 1 and b.name = 'studyMap1'
+            inner join aidt_lcms.meta c on c.id = b.parent_id and c.is_active = 1
+            left join aidt_lcms.meta_extension d on b.meta_extension_id = d.meta_extension_id
+        WHERE   a.is_active = 1
+          and   a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbookId})
+        <if test="isProject == 0">
+          and   ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+        </if>
+    </select>
+
+    <select id="findUserInfoByUserId" parameterType="map" resultType="map">
+        /* UserMapper.findUserInfoByUserId */
+        select a1.user_id as `userId`
+             , a1.user_se_cd as `userSeCd`
+             , a1.flnm as `flnm`
+        from  aidt_lms.`user` a1
+        where a1.user_id = #{userId}
+    </select>
+
+    <!-- [학생][영어] 단원별 성취도 조회 -->
+    <select id="selectStntDsbdUnitAchievementList" resultType="camelHashMap">
+        SELECT
+            d.unit_num
+            ,ROUND(AVG(d.usd_ach_scr_percent), 2) AS avg_usd_ach_scr_percent /* 대시보드 */
+            ,ROUND(AVG(d.usd_ach_scr_percent), 2) AS unitScrPercent  /* 스스로학습에서 사용 */
+            ,(select val from aidt_lcms.meta where id = meta_id) as meta_val  /* 스스로학습에서 사용 */
+            ,meta_id  /* 스스로학습에서 사용 */
+        FROM (
+                SELECT
+                    b.unit_num,
+                    IFNULL(b.usd_ach_scr_percent, 0) AS usd_ach_scr_percent
+                    ,meta_id
+                FROM (
+                SELECT id, code, val
+                    FROM aidt_lcms.meta
+                    WHERE 1=1
+                    AND name IN ('evaluationArea', 'contentsItem', 'evaluationArea3')
+                    AND brand_id = '3'
+                    AND code != 'sentence' /*문장 사용 안함*/
+                ) a
+                INNER JOIN (
+                        /* 학습 이력 + 단원정보 포함 */
+                        SELECT
+                            usd_ach_id,
+                            SUM(c.usd_ach_scr) AS usd_ach_scr,
+                            SUM(c.rflt_actv_cnt) AS rflt_actv_cnt,
+                            CASE
+                                WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                                THEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2)
+                                WHEN c.usd_ach_id = 'pronunciation'
+                                THEN ROUND(AVG(c.usd_ach_scr_percent), 2)
+                                ELSE ROUND((AVG(c.usd_ach_scr_percent) * 100), 2)
+                            END AS usd_ach_scr_percent,
+                            CASE
+                                WHEN c.usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting') THEN
+                                    CASE
+                                        WHEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2) >= 80 THEN 1
+                                        WHEN ROUND((SUM(c.usd_ach_scr_percent) * 100 / COUNT(c.stdt_id)), 2) > 50 THEN 2
+                                        ELSE 3
+                                    END
+                                WHEN c.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation') THEN
+                                    CASE
+                                        WHEN c.usd_ach_scr_percent >= 80 THEN 1
+                                        WHEN c.usd_ach_scr_percent > 50 THEN 2
+                                        ELSE 3
+                                    END
+                            END AS dfclt_lvl_ty,
+                            GROUP_CONCAT(REPLACE(IFNULL(c.article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                            c.std_at,
+                            c.unit_num
+                            ,meta_id
+                        FROM (
+                                SELECT
+                                    usd_ach_id,
+                                    SUM(usd_ach_scr) AS usd_ach_scr,
+                                    SUM(rflt_actv_cnt) AS rflt_actv_cnt,
+                                    SUM(usd_ach_scr) / SUM(rflt_actv_cnt) AS usd_ach_scr_percent,
+                                    GROUP_CONCAT(REPLACE(IFNULL(article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                                    stdt_id,
+                                    std_at,
+                                    unit_num
+                                   ,meta_id
+                                FROM aidt_lms.usd_ach_src2_info
+                                WHERE usd_ach_id IN ('listening', 'reading', 'viewing', 'speaking', 'writing', 'presenting')
+                                <if test="userId != null and userId != ''">
+                                    AND stdt_id = #{userId}
+                                </if>
+                                AND cla_id = #{claId}
+                                AND textbk_id = #{textbookId}
+                                <if test="unitNum > 0">
+                                    AND unit_num = #{unitNum} /* 단원번호 */
+                                </if>
+                                AND std_dt = (
+                                        SELECT MAX(dt.std_dt)
+                                        FROM aidt_lms.usd_ach_src2_info dt
+                                        WHERE dt.cla_id = #{claId}
+                                        <if test="userId != null and userId != ''">
+                                            AND dt.stdt_id = #{userId}
+                                        </if>
+                                        AND dt.textbk_id = #{textbookId}
+                                )
+                                GROUP BY usd_ach_id, stdt_id, unit_num
+
+                                UNION ALL
+
+                                SELECT
+                                    b.usd_ach_id,
+                                    SUM(b.usd_ach_scr) AS usd_ach_scr,
+                                    SUM(b.rflt_actv_cnt) AS rflt_actv_cnt,
+                                    AVG(b.usd_ach_scr_percent) AS usd_ach_scr_percent,
+                                    GROUP_CONCAT(REPLACE(IFNULL(b.article_list, ''), ',', '|') SEPARATOR '|') AS article_list,
+                                    b.stdt_id,
+                                    b.std_at,
+                                    b.unit_num
+                                   ,b.meta_id
+                                FROM (
+                                    SELECT
+                                        a.usd_ach_id,
+                                        SUM(a.usd_ach_scr) AS usd_ach_scr,
+                                        SUM(a.rflt_actv_cnt) AS rflt_actv_cnt,
+                                        AVG(a.usd_ach_scr_percent) AS usd_ach_scr_percent,
+                                        a.article_list,
+                                        a.iem_cd,
+                                        a.iem_id,
+                                        a.stdt_id,
+                                        a.std_at,
+                                        a.unit_num
+                                       ,a.meta_id
+                                    FROM (
+                                            SELECT
+                                                a.usd_ach_id,
+                                                b.iem_id,
+                                                b.iem_cd,
+                                                SUM(b.usd_ach_scr) AS usd_ach_scr,
+                                                SUM(b.rflt_actv_cnt) AS rflt_actv_cnt,
+                                                SUM(b.usd_ach_scr) / SUM(b.rflt_actv_cnt) AS usd_ach_scr_percent,
+                                                a.stdt_id,
+                                                a.std_at,
+                                                b.article_list,
+                                                a.unit_num
+                                                ,a.meta_id
+                                            FROM aidt_lms.usd_ach_src2_info a
+                                            INNER JOIN aidt_lms.usd_ach_src2_detail b
+                                                ON a.id = b.usd_ach_src_id
+                                            WHERE a.usd_ach_id IN ('vocabulary', 'grammar', 'pronunciation')
+                                            AND a.cla_id = #{claId}
+                                            <if test="userId != null and userId != ''">
+                                                AND a.stdt_id = #{userId}
+                                            </if>
+                                                AND a.textbk_id = #{textbookId}
+                                            <if test="unitNum > 0">
+                                                AND a.unit_num = #{unitNum} /* 단원번호 */
+                                            </if>
+                                            AND a.std_dt = (
+                                                SELECT MAX(dt.std_dt)
+                                                FROM aidt_lms.usd_ach_src2_info dt
+                                                WHERE dt.cla_id = #{claId}
+                                                <if test="userId != null and userId != ''">
+                                                    AND dt.stdt_id = #{userId}
+                                                </if>
+                                                AND dt.textbk_id = #{textbookId}
+                                            )
+                                            GROUP BY a.usd_ach_id, a.stdt_id, b.iem_cd, a.unit_num
+                                    ) a
+                                    GROUP BY a.usd_ach_id, a.iem_id, a.unit_num
+                                ) b
+                                GROUP BY b.usd_ach_id, b.unit_num
+                        ) c
+                        GROUP BY c.usd_ach_id, c.unit_num
+                ) b ON a.code = b.usd_ach_id
+        ) d
+        GROUP BY d.unit_num
+        ORDER BY d.unit_num
+    </select>
+
+    <select id="findTextbookCrcuList" parameterType="map" resultType="camelHashMap">
+        /* CrcuMapper.findTextbookCrcuList */
+        with recursive curriculum as (
+            select
+                a.id,
+                a.textbookIndex_id,
+                a.key,
+                a.parent,
+                a.text,
+                /* a.page,*/
+                a.is_addContents,
+                cast(lpad(a.key,5,'0') as char(100) character set utf8) as id_path,
+                cast(a.text as char(1000) character set utf8) as id_path_nm,
+                1 as depth
+            from
+                aidt_lcms.textbookcurriculum a
+            where
+                1=1
+                and a.textbookIndex_id = #{textbookIndexId}
+                and a.parent = 0
+                and a.is_delete = 0
+                and a.is_active = 1
+            union all
+            select
+                b.id,
+                b.textbookIndex_id,
+                b.key,
+                b.parent,
+                b.text,
+                /* b.page, */
+                b.is_addContents,
+                concat(c.id_path, ' > ', lpad(b.key,5,'0')) as id_path,
+                concat(c.id_path_nm, ' > ', b.text) as id_path_nm,
+                1 + c.depth as depth
+            from
+                aidt_lcms.textbookcurriculum b
+                    inner join curriculum c
+                        on c.textbookIndex_id = b.textbookIndex_id
+                            and c.key = b.parent
+                            and b.is_delete = 0
+                            and b.is_active = 1
+        )
+        select
+            id,
+            textbookIndex_id,
+            `key`,
+            ifnull(parent, 0) as parent,
+            @ROWNUM := @ROWNUM + 1 as `order`,
+            text,
+            id_path,
+            id_path_nm,
+            /* page, */
+            is_addContents,
+            depth,
+            (
+                SELECT
+                    (CASE WHEN count(*)>0 THEN 'Y'
+                        ELSE 'N' END)
+                FROM aidt_lcms.textbooktab d,
+                    (
+                        SELECT c.textbk_tab_id, c.sets_id
+                        FROM aidt_lms.won_asw_note a, aidt_lms.std_dta_result_detail b, aidt_lms.std_dta_result_info c
+                        WHERE a.won_anw_tg_id = b.id
+                            AND b.dta_result_id = c.id
+                            AND c.mamoym_id = #{userId}
+                            AND a.wrter_id = #{userId}
+                            AND b.errata = 2
+                            AND b.mrk_ty = 1
+                    ) e
+                WHERE d.id = e.textbk_tab_id
+                AND d.set_id = e.sets_id
+                AND d.textbookIndex_id = textbookIndex_id
+                AND d.textbookCurriculum_key = `key`
+                AND d.textbookCurriculum_id = id) as won_asw_yn
+        from
+            curriculum
+                inner join (select @ROWNUM:=0) as r
+        order by
+            id_path
+    </select>
+
+    <select id="findStntEvalStart" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalStart */
+        SELECT eri.id
+             , eri.sets_id
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , eri.subm_at
+             , eri.eak_st_dt
+             , eri.eak_ed_dt
+        FROM aidt_lms.evl_result_info eri
+        WHERE eri.evl_id = #{evlId}
+          AND eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findConceptCheck" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findConceptCheck */
+        select
+            (select erd.mrk_ty
+             from aidt_lms.evl_result_detail erd
+                      join aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+             where eri.evl_id = #{evlId}
+               and eri.mamoym_id = #{userId}
+               and erd.evl_result_id = #{evlResultId}
+               and erd.evl_Iem_Id = #{evlIemId}
+               and erd.sub_id = #{subId}
+             limit 1) as mrkTy
+             ,COALESCE(
+                (select m1.code
+                 from aidt_lcms.meta m1
+                 where m1.name = 'articleType'
+                   and m1.id = (select articleType
+                                from aidt_lcms.article
+                                where id = #{evlIemId}))
+            ,(select m2.code
+              from aidt_lcms.meta m2
+              where m2.name = 'articleType'
+                and m2.id = (select meta_id
+                             from aidt_lcms.article_meta_map
+                             where article_id = #{evlIemId}
+                               and meta_name = 'articleType'
+                               and sub_id  = #{subId}
+              ))
+              ) as articleType
+    </select>
+
+    <select id="findStntEvalSaveIemScr" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalSaveIemScr */
+        SELECT CASE eii.mrk_ty
+                   WHEN 1 THEN eii.evl_iem_scr
+                   ELSE 0
+                   END AS evl_iem_scr
+        FROM aidt_lms.evl_iem_info eii
+        WHERE eii.evl_id  = #{evlId}
+          AND eii.evl_iem_id = #{evlIemId}
+          and eii.sub_id = #{subId}
+    </select>
+
+    <select id="findEvalResuldDetail" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findEvalResuldDetail */
+        select erd.id as resultDetailId
+             , (select y.`code`
+                from aidt_lcms.article x
+                         inner join aidt_lcms.meta y on x.questionType = y.id
+                where x.id = erd.evl_iem_id
+        ) as questionType
+        from aidt_lms.evl_result_detail erd
+                 join aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+        where eri.evl_id = #{evlId}
+          and eri.mamoym_id = #{userId}
+          and erd.evl_result_id = #{evlResultId}
+          and erd.evl_iem_id = #{evlIemId}
+          and erd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <select id="findEvlResultDetailCount" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalSaveIemScr */
+        SELECT count(1) as cnt
+        FROM aidt_lms.evl_result_detail erd
+        WHERE erd.evl_result_id = #{evlResultId}
+          and erd.eak_stts_cd <![CDATA[<]]> #{eakSttsCd}
+    </select>
+
+</mapper>

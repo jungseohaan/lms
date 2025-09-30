@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.homework.mapper.TaskNtcnSendMapper">
+
+    <select id="findTaskSendNtcnUnsubEndListToTch" resultType="camelHashMap">
+        /** TaskNtcnSendMapper.findTaskSendNtcnUnsubEndListToTch */
+        select
+            textbk_id
+             , "T" as trget_cd
+             , "3" as ntcn_ty_cd
+             , "9" as trget_ty_cd
+             , a.id as trget_id
+             , (CASE when stut_cnt > 0 then CONCAT(task_nm, " 마감일이 ", #{diffDay}, "일 남았습니다. (미제출 학생 : ", stut_cnt, "명)")
+                     else CONCAT(task_nm, " 마감일이 ", #{diffDay}, "일 남았습니다. (미제출 학생 : 없음)" )
+                 END) as ntcn_cn
+             , '' as link_url
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , sets_id
+             , cla_id
+        from
+            (
+                select
+                    textbk_id
+                     , cla_id
+                     , wrter_id
+                     , task_nm
+                     , um.flnm
+                     , b.stud_list
+                     , b.stut_cnt
+                     , sets_id
+                     , a.id
+                from aidt_lms.task_info a
+                         left join aidt_lms.user um ON um.user_id = a.wrter_id
+                         left join (select task_id
+                                         , count(*) stut_cnt
+                                         , GROUP_CONCAT(distinct mamoym_id order by mamoym_id SEPARATOR ',') as stud_list
+                                    from aidt_lms.task_result_info where eak_at = 'N' group by task_id) b on a.id = b.task_id
+                where task_stts_cd in (1,2)
+                  and DATE_FORMAT(pd_evl_ed_dt, "%Y-%m-%d") = (CURDATE()+INTERVAL #{diffDay} DAY)
+                  and a.id = b.task_id
+            ) a
+    </select>
+
+
+    <select id="findTaskSendNtcnUnsubEndListToStnt" resultType="camelHashMap">
+        /** TaskNtcnSendMapper.findTaskSendNtcnUnsubEndListToStnt */
+        select
+            mamoym_id as rcve_id
+             , textbk_id
+             , "S" as trget_cd
+             , "3" as ntcn_ty_cd
+             , "9" as trget_ty_cd
+             , a.task_id as trget_id
+             ,  CONCAT(task_nm, " 마감일이 ", #{diffDay}, "일 남았습니다.") as ntcn_cn
+             , '' as link_url
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , sets_id
+             , cla_id
+        from
+            (
+                select
+                    b.task_nm
+                     , b.textbk_id
+                     , b.cla_id
+                     , b.wrter_id
+                     , a.sets_id
+                     , a.mamoym_id
+                     , um.flnm
+                     , a.task_id
+                from aidt_lms.task_result_info a
+                         left join aidt_lms.user um ON um.user_id = a.mamoym_id
+                         left join aidt_lms.task_info b on b.id = a.task_id
+                where
+                    a.task_id in (select id
+                                  from aidt_lms.task_info
+                                  where task_stts_cd in (1,2)
+                                    and DATE_FORMAT(pd_evl_ed_dt, "%Y-%m-%d") = (CURDATE()+INTERVAL #{diffDay} DAY))
+                  and a.eak_at = 'N'
+            ) a
+    </select>
+
+    <select id="findTaskSendNtcnUnsubStListToTch" resultType="camelHashMap">
+        /** TaskNtcnSendMapper.findTaskSendNtcnUnsubStListToTch */
+        select
+            textbk_id
+             , "T" as trget_cd
+             , "3" as ntcn_ty_cd
+             , "9" as trget_ty_cd
+             , a.id as trget_id
+             ,  CONCAT(task_nm, " 시작일이 ", #{diffDay}, "일 남았습니다.") as ntcn_cn
+             , '' as link_url
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , sets_id
+             , cla_id
+        from
+            (
+                select
+                    textbk_id
+                     , cla_id
+                     , wrter_id
+                     , task_nm
+                     , um.flnm
+                     , b.stud_list
+                     , b.stut_cnt
+                     , sets_id
+                     , a.id
+                from aidt_lms.task_info a
+                         left join aidt_lms.user um ON um.user_id = a.wrter_id
+                         left join (select task_id
+                                         , count(*) stut_cnt
+                                         , GROUP_CONCAT(distinct mamoym_id order by mamoym_id SEPARATOR ',') as stud_list
+                                    from aidt_lms.task_result_info where eak_at = 'N' group by task_id) b on a.id = b.task_id
+                where task_stts_cd in (1,2)
+                  and DATE_FORMAT(pd_evl_st_dt, "%Y-%m-%d") = (CURDATE()+INTERVAL #{diffDay} DAY)
+                  and a.id = b.task_id
+            ) a
+    </select>
+
+    <select id="findTaskSendNtcnUnsubStListToStnt" resultType="camelHashMap">
+        /** TaskNtcnSendMapper.findTaskSendNtcnUnsubStListToStnt */
+        select
+            mamoym_id as rcve_id
+             , textbk_id
+             , "S" as trget_cd
+             , "3" as ntcn_ty_cd
+             , "9" as trget_ty_cd
+             , a.task_id as trget_id
+             ,  CONCAT(task_nm, " 시작일이 ", #{diffDay}, "일 남았습니다.") as ntcn_cn
+             , '' as link_url
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , sets_id
+             , cla_id
+        from
+            (
+                select
+                    b.task_nm
+                     , b.textbk_id
+                     , b.cla_id
+                     , b.wrter_id
+                     , a.sets_id
+                     , a.mamoym_id
+                     , um.flnm
+                     , a.task_id
+                from aidt_lms.task_result_info a
+                         left join aidt_lms.user um ON um.user_id = a.mamoym_id
+                         left join aidt_lms.task_info b on b.id = a.task_id
+                where
+                    a.task_id in (select id
+                                  from aidt_lms.task_info
+                                  where task_stts_cd in (1,2)
+                                    and DATE_FORMAT(pd_evl_st_dt, "%Y-%m-%d") = (CURDATE()+INTERVAL #{diffDay} DAY))
+                  and a.eak_at = 'N'
+            ) a
+    </select>
+
+    <insert id="insertTaskCreateReportListSendNtcnToTch" parameterType="map">
+        /** TaskNtcnSendMapper.insertTaskCreateReportListSendNtcnToTch */
+        INSERT INTO aidt_lms.ntcn_info
+        SELECT
+            null as id
+            , a.textbk_id
+            , a.cla_id
+            , a.trget_cd
+            , a.ntcn_ty_cd
+            , a.trget_ty_cd
+            , a.trget_id
+            , a.rcve_id
+            , a.ntcn_cn
+            , 'N' as ntcn_idnty_at
+            , 'N' as redng_at
+            , ''
+            , 'N' as encrg_at
+            , a.stnt_nm
+            , a.user_id as rgtr
+            , now()
+            , a.user_id as mdfr
+            , now()
+        FROM
+        (
+            SELECT
+                  ti.wrter_id as rcve_id
+                , ti.textbk_id as textbk_id
+                , ti.cla_id
+                , ti.id as trget_id
+                , 'T' as trget_cd
+                , '3' as ntcn_ty_cd
+                , '6' as trget_ty_cd
+                ,  CONCAT("리포트가 생성되었습니다. 과제 리포트를 확인해 보세요.") as ntcn_cn
+                , '' as link_url
+                , "" as stnt_nm
+                , ti.wrter_id as user_id
+                , ti.sets_id
+            from 	aidt_lms.task_info ti
+                    <if test="brandIdList != null and brandIdList != '' ">
+                        inner join aidt_lcms.textbook tb
+                        on ti.textbk_id = tb.id
+                        and tb.brand_id in (<foreach item="item" collection="brandIdList" separator=",">#{item}</foreach>)
+                    </if>
+            where 	1=1
+                and ti.task_stts_cd <![CDATA[>=]]> 3 /* 상태가 완료된 건만 조회 */
+                and not exists (
+                    select 1
+                    from aidt_lms.task_result_info tri
+                    where tri.task_id = ti.id
+                        and tri.eak_stts_cd <![CDATA[ < ]]> 3
+                ) /* 모든 학생이 완료된 건만 조회, 해당 과제에 속한 학생들의 응시상태가 모두 3 이상인 경우 조건 */
+                and 0 = (
+                    select count(1) from aidt_lms.ntcn_info
+                    where 1=1
+                        and trget_cd = 'T'
+                        and ntcn_ty_cd = '3'
+                        and trget_ty_cd = '6'
+                        and trget_id = ti.id
+                ) /* 미등록 건만 처리 */
+        ) a
+    </insert>
+
+</mapper>
+

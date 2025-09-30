@@ -1,0 +1,1147 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.report.mapper.WrongNoteReportMapper">
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 선택한 날짜의 우리반 총 오답 문항 수 -->
+    <select id="getClaWrongNoteCnt" parameterType="map" resultType="camelHashMap">
+        select /* WrongNoteReportMapper.getClaWrongNoteCnt */
+                count(*) as claWanCnt
+          from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                  from (
+                           (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                              from aidt_lms.won_asw_note
+                             where textbk_id = #{textbkId}
+
+                             <if test='dateType eq "d" '>
+                                and wrt_ymd = #{dayDate}
+                            </if>
+
+                             <if test='dateType eq "w" '>
+                                and wrt_ymd between #{startDate} and #{endDate}
+                            </if>
+
+                             <if test='dateType eq "m" '>
+                                and left(wrt_ymd,6) =#{monthDate}
+                            </if>
+
+
+                             group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                               inner join (select stdt_id
+                                             from aidt_lms.tc_cla_mb_info
+                                            where cla_id = #{claId}
+                                              and actvtn_at = 'Y') y
+                           on x.wrter_id = y.stdt_id
+                           )) xy
+    </select>
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 지정 날짜 구간 복습률 -->
+    <select id="getClaWrongNoteRetryRate" parameterType="map" resultType="camelHashMap">
+        /* WrongNoteReportMapper.getClaWrongNoteRetryRate */
+          with noteCnt as (select count(*) as cnt
+                             from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                                     from (
+                                              (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                                                 from aidt_lms.won_asw_note
+                                                where textbk_id = #{textbkId}
+                                                <if test='dateType eq "d" '>
+                                                    and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                                </if>
+                                                 <if test='dateType eq "w" '>
+                                                    and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                                                </if>
+                                                 <if test='dateType eq "m" '>
+                                                    and left(wrt_ymd,6) <![CDATA[ <= ]]>#{monthDate}
+                                                </if>
+
+                                                group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') y
+                                              on x.wrter_id = y.stdt_id
+                                              )) xy)
+             , noteCntAll as (select count(*) as cnt
+                             from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                                     from (
+                                              (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                                                 from aidt_lms.won_asw_note
+                                                where textbk_id = #{textbkId}
+                                                group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') y
+                                              on x.wrter_id = y.stdt_id
+                                              )) xy)
+            , noteRetryCnt as (select count(*) as cnt
+                                 from (select src.textbk_id
+                                         , src.wrt_ymd
+                                         , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, trgt_id
+                                                                from aidt_lms.won_asw_note
+                                                               where textbk_id = #{textbkId}
+                                                            <if test='dateType eq "d" '>
+                                                                and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                                            </if>
+                                                             <if test='dateType eq "w" '>
+                                                                and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                                                            </if>
+                                                             <if test='dateType eq "m" '>
+                                                                and left(wrt_ymd,6) <![CDATA[ <= ]]>#{monthDate}
+                                                            </if>
+                                                               group by textbk_id
+                                                                       , wrt_ymd
+                                                                       , trgt_id
+                                                                       , won_anw_clsf_cd
+                                                                       , won_anw_nm
+                                                                       , tab_id
+                                                                       , trgt_id
+                                                                       , wrter_id) src
+                                                              on swad.src_textbk_id = src.textbk_id
+                                                                  and swad.src_trgt_id = src.trgt_id
+                                                                  and swad.src_wrt_ymd = src.wrt_ymd
+                                                                  and swad.src_wrter_id = src.wrter_id
+                                                                  and swad.won_anw_clsf_cd = src.won_anw_clsf_cd
+                                                                  and swad.textbk_id = src.textbk_id
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') cmi on src.wrter_id = cmi.stdt_id
+                                        group by src.textbk_id,  src.wrt_ymd, src.won_anw_clsf_cd, src.trgt_id) y)
+          ,comparedNoteCnt as (select count(*) as cnt
+                             from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                                     from (
+                                              (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                                                 from aidt_lms.won_asw_note
+                                                where textbk_id = #{textbkId}
+                                                <if test='dateType eq "d" '>
+                                                    and wrt_ymd <![CDATA[ <= ]]> date_format(date_sub(str_to_date(#{dayDate}, '%Y%m%d'), interval 1 day), '%Y%m%d')
+                                                </if>
+                                                <if test='dateType eq "w" '>
+                                                    and wrt_ymd <![CDATA[ <= ]]>
+                                                                        date_format(date_sub(str_to_date(#{endDate}, '%Y%m%d'), interval 7 day), '%Y%m%d')
+                                                </if>
+                                                <if test='dateType eq "m" '>
+                                                    and left(wrt_ymd,6) <![CDATA[ <= ]]> case
+                                                                               when right(#{monthDate}, 2) = '01' then concat(left(#{monthDate}, 4) - 1, '12')
+                                                                               else concat(left(#{monthDate}, 4), lpad(right(#{monthDate}, 2) - 1, 2, '0'))
+                                                                             end
+                                                </if>
+
+                                                group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') y
+                                              on x.wrter_id = y.stdt_id
+                                              )) xy)
+            , comparedNoteRetryCnt as (select count(*) as cnt
+                                 from (select src.textbk_id
+                                         , src.wrt_ymd
+                                         , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, trgt_id
+                                                                from aidt_lms.won_asw_note
+                                                               where textbk_id = #{textbkId}
+                                                            <if test='dateType eq "d" '>
+                                                                and wrt_ymd <![CDATA[ <= ]]> date_format(date_sub(str_to_date(#{dayDate}, '%Y%m%d'), interval 1 day), '%Y%m%d')
+                                                            </if>
+                                                            <if test='dateType eq "w" '>
+                                                                and wrt_ymd <![CDATA[ <= ]]>
+                                                                                    date_format(date_sub(str_to_date(#{endDate}, '%Y%m%d'), interval 7 day), '%Y%m%d')
+                                                            </if>
+                                                            <if test='dateType eq "m" '>
+                                                                and left(wrt_ymd,6)  <![CDATA[ <= ]]> case
+                                                                                           when right(#{monthDate}, 2) = '01' then concat(left(#{monthDate}, 4) - 1, '12')
+                                                                                           else concat(left(#{monthDate}, 4), lpad(right(#{monthDate}, 2) - 1, 2, '0'))
+                                                                                         end
+                                                            </if>
+                                                               group by textbk_id
+                                                                       , wrt_ymd
+                                                                       , trgt_id
+                                                                       , won_anw_clsf_cd
+                                                                       , won_anw_nm
+                                                                       , tab_id
+                                                                       , trgt_id
+                                                                       , wrter_id) src
+                                                             on swad.src_textbk_id      = src.textbk_id
+                                                             and swad.src_trgt_id       = src.trgt_id
+                                                             and swad.src_wrt_ymd       = src.wrt_ymd
+                                                             and swad.src_wrter_id      = src.wrter_id
+                                                             and swad.won_anw_clsf_cd   = src.won_anw_clsf_cd
+                                                             and swad.textbk_id         = src.textbk_id
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') cmi on src.wrter_id = cmi.stdt_id
+                                        group by src.textbk_id, src.wrter_id, src.wrt_ymd, src.won_anw_clsf_cd, src.trgt_id) y)
+        select noteCnt.cnt                                      as wrongNote   /*전체 :  선택한 날짜의 오답노트 개수 */
+              , noteCntAll.cnt                                   as wrongNoteAll/*전체*/
+              , noteRetryCnt.cnt                                 as wrongNoteRetryCnt /*다시풀기 완료*/
+              , comparedNoteCnt.cnt                              as comparedWrongNoteAll/*전체*/
+              , comparedNoteRetryCnt.cnt                         as comparedWrongNoteRetryCnt /*다시풀기 완료*/
+              , noteCnt.cnt - noteRetryCnt.cnt                   as wrongNoteNoRetryCnt/*다시풀기 전*/
+              , ifnull(round((noteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) as wrongNoteRetryStatis /*다시풀기 통계 : 복습률*/
+              , ifnull(round((comparedNoteRetryCnt.cnt / comparedNoteCnt.cnt) * 100, 0),0) as comparedWrongNoteRetryStatis /*다시풀기 통계 : 복습률*/
+              , ifnull(round((noteRetryCnt.cnt / noteCntAll.cnt) * 100, 0) - round((comparedNoteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) as comparedRate
+          from noteCnt
+                   left join noteRetryCnt on 1 = 1
+                   left join comparedNoteCnt on 1 = 1
+                   left join comparedNoteRetryCnt on 1 = 1
+                   left join noteCntAll on 1 = 1
+    </select>
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 지정 날짜 대비 복습률 : 전일, 전주, 전월 -->
+    <!-- 쿼리 만들어야 함~~! -->
+    <select id="getClaWrongNoteRetryRateComparedData" parameterType="map" resultType="camelHashMap">
+        /* WrongNoteReportMapper.getClaWrongNoteRetryRateComparedData */
+          with noteCnt as (select count(*) as cnt
+                             from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                                     from (
+                                              (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                                                 from aidt_lms.won_asw_note
+                                                where textbk_id = #{textbkId}
+                                                group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') y
+                                              on x.wrter_id = y.stdt_id
+                                              )) xy)
+            , noteRetryCnt as (select count(*) as cnt
+                                 from (select swai.*
+                                         , src.textbk_id
+                                         , src.wrt_ymd
+                                         , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select textbk_id
+                                                                , wrt_ymd
+                                                                , trgt_id
+                                                                , wrter_id
+                                                                from aidt_lms.won_asw_note
+                                                               where textbk_id = #{textbkId}
+                                                               group by textbk_id
+                                                                 , wrt_ymd
+                                                                 , trgt_id) src
+                                                             on swad.src_textbk_id = src.textbk_id and
+                                                                swad.src_trgt_id = src.trgt_id and
+                                                                swad.src_wrt_ymd = src.wrt_ymd
+                                                  inner join (select stdt_id
+                                                                from aidt_lms.tc_cla_mb_info
+                                                               where cla_id = #{claId}
+                                                                 and actvtn_at = 'Y') cmi on src.wrter_id = cmi.stdt_id
+                                        group by swai.id) y)
+        select noteCnt.cnt                                      as wrongNoteAll/*전체*/
+          , noteRetryCnt.cnt                                 as wrongNoteRetryCnt /*다시풀기 완료*/
+          , noteCnt.cnt - noteRetryCnt.cnt                   as wrongNoteNoRetryCnt/*다시풀기 전*/
+          , round((noteRetryCnt.cnt / noteCnt.cnt) * 100, 0) as wrongNoteRetryStatis /*다시풀기 통계 : 복습률*/
+          from noteCnt
+                   left join noteRetryCnt on 1 = 1
+    </select>
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 오답이 많은 순 -->
+    <select id="getClaWrongNoteStntList" parameterType="map" resultType="camelHashMap" >
+        /* WrongNoteReportMapper.getClaWrongNoteStntList */
+        select xy.wrter_id as stntId, count(*) as cnt
+          from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                  from (
+                           (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                              from aidt_lms.won_asw_note
+                             where textbk_id = #{textbkId}
+                            <if test='dateType eq "d" '>
+                               and wrt_ymd = #{dayDate}
+                            </if>
+                             <if test='dateType eq "w" '>
+                               and wrt_ymd between #{startDate} and #{endDate}
+                            </if>
+                             <if test='dateType eq "m" '>
+                               and left(wrt_ymd,6) =#{monthDate}
+                            </if>
+
+                             group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                               inner join (select stdt_id
+                                             from aidt_lms.tc_cla_mb_info
+                                            where cla_id = #{claId}
+                                              and actvtn_at = 'Y') y
+                           on x.wrter_id = y.stdt_id
+                           )) xy
+         group by xy.wrter_id
+         order by cnt desc
+    </select>
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 전체 복습률이 낮은 학생 순 -->
+    <select id="getClaWrongNoteRetryRateStntList" parameterType="map" resultType="camelHashMap">
+        /* WrongNoteReportMapper.getClaWrongNoteRetryRateStntList */
+        select wrter_id as stntId
+          , ifnull(stntRetryInfo.cnt, 0) as stntRetryCnt
+          , stntWanInfo.cnt  as stntWanCnt
+          , round((ifnull(stntRetryInfo.cnt, 0) / stntWanInfo.cnt) * 100, 0) as retryRate
+          , stntWanInfo.wrt_ymd
+          from (select xy.wrter_id, count(*) as cnt, xy.wrt_ymd
+                  from (select x.wrter_id, x.textbk_id, x.trgt_id, x.wrt_ymd, y.stdt_id
+                          from (
+                                   (select textbk_id, wrt_ymd, trgt_id, wrter_id, count(*)
+                                      from aidt_lms.won_asw_note
+                                     where textbk_id = #{textbkId}
+                                     group by textbk_id, wrt_ymd, trgt_id, wrter_id) x
+                                       inner join (select stdt_id
+                                                     from aidt_lms.tc_cla_mb_info
+                                                    where cla_id = #{claId}
+                                                      and actvtn_at = 'Y') y
+                                   on x.wrter_id = y.stdt_id
+                                   )) xy
+                 group by xy.wrter_id) stntWanInfo
+                   left join (select x.mamoym_id, count(*) cnt,x.wrt_ymd
+                                from (select swai.id, swai.mamoym_id, src.wrt_ymd
+                                        from aidt_lms.std_won_asw_info swai
+                                                 inner join aidt_lms.std_won_asw_detail swad
+                                                            on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                 inner join (select textbk_id
+                                                               , wrt_ymd
+                                                               , trgt_id
+                                                               , wrter_id
+                                                               from aidt_lms.won_asw_note
+                                                              where textbk_id = #{textbkId}
+                                                               <if test='dateType eq "d" '>
+                                                               and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                                              </if>
+                                                              <if test='dateType eq "w" '>
+                                                               and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                                                              </if>
+                                                              <if test='dateType eq "m" '>
+                                                               and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                                                              </if>
+                                                              group by textbk_id
+                                                                , wrt_ymd
+                                                                , trgt_id) src
+                                                            on swad.src_textbk_id = src.textbk_id and
+                                                               swad.src_trgt_id = src.trgt_id and
+                                                               swad.src_wrt_ymd = src.wrt_ymd
+                                                 inner join (select stdt_id
+                                                               from aidt_lms.tc_cla_mb_info
+                                                              where cla_id = #{claId}
+                                                                and actvtn_at = 'Y') cmi on src.wrter_id = cmi.stdt_id
+                                       group by swai.id) x
+                               group by x.mamoym_id) stntRetryInfo on stntWanInfo.wrter_id = stntRetryInfo.mamoym_id
+         order by retryRate
+    </select>
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 오답 노트 수 , 전체 복습률 LOOP -->
+    <select id="getWrongNoteStntData" parameterType="pagingParam" resultType="camelHashMap">
+        /* WrongNoteReportMapper.getWrongNoteStntData */
+          with noteCnt as (select count(*) as cnt
+                             from (select textbk_id, wrt_ymd, trgt_id
+                                     from aidt_lms.won_asw_note
+                                    where wrter_id = #{stntId}
+                                      and textbk_id = #{textbkId}
+                                     <if test='dateType eq "d" '>
+                                       and wrt_ymd = #{dayDate}
+                                     </if>
+                                     <if test='dateType eq "w" '>
+                                       and wrt_ymd between #{startDate} and #{endDate}
+                                     </if>
+                                     <if test='dateType eq "m" '>
+                                       and left(wrt_ymd,6) =#{monthDate}
+                                     </if>
+                                    group by textbk_id, wrt_ymd, trgt_id) x)
+            , noteCntAll as (select count(*) as cnt
+                             from (select textbk_id, wrt_ymd, trgt_id
+                                     from aidt_lms.won_asw_note
+                                    where wrter_id = #{stntId}
+                                      and textbk_id = #{textbkId}
+                                    group by textbk_id, wrt_ymd, trgt_id) x)
+            , noteRetryCnt as (select count(*) as cnt
+                                 from (select  src.textbk_id
+                                             , src.wrt_ymd
+                                             , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, trgt_id
+                                                                from aidt_lms.won_asw_note
+                                                               where wrter_id = #{stntId}
+                                                                 and textbk_id = #{textbkId}
+                                                                <if test='dateType eq "d" '>
+                                                                 and wrt_ymd = #{dayDate}
+                                                                </if>
+                                                                <if test='dateType eq "w" '>
+                                                                 and wrt_ymd between #{startDate} and #{endDate}
+                                                                </if>
+                                                                <if test='dateType eq "m" '>
+                                                                 and left(wrt_ymd,6) =#{monthDate}
+                                                                </if>
+                                                                group by textbk_id
+                                                                       , wrt_ymd
+                                                                       , trgt_id
+                                                                       , won_anw_clsf_cd
+                                                                       , won_anw_nm
+                                                                       , tab_id
+                                                                       , trgt_id
+                                                                       , wrter_id) src
+                                                             on swad.src_textbk_id      = src.textbk_id
+                                                             and swad.src_trgt_id       = src.trgt_id
+                                                             and swad.src_wrt_ymd       = src.wrt_ymd
+                                                             and swad.src_wrter_id      = src.wrter_id
+                                                             and swad.won_anw_clsf_cd   = src.won_anw_clsf_cd
+                                                             and swad.textbk_id         = src.textbk_id
+                                        group by src.textbk_id, src.wrter_id, src.wrt_ymd, src.won_anw_clsf_cd, src.trgt_id) y)
+        select noteCnt.cnt                                      as wrongNoteAll  /*전체 : 오답 수 화면에서 받고 있는 파라미터 명이라 ALL 붙여 넘겨줌*/
+--              , noteCntAll.cnt                                   as wrongNote     /*전체 : 오답 수 */
+--              , noteRetryCnt.cnt                                 as wrongRetry
+          , ifnull(round((noteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) as wrongNoteRetryRate /*다시풀기 통계 :  전체 복습률*/
+          , case
+                when ifnull(round((noteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) = 0 then 'N'
+                else ifnull((select tch_rpt_chk_at
+                     from aidt_lms.won_asw_note
+                    where wrter_id = #{stntId}
+                      and textbk_id = #{textbkId}
+                      <if test='dateType eq "d" '>
+                       and wrt_ymd = #{dayDate}
+                     </if>
+                     <if test='dateType eq "w" '>
+                       and wrt_ymd between #{startDate} and #{endDate}
+                     </if>
+                     <if test='dateType eq "m" '>
+                       and left(wrt_ymd,6) =#{monthDate}
+                     </if>
+                      and tch_rpt_chk_at IN ('Y', 'N')
+                      limit 1),'N')
+            end as newAt
+          from noteCnt
+                   left join noteRetryCnt on 1 = 1
+                   left join noteCntAll on 1=1
+    </select>
+
+    <!-- 교사 : 학급 전체 리포트 -->
+    <!-- 가장 많이 틀린 이유 탑3 LOOP -->
+    <select id="getStntWrongReasonTop3List" parameterType="pagingParam" resultType="camelHashMap">
+        /* WrongNoteReportMapper.getStntWrongReasonTop3List */
+          with recursive splitTags as (
+                                          -- 숫자가 하나만 있는 경우 처리
+                                          select trim(won_tag) as tag
+                                               , null          as rest
+                                            from aidt_lms.won_asw_note
+                                           where won_tag not like '%,%'
+                                             and won_asw_note.wrter_id = #{stntId}
+                                             and textbk_id = #{textbkId}
+                                             and won_tag is not null
+                                             and won_tag != ''
+                                            <if test='dateType eq "d" '>
+                                             and wrt_ymd = #{dayDate}
+                                            </if>
+                                            <if test='dateType eq "w" '>
+                                             and wrt_ymd between #{startDate} and #{endDate}
+                                            </if>
+                                            <if test='dateType eq "m" '>
+                                             and left(wrt_ymd,6) =#{monthDate}
+                                            </if>
+                                          union all
+                                          select trim(substring_index(won_tag, ',', 1))             as tag
+                                               , trim(substring(won_tag, locate(',', won_tag) + 1)) as rest
+                                            from aidt_lms.won_asw_note
+                                           where won_tag like '%,%'
+                                             and won_asw_note.wrter_id = #{stntId}
+                                             and textbk_id = '1'
+                                             and won_tag is not null
+                                             and won_tag != ''
+                                            <if test='dateType eq "d" '>
+                                             and wrt_ymd = #{dayDate}
+                                            </if>
+                                            <if test='dateType eq "w" '>
+                                             and wrt_ymd between #{startDate} and #{endDate}
+                                            </if>
+                                            <if test='dateType eq "m" '>
+                                             and left(wrt_ymd,6) =#{monthDate}
+                                            </if>
+                                           union all
+                                          select trim(substring_index(rest, ',', 1))                                           as tag
+                                               , if(locate(',', rest) > 0, trim(substring(rest, locate(',', rest) + 1)), null) as rest
+                                            from splitTags
+                                           where rest is not null)
+            ,tag_count as (
+                select
+                    tag,
+                    count(*) as cnt
+                from splittags
+                where tag is not null
+                group by tag
+            )
+            , top3 as (
+                select *
+                from tag_count
+                order by cnt desc
+                limit 3
+            )
+            , brand as (
+                select brand_id as id from aidt_lcms.textbook where id = #{textbkId} limit 1
+                )
+            select
+                  t.tag
+                , t.cnt
+                , case
+                        when brand.id = 1 then aidt_lms.f_code_nm('won_tag', t.tag)
+                        else aidt_lms.f_code_nm('won_tag_eng', t.tag)
+                  end as wrongreaseon
+            from top3 t left join brand on 1=1
+            order by
+                case
+                    when brand.id = 1 then field(t.tag,1,2,3,5,6,4)
+                    else field(t.tag,1,3,5,2,4,6,7)
+                end
+
+    </select>
+
+    <!-- 교사/학생 : 학생별 리포트 -->
+    <!-- 선택한 날짜의 총 오답 문항 수 -->
+    <select id="getStntWrongNoteCnt" parameterType="map" resultType="camelHashMap" >
+        /* WrongNoteReportMapper.getStntWrongNoteCnt */
+        select count(*) as cnt
+          from (select textbk_id, wrt_ymd, trgt_id, count(*)
+                  from aidt_lms.won_asw_note
+                 where wrter_id = #{stntId}
+                   and textbk_id =#{textbkId}
+                 <if test='dateType eq "d" '>
+                 and wrt_ymd = #{dayDate}
+                </if>
+                <if test='dateType eq "w" '>
+                 and wrt_ymd between #{startDate} and #{endDate}
+                </if>
+                <if test='dateType eq "m" '>
+                 and left(wrt_ymd,6) =#{monthDate}
+                </if>
+                 group by textbk_id, wrt_ymd, trgt_id) x
+    </select>
+
+
+    <!-- 교사/학생 : 학생별 리포트 -->
+    <!-- 단원별 오답 수 : 탑 3 -->
+    <select id="getStntUnitWrongCntTop3List" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntUnitWrongCntTop3List */
+          with won_notes as (select *
+                               from aidt_lms.won_asw_note
+                              where 1 = 1 -- won_anw_clsf_cd = 3
+                                and textbk_id = #{textbkId}
+                                <if test='dateType eq "d" '>
+                                and wrt_ymd = #{dayDate}
+                                </if>
+                                <if test='dateType eq "w" '>
+                                and wrt_ymd between #{startDate} and #{endDate}
+                                </if>
+                                <if test='dateType eq "m" '>
+                                and left(wrt_ymd,6) =#{monthDate}
+                                </if>
+                                )
+          , study_member as (select stdt_id
+                                 from aidt_lms.tc_cla_mb_info
+                                where cla_id = #{claId}
+                                  and actvtn_at = 'Y'
+                                  and stdt_id = #{stntId})
+            , article_meta as (select *
+                                 from aidt_lcms.article_meta_map)
+            , study_map as (select row_number() over (order by b.`code`) as unit_num
+                              , b.id
+                              from aidt_lcms.meta a
+                                       inner join aidt_lcms.meta b
+                                                  on a.`code` = b.description
+                                                      and b.is_active = 1
+                                                      and b.name = 'studyMap1'
+                                       inner join aidt_lcms.meta c
+                                                  on c.id = b.parent_id
+                                                      and c.is_active = 1
+                                       left join aidt_lcms.meta_extension d
+                                                 on b.meta_extension_id = d.meta_extension_id
+                             where ifnull(d.val1, '1') = '1'
+                               and a.parent_id = (select curribook
+                                                    from aidt_lcms.textbook
+                                                   where id = #{textbkId})
+                               and a.is_active = 1)
+        select x.unit_num, count(*) as cnt
+          from (select unit.unit_num
+                  , unit.id as metaid
+                  , wan.*
+                  from won_notes wan
+                           inner join study_member sm on sm.stdt_id = wan.wrter_id
+                           left join article_meta amm
+                                     on wan.module_id = amm.article_id
+                                         and wan.sub_id = amm.sub_id
+                           inner join study_map unit
+                                      on unit.id = amm.meta_id) x
+         group by x.unit_num
+         order by cnt desc
+             limit 3
+    </select>
+
+
+
+
+    <!-- 교사/학생 : 학생별 리포트 -->
+    <!-- 복습률 : 지정날짜 복습률-->
+    <select id="getStntWrongRetryRate" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntWrongRetryRate */
+          with noteCnt as (select count(*) as cnt
+                             from (select textbk_id, wrt_ymd, trgt_id
+                                     from aidt_lms.won_asw_note
+                                    where wrter_id = #{stntId}
+                                      and textbk_id = #{textbkId}
+                                    <if test='dateType eq "d" '>
+                                      and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                    </if>
+                                    <if test='dateType eq "w" '>
+                                      and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                                    </if>
+                                    <if test='dateType eq "m" '>
+                                      and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                                    </if>
+                                    group by textbk_id, wrt_ymd, trgt_id) x)
+            , noteCntAll as (select count(*) as cnt
+                             from (select textbk_id, wrt_ymd, trgt_id
+                                     from aidt_lms.won_asw_note
+                                    where wrter_id = #{stntId}
+                                      and textbk_id = #{textbkId}
+                                    group by textbk_id, wrt_ymd, trgt_id) x)
+            , noteRetryCnt as (select count(*) as cnt
+                                 from (select src.textbk_id
+                                             , src.wrt_ymd
+                                             , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, trgt_id
+                                                                from aidt_lms.won_asw_note
+                                                               where wrter_id = #{stntId}
+                                                                 and textbk_id = #{textbkId}
+                                                                <if test='dateType eq "d" '>
+                                                                 and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                                                </if>
+                                                                <if test='dateType eq "w" '>
+                                                                 and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                                                                </if>
+                                                                <if test='dateType eq "m" '>
+                                                                 and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                                                                </if>
+                                                               group by textbk_id
+                                                                       , wrt_ymd
+                                                                       , trgt_id
+                                                                       , won_anw_clsf_cd
+                                                                       , won_anw_nm
+                                                                       , tab_id
+                                                                       , trgt_id
+                                                                       , wrter_id) src
+                                                              on swad.src_textbk_id = src.textbk_id
+                                                                  and swad.src_trgt_id = src.trgt_id
+                                                                  and swad.src_wrt_ymd = src.wrt_ymd
+                                                                  and swad.src_wrter_id = src.wrter_id
+                                                                  and swad.won_anw_clsf_cd = src.won_anw_clsf_cd
+                                                                  and swad.textbk_id = src.textbk_id
+                                         group by src.textbk_id, src.wrter_id, src.wrt_ymd, src.won_anw_clsf_cd, src.trgt_id) y)
+            , comparedNoteCnt as (select count(*) as cnt
+                             from (select textbk_id, wrt_ymd, trgt_id
+                                     from aidt_lms.won_asw_note
+                                    where wrter_id = #{stntId}
+                                      and textbk_id = #{textbkId}
+                                   <if test='dateType eq "d" '>
+                                    and wrt_ymd <![CDATA[ <= ]]> date_format(date_sub(str_to_date(#{dayDate}, '%Y%m%d'), interval 1 day), '%Y%m%d')
+                                </if>
+                                <if test='dateType eq "w" '>
+                                    and wrt_ymd <![CDATA[ <= ]]>
+                                                        date_format(date_sub(str_to_date(#{endDate}, '%Y%m%d'), interval 7 day), '%Y%m%d')
+                                </if>
+                                <if test='dateType eq "m" '>
+                                    and left(wrt_ymd,6)  <![CDATA[ <= ]]> case
+                                                               when right(#{monthDate}, 2) = '01' then concat(left(#{monthDate}, 4) - 1, '12')
+                                                               else concat(left(#{monthDate}, 4), lpad(right(#{monthDate}, 2) - 1, 2, '0'))
+                                                             end
+                                </if>
+                                    group by textbk_id, wrt_ymd, trgt_id) x)
+            , comparedNoteRetryCnt as (select count(*) as cnt
+                                 from (select src.textbk_id
+                                         , src.wrt_ymd
+                                         , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select  textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, trgt_id
+                                                                from aidt_lms.won_asw_note
+                                                               where wrter_id = #{stntId}
+                                                                 and textbk_id = #{textbkId}
+                                                                <if test='dateType eq "d" '>
+                                                                    and wrt_ymd <![CDATA[ <= ]]> date_format(date_sub(str_to_date(#{dayDate}, '%Y%m%d'), interval 1 day), '%Y%m%d')
+                                                                </if>
+                                                                <if test='dateType eq "w" '>
+                                                                    and wrt_ymd <![CDATA[ <= ]]>
+                                                                                        date_format(date_sub(str_to_date(#{endDate}, '%Y%m%d'), interval 7 day), '%Y%m%d')
+                                                                </if>
+                                                                <if test='dateType eq "m" '>
+                                                                    and left(wrt_ymd,6) <![CDATA[ <= ]]> case
+                                                                                           when right(#{monthDate}, 2) = '01' then concat(left(#{monthDate}, 4) - 1, '12')
+                                                                                           else concat(left(#{monthDate}, 4), lpad(right(#{monthDate}, 2) - 1, 2, '0'))
+                                                                                         end
+                                                                </if>
+                                                               group by textbk_id
+                                                                       , wrt_ymd
+                                                                       , trgt_id
+                                                                       , won_anw_clsf_cd
+                                                                       , won_anw_nm
+                                                                       , tab_id
+                                                                       , trgt_id
+                                                                       , wrter_id) src
+                                                            on swad.src_textbk_id      = src.textbk_id
+                                                             and swad.src_trgt_id       = src.trgt_id
+                                                             and swad.src_wrt_ymd       = src.wrt_ymd
+                                                             and swad.src_wrter_id      = src.wrter_id
+                                                             and swad.won_anw_clsf_cd   = src.won_anw_clsf_cd
+                                                             and swad.textbk_id         = src.textbk_id
+                                        group by src.textbk_id, src.wrter_id, src.wrt_ymd, src.won_anw_clsf_cd, src.trgt_id) y)
+                select noteCnt.cnt                                      as wrongNote   /*전체 날짜 기준 누적 개수 */
+             , noteCntAll.cnt                                   as wrongNoteAll/*전체*/
+             , noteRetryCnt.cnt                                 as wrongNoteRetryCnt /*다시풀기 완료 : 날짜 기준 누적 개수*/
+             , comparedNoteCnt.cnt                              as comparedWrongNoteAll/*전체*/
+             , comparedNoteRetryCnt.cnt                         as comparedWrongNoteRetryCnt /*다시풀기 완료 : 날짜 기준 누적 개수*/
+             , noteCnt.cnt - noteRetryCnt.cnt                   as wrongNoteNoRetryCnt/*다시풀기 전*/
+             , ifnull(round((noteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) as wrongNoteRetryRate /*다시풀기 통계 : 복습률 (다시풀기개수/전체 *100) */
+             , ifnull(round((comparedNoteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) as comparedWrongNoteRetryStatis /*다시풀기 통계 : 복습률*/
+             , ifnull(round((noteRetryCnt.cnt / noteCntAll.cnt) * 100, 0) - round((comparedNoteRetryCnt.cnt / noteCntAll.cnt) * 100, 0),0) as comparedRate
+          from noteCnt
+                   left join noteRetryCnt on 1 = 1
+                   left join comparedNoteCnt on 1 = 1
+                   left join comparedNoteRetryCnt on 1 = 1
+                   left join noteCntAll on 1=1
+    </select>
+
+
+    <!-- 교사/학생 : 학생별 리포트 -->
+    <!-- 복습률 : 지정날짜 복습률 대비 지난주/일/월 통계데이터-->
+    <!-- 쿼리 만들어야 함~~! -->
+    <select id="getStntWrongRetryRateComparedData" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntWrongRetryRateComparedData */
+          with noteCnt as (select count(*) as cnt
+                             from (select textbk_id, wrt_ymd, trgt_id
+                                     from aidt_lms.won_asw_note
+                                    where wrter_id = #{stntId}
+                                      and textbk_id = #{textbkId}
+                                    group by textbk_id, wrt_ymd, trgt_id) x)
+            , noteRetryCnt as (select count(*) as cnt
+                                 from (select swai.*
+                                         , src.textbk_id
+                                         , src.wrt_ymd
+                                         , src.trgt_id
+                                         from aidt_lms.std_won_asw_info swai
+                                                  inner join aidt_lms.std_won_asw_detail swad
+                                                             on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                  inner join (select textbk_id
+                                                                , wrt_ymd
+                                                                , trgt_id
+                                                                from aidt_lms.won_asw_note
+                                                               where wrter_id = #{stntId}
+                                                               and textbk_id = #{textbkId}
+                                                               group by textbk_id
+                                                                 , wrt_ymd
+                                                                 , trgt_id) src
+                                                             on swad.src_textbk_id = src.textbk_id and
+                                                                swad.src_trgt_id = src.trgt_id and
+                                                                swad.src_wrt_ymd = src.wrt_ymd
+                                        group by swai.id) y)
+
+        select noteCnt.cnt                                      as wrongNoteAll/*전체*/
+          , noteRetryCnt.cnt                                 as wrongNoteRetryCnt /*다시풀기 완료*/
+          , noteCnt.cnt - noteRetryCnt.cnt                   as wrongNoteNoRetryCnt/*다시풀기 전*/
+          , round((noteRetryCnt.cnt / noteCnt.cnt) * 100, 0) as wrongNoteRetryStatis /*다시풀기 통계 : 복습률*/
+
+          from noteCnt
+                   left join noteRetryCnt on 1 = 1
+    </select>
+
+
+    <!-- 교사/학생 : 학생별 리포트 -->
+    <!-- 오답 노트 미완료 : 모두 노출 -->
+    <select id="getStntWrongNoteIncompleteList_back" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntWrongNoteIncompleteList */
+        select *
+          from (
+                     select aidt_lms.f_code_nm('won_anw_clsf_cd', a.won_anw_clsf_cd) as gb,
+                            a.won_anw_nm                                            as wonAnwNm,
+                            a.trgt_id                                               as trgetId,
+                            a.wrt_ymd                                               as wrtYmd
+                     from aidt_lms.won_asw_note a
+                     where a.wrter_id = #{stntId}
+                       and a.textbk_id = #{textbkId}
+                       and (a.won_tag is null or a.won_tag = '')
+                       <if test='dateType eq "d" '>
+                       and a.wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                       </if>
+                       <if test='dateType eq "w" '>
+                       and a.wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                       </if>
+                       <if test='dateType eq "m" '>
+                       and left(a.wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                       </if>
+                       and not exists (
+                         select 1
+                         from aidt_lms.std_won_asw_info swai
+                                  inner join aidt_lms.std_won_asw_detail swad
+                                             on swai.id = swad.std_won_anw_id
+                         where swai.subm_at = 'Y'
+                           and swad.src_textbk_id = a.textbk_id
+                           and swad.src_trgt_id = a.trgt_id
+                           and swad.src_wrt_ymd = a.wrt_ymd
+                           and swad.wrter_id = a.wrter_id
+                         limit 1
+                       )
+                     group by a.textbk_id, a.wrt_ymd, a.trgt_id
+
+                     union all
+
+                     select aidt_lms.f_code_nm('won_anw_clsf_cd', a.won_anw_clsf_cd) as gb,
+                            a.won_anw_nm                                            as wonAnwNm,
+                            a.trgt_id                                               as trgetId,
+                            a.wrt_ymd                                               as wrtYmd
+                     from aidt_lms.won_asw_note a
+                     where a.wrter_id = #{stntId}
+                       and a.textbk_id = #{textbkId}
+                       and a.won_tag is not null and a.won_tag != ''
+                       <if test='dateType eq "d" '>
+                       and a.wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                       </if>
+                       <if test='dateType eq "w" '>
+                       and a.wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                       </if>
+                       <if test='dateType eq "m" '>
+                       and left(a.wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                       </if>
+                       and not exists (
+                         select 1
+                         from aidt_lms.std_won_asw_info swai
+                                  inner join aidt_lms.std_won_asw_detail swad
+                                             on swai.id = swad.std_won_anw_id
+                         where swai.subm_at = 'Y'
+                           and swad.src_textbk_id = a.textbk_id
+                           and swad.src_trgt_id = a.trgt_id
+                           and swad.src_wrt_ymd = a.wrt_ymd
+                           and swad.wrter_id = a.wrter_id
+                         limit 1
+                       )
+                     group by a.textbk_id, a.wrt_ymd, a.trgt_id
+                 ) x
+            group by x.trgetId, x.wrtYmd
+            order by x.wrtYmd desc
+    </select>
+
+    <select id="getStntWrongNoteIncompleteList" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntWrongNoteIncompleteList */
+        select
+            aidt_lms.F_CODE_NM('won_anw_clsf_cd',won_anw_clsf_cd) as gb,
+            a.won_anw_nm as wonAnwNm,
+            a.trgt_id as trgetId,
+            a.wrt_ymd as wrtYmd
+          from aidt_lms.won_asw_note a
+         where 1 = 1
+           and a.wrter_id = #{stntId}
+           and a.textbk_id = #{textbkId}
+           <if test='dateType eq "d" '>
+           and a.wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+           </if>
+           <if test='dateType eq "w" '>
+           and a.wrt_ymd <![CDATA[ <= ]]> #{endDate}
+           </if>
+           <if test='dateType eq "m" '>
+           and left(a.wrt_ymd,6) <![CDATA[ = ]]> #{monthDate}
+           </if>
+           and( not exists (select 1
+                    from aidt_lms.std_won_asw_info swai
+                              inner join aidt_lms.std_won_asw_detail swad
+                                         on swai.id and swad.std_won_anw_id and swai.subm_at = 'Y'
+                                             and swad.src_textbk_id = a.textbk_id
+                                             and swad.src_trgt_id = a.trgt_id
+                                             and swad.src_wrt_ymd = a.wrt_ymd
+                                             and swad.wrter_id = a.wrter_id
+                    group by swai.id
+                    limit 1)
+            OR EXISTS (
+                            select 1
+                              from aidt_lms.won_asw_note
+                             where 1=1
+                               and won_anw_clsf_cd = a.won_anw_clsf_cd
+                               and trgt_id =a.trgt_id
+                               and (won_tag is null or won_tag = '')
+                               and wrt_ymd = a.wrt_ymd
+                               and wrter_id = a.wrter_id
+                               limit 1
+                            )
+            )
+        group by a.textbk_id
+        , a.wrt_ymd
+        , a.trgt_id
+        order by a.wrt_ymd desc
+    </select>
+
+    <!-- 교사/학생 : 학생별 리포트 -->
+    <!-- 오답 툴린 이유 전체 -->
+    <select id="getStntWrongReasonList" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntWrongReasonList */
+          with recursive splitTags as (
+                                      select trim(won_tag) as tag
+                                           , null          as rest
+                                        from aidt_lms.won_asw_note
+                                       where won_tag not like '%,%'
+                                         and won_asw_note.wrter_id = #{stntId}
+                                         and textbk_id = #{textbkId}
+                                         and won_tag is not null
+                                         and won_tag != ''
+                                        <if test='dateType eq "d" '>
+                                         and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                        </if>
+                                        <if test='dateType eq "w" '>
+                                         and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+                                        </if>
+                                        <if test='dateType eq "m" '>
+                                         and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                                        </if>
+                                       union all
+                                      select trim(substring_index(won_tag, ',', 1))             as tag
+                                           , trim(substring(won_tag, locate(',', won_tag) + 1)) as rest
+                                        from aidt_lms.won_asw_note
+                                       where won_tag like '%,%'
+                                         and won_asw_note.wrter_id = #{stntId}
+                                         and textbk_id = #{textbkId}
+                                         and won_tag is not null
+                                         and won_tag != ''
+                                        <if test='dateType eq "d" '>
+                                         and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+                                        </if>
+                                        <if test='dateType eq "w" '>
+                                         and wrt_ymd <![CDATA[ <= ]]>  #{endDate}
+                                        </if>
+                                        <if test='dateType eq "m" '>
+                                         and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+                                        </if>
+                                       union all
+                                       select trim(substring_index(rest, ',', 1))                                           as tag
+                                            , if(locate(',', rest) > 0, trim(substring(rest, locate(',', rest) + 1)), null) as rest
+                                         from splitTags
+                                        where rest is not null
+                                       )
+                                ,tag_count as (
+                                    select
+                                        tag,
+                                        count(*) as cnt
+                                    from splittags
+                                    where tag is not null
+                                    group by tag
+                                )
+                                , top as (
+                                    select *
+                                    from tag_count
+                                    order by cnt desc
+                                )
+                                select
+                                    t.tag,
+                                    aidt_lms.f_code_nm('won_tag', t.tag) as wrongReason,
+                                    t.cnt
+                                from top t
+                                order by field(t.tag,1,2,3,5,6,4)
+    </select>
+
+    <select id="getStntWrongReasonListForEng" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getStntWrongReasonListForEng */
+        with recursive splitTags as (
+            select trim(won_tag) as tag
+            , null          as rest
+            from aidt_lms.won_asw_note
+            where won_tag not like '%,%'
+            and won_asw_note.wrter_id = #{stntId}
+            and textbk_id = #{textbkId}
+            and won_tag is not null
+            and won_tag != ''
+            <if test='dateType eq "d" '>
+                and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+            </if>
+            <if test='dateType eq "w" '>
+                and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+            </if>
+            <if test='dateType eq "m" '>
+                and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+            </if>
+            union all
+            select trim(substring_index(won_tag, ',', 1))             as tag
+            , trim(substring(won_tag, locate(',', won_tag) + 1)) as rest
+            from aidt_lms.won_asw_note
+            where won_tag like '%,%'
+            and won_asw_note.wrter_id = #{stntId}
+            and textbk_id = #{textbkId}
+            and won_tag is not null
+            and won_tag != ''
+            <if test='dateType eq "d" '>
+                and wrt_ymd <![CDATA[ <= ]]> #{dayDate}
+            </if>
+            <if test='dateType eq "w" '>
+                and wrt_ymd <![CDATA[ <= ]]> #{endDate}
+            </if>
+            <if test='dateType eq "m" '>
+                and left(wrt_ymd,6) <![CDATA[ <= ]]> #{monthDate}
+            </if>
+            union all
+            select trim(substring_index(rest, ',', 1))                                           as tag
+            , if(locate(',', rest) > 0, trim(substring(rest, locate(',', rest) + 1)), null) as rest
+            from splitTags
+            where rest is not null
+            )
+        ,tag_count as (
+            select
+                tag,
+                count(*) as cnt
+            from splittags
+            where tag is not null
+            group by tag
+        )
+        , top as (
+            select *
+            from tag_count
+            order by cnt desc
+        )
+        select
+            t.tag,
+            aidt_lms.f_code_nm('won_tag_eng', t.tag) as wrongReason,
+            t.cnt
+        from top t
+        where t.tag != 5 /* 기획측 요청으로 인해 오답노트 태그 중 '문법 모름'은 제외 처리 */
+        order by field(t.tag,1,3,5,2,4,6,7)
+
+    </select>
+
+    <select id="getClaStntList" parameterType="map" resultType="map">
+        /* WrongNoteReportMapper.getClaStntList */
+        select tcmi.stdt_id as stntId
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join aidt_lms.stdt_reg_info sri on tcmi.stdt_id = sri.user_id
+        where tcmi.cla_id = #{claId}
+          and tcmi.actvtn_at = 'Y'
+        order by sri.num
+    </select>
+
+    <select id="getTchComment" parameterType="map" resultType="camelHashMap">
+        /* WrongNoteReportMapper.getTchComment */
+        select rpt_cmmnt
+          from aidt_lms.report_cmmnt
+         where cla_id       = #{claId}
+           and textbook_id  = #{textbkId}
+           and mamoym_id    = #{stntId}
+           and rpt_cmmnt_cd = #{rptCmmntCd}
+    </select>
+
+    <delete id="delAllTchCommentForInit" parameterType="map" >
+        /* WrongNoteReportMapper.delAllTchCommentForInit */
+        delete from aidt_lms.report_cmmnt
+              where cla_id =#{claId}
+                and textbook_id = #{textbkId}
+                and rpt_cmmnt_cd = #{rptCmmntCd}
+    </delete>
+
+    <insert id="regAllTchComment" parameterType="map" >
+        /* WrongNoteReportMapper.regAllTchComment */
+        insert
+          into
+              aidt_lms.report_cmmnt (wrter_id, cla_id, textbook_id, mamoym_id, rpt_cmmnt, rpt_cmmnt_cd)
+            select
+                #{tchId}
+              , #{claId}
+              , #{textbkId}
+              , stdt_id
+              , #{rptCmmnt}
+              , #{rptCmmntCd}
+              from
+                  aidt_lms.tc_cla_mb_info
+             where
+                   cla_id = #{claId}
+               and actvtn_at = 'Y'
+    </insert>
+
+    <insert id="regTchComment" parameterType="map" >
+        /* WrongNoteReportMapper.regTchComment */
+        insert into aidt_lms.report_cmmnt (
+                                           wrter_id
+                                          , cla_id
+                                          , textbook_id
+                                          , mamoym_id
+                                          , rpt_cmmnt
+                                          , rpt_cmmnt_cd
+                                          )
+                                         values (
+                                                #{tchId}
+                                              , #{claId}
+                                              , #{textbkId}
+                                              , #{stntId}
+                                              , #{rptCmmnt}
+                                              , #{rptCmmntCd}
+                                               )
+    </insert>
+
+    <update id="modTchComment" parameterType="map" >
+        /* WrongNoteReportMapper.modTchComment */
+        update aidt_lms.report_cmmnt set
+                                          wrter_id= #{tchId}
+                                        , rpt_cmmnt = #{rptCmmnt}
+                                   where cla_id = #{claId}
+                                     and textbook_id =#{textbkId}
+                                     and rpt_cmmnt_cd = #{rptCmmntCd}
+                                     <if test="stntId != null and stntId != '' ">
+                                        and mamoym_id = #{stntId}
+                                     </if>
+    </update>
+
+    <select id="getTchRptChkAt" parameterType="map" resultType="camelHashMap">
+        SELECT ssi.tch_rpt_chk_at
+        FROM aidt_lms.slf_std_info ssi
+        where ssi.stdt_id = #{stntId}
+        AND ssi.textbk_id = #{textbkId}
+        and ssi.cla_id = #{claId}
+        <choose>
+            <when test='"w".equals(dateType)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') between #{startDate} and #{endDate}
+            </when>
+            <when test='"m".equals(dateType)'>
+                and date_format(ssi.reg_dt, '%Y%m') = #{dayDate}
+            </when>
+            <when test='"d".equals(dateType)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') = #{monthDate}
+            </when>
+        </choose>
+    </select>
+
+     <update id="modReadY" parameterType="map" >
+        /* WrongNoteReportMapper.modTchComment */
+        update aidt_lms.won_asw_note
+            set tch_rpt_chk_at ='N'
+          where wrter_id = #{stntId}
+            and textbk_id = #{textbkId}
+
+            <if test='dateType eq "d" '>
+            and wrt_ymd = #{dayDate}
+            </if>
+
+            <if test='dateType eq "w" '>
+            and wrt_ymd between #{startDate} and #{endDate}
+            </if>
+
+            <if test='dateType eq "m" '>
+            and left(wrt_ymd,6) =#{monthDate}
+            </if>
+    </update>
+
+
+
+</mapper>

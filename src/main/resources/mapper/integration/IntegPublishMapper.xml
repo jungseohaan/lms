@@ -1,0 +1,2024 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.integration.mapper.IntegPublishMapper">
+    <select id="selectClaId" parameterType="map" resultType="string">
+        /* IntegPublishMapper.selectClaId */
+        SELECT cla_id
+        FROM aidt_lms.tc_cla_info
+        WHERE cla_id = #{claId}
+    </select>
+
+    <select id="selectUserExists" parameterType="map" resultType="int">
+        /* IntegPublishMapper.selectUserExists */
+        SELECT IFNULL( (
+            SELECT id
+            FROM aidt_lms.user
+            WHERE user_id = #{userId}
+        ), 0)
+    </select>
+
+    <insert id="insertUserInfo" parameterType="map">
+        /* IntegPublishMapper.insertUserInfo */
+        insert into `aidt_lms`.`user` (
+            user_id, sso_tk, flnm, user_se_cd, indv_info_agre_yn, eml_addr, mbl_telno
+            , sex, brth, eml_rcptn_agre_yn, sms_rcptn_agre_yn
+            , rcptn_agre_ymd, dmt_chg_ymd, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+             NULLIF(#{userId}, '')
+             , '-'
+             , IFNULL(#{flnm}, '-')
+             , #{userDiv}
+             , 'Y'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , #{rgtr}
+             , now()
+             , #{rgtr}
+             , now()
+         )
+    </insert>
+
+    <insert id="insertTcRegInfo" parameterType="map">
+        /* IntegPublishMapper.insertTcRegInfo */
+        insert into `aidt_lms`.`tc_reg_info` (
+           user_id, flnm, user_stts_cd, schl_cd, schl_nm, brth
+         , yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd
+         , cla_cd, cla_nm, num, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+            #{userId}
+             , #{userId}
+             , 'E'
+             , '-'
+             , IFNULL(#{schlNm}, '-')
+             , '-'
+             , date_format(now(), '%Y')
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , '-'
+             , 1
+             , #{rgtr}
+             , NOW()
+             , #{rgtr}
+             , NOW()
+         )
+    </insert>
+
+    <insert id="insertTcClaInfo" parameterType="map">
+        /* IntegPublishMapper.insertTcClaInfo */
+        insert into `aidt_lms`.`tc_cla_info` (
+            cla_id, user_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, estbl_sbjct_cd, course_rm_cd, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+           #{claId}
+         , #{userId}
+         , #{year}
+         , 0
+         , IFNULL(#{schlNm}, '-')
+         , IFNULL(#{gradeCd}, '-')
+         , '-'
+         , IFNULL(#{claNm}, '-')
+         , '-'
+         , '-'
+         , #{rgtr}
+         , NOW()
+         , #{rgtr}
+         , NOW()
+        )
+    </insert>
+
+    <insert id="insertStdtRegInfo" parameterType="map">
+        /* IntegPublishMapper.insertStdtRegInfo */
+        insert into `aidt_lms`.`stdt_reg_info`  (
+              user_id, flnm, user_stts_cd, schl_id, schl_cd, schl_nm
+            , brth, yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd, cla_cd, cla_nm
+            , num, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+            #{userId}
+             , #{userId}
+             , 'E'
+             , '0'
+             , '-'
+             , IFNULL(#{schlNm}, '-')
+             , '-'
+             , #{year}
+             , '-'
+             , IFNULL(#{gradeCd}, '-')
+             , '-'
+             , '-'
+             , '-'
+             , IFNULL(#{claNm}, '-')
+             , IFNULL(#{userNumber}, 0)
+             , #{rgtr}
+             , NOW()
+             , #{rgtr}
+             , NOW()
+         )
+    </insert>
+
+    <insert id="insertTcClaMbInfo" parameterType="map">
+        /* IntegPublishMapper.insertTcClaMbInfo */
+        insert into `aidt_lms`.`tc_cla_mb_info` (
+            cla_id, user_id, stdt_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+               #{claId}
+             , #{tcId}
+             , #{userId}
+             , #{year}
+             , 0
+             , IFNULL(#{schlNm}, '-')
+             , IFNULL(#{gradeCd}, '-')
+             , IFNULL(#{claNm}, '-')
+             , '-'
+             , #{rgtr}
+             , NOW()
+             , #{rgtr}
+             , NOW()
+        )
+    </insert>
+
+    <insert id="insertUserBulk" parameterType="list">
+        /* IntegPublishMapper.insertUser - 배치 삽입 */
+        insert into `aidt_lms`.`user` (
+            user_id, sso_tk, flnm, user_se_cd, indv_info_agre_yn, eml_addr, mbl_telno
+            , sex, brth, eml_rcptn_agre_yn, sms_rcptn_agre_yn
+            , rcptn_agre_ymd, dmt_chg_ymd, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            NULLIF(#{user.userId}, '')
+            , '-'
+            , IFNULL(#{user.flnm}, '-')
+            , #{user.userDiv}
+            , 'Y'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , #{user.rgtr}
+            , now()
+            , #{user.rgtr}
+            , now()
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertStdtRegInfoBulk" parameterType="list">
+        /* IntegPublishMapper.insertStdtRegInfo - 배치 삽입 */
+        insert into `aidt_lms`.`stdt_reg_info` (
+            user_id, flnm, user_stts_cd, schl_id, schl_cd, schl_nm
+            , brth, yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd, cla_cd, cla_nm
+            , num, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            ,  IFNULL(#{user.flnm}, '-')
+            , 'E'
+            , '0'
+            , '-'
+            , IFNULL(#{user.schlNm}, '-')
+            , '-'
+            , #{user.year}
+            , '-'
+            , IFNULL(#{user.gradeCd}, '-')
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , IFNULL(#{user.claNm}, 0)
+            , IFNULL(#{user.userNumber}, 0)
+            , #{user.rgtr}
+            , NOW()
+            , #{user.rgtr}
+            , NOW()
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertTcClaInfoBulk" parameterType="list">
+        /* IntegPublishMapper.insertTcClaInfoBulk - 배치 삽입 */
+        insert into `aidt_lms`.`tc_cla_info` (
+            cla_id, user_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, estbl_sbjct_cd, course_rm_cd, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.claId}
+            , #{user.userId}
+            , #{user.year}
+            , 0
+            , IFNULL(#{user.schlNm}, '-')
+            , IFNULL(#{user.gradeCd}, '-')
+            , '-'
+            , IFNULL(#{user.claNm}, '-')
+            , '-'
+            , '-'
+            , #{user.rgtr}
+            , NOW()
+            , #{user.rgtr}
+            , NOW()
+            )
+        </foreach>
+    </insert>
+    
+    <update id="upsertTcClaUserInfo" parameterType="list">
+        INSERT INTO aidt_lms.tc_cla_user_info (
+            cla_id, user_id, activeyn, ref_tc_type
+        ) VALUES
+        <foreach collection="list" item="user" separator=",">
+              (
+              #{user.claId}, #{user.userId}, 'Y', CASE WHEN EXISTS (SELECT 1 FROM tc_cla_info WHERE user_id = #{user.userId} AND cla_id = #{user.claId}) THEN 'Y' ELSE 'N' END
+              )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = NOW()
+    </update>
+
+    <insert id="insertTcClaMbInfoBulk" parameterType="list">
+        /* IntegPublishMapper.insertTcClaMbInfo - 배치 삽입 */
+        insert into `aidt_lms`.`tc_cla_mb_info` (
+            cla_id, user_id, stdt_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.claId}
+            , #{user.tcId}
+            , #{user.userId}
+            , #{user.year}
+            , 0
+            , IFNULL(#{user.schlNm}, '-')
+            , IFNULL(#{user.gradeCd}, '-')
+            , '-'
+            , IFNULL(#{user.claNm}, '-')
+            , #{user.rgtr}
+            , NOW()
+            , #{user.rgtr}
+            , NOW()
+            )
+        </foreach>
+    </insert>
+
+    <select id="selectExamInfo" parameterType="string" resultType="map">
+        /* IntePub.selectExamInfo */
+        SELECT id AS examId
+            , wrter_id AS wrterId
+            , textbk_id AS textbkId
+            , sets_id AS setsId
+            , exam_nm AS examNm
+            , version
+            , parent_id AS parentId
+            , del_at AS delAt
+        FROM aidt_lms.exam_box
+        WHERE id = #{examId}
+    </select>
+
+    <insert id="insertPublishGrp" parameterType="map" useGeneratedKeys="true" keyProperty="grpId">
+        /* IntePub.insertPublishGrp*/
+        INSERT INTO aidt_lms.publish_grp
+            ()
+        VALUES
+            ()
+    </insert>
+
+    <insert id="insertExamPublish" parameterType="list" useGeneratedKeys="true" keyProperty="publishId">
+        /* IntePub.insertExamPublish */
+        INSERT INTO aidt_lms.publish_box (
+            wrter_id
+            , textbk_id
+            , cla_id
+            , sets_id
+            , publish_type
+            , exam_id
+            , trgt_id
+            , publish_grp_id
+        ) VALUES
+              (
+            #{tcUserId}
+            , #{textbkId}
+            , #{classId}
+            , #{setsId}
+            , #{publishType}
+            , #{examId}
+            , #{trgtId}
+            , #{grpId}
+        )
+    </insert>
+
+    <insert id="insertPodOption" parameterType="map">
+        /* IntePub.insertPodOption*/
+        INSERT INTO aidt_lms.publish_pod_option (
+            publish_id
+            , code
+            , val
+        ) VALUES
+            (
+              #{publishId}
+            , #{code}
+            , #{val}
+            )
+    </insert>
+
+    <insert id="createTchEvalCreateForTextbk_evlResultInfoCustom" parameterType="map" useGeneratedKeys="true">
+        /* IntegPublishMapper.createTchEvalCreateForTextbk_evlResultInfoCustom */
+        INSERT INTO aidt_lms.evl_result_info (evl_id, mamoym_id, sets_id, rgtr, mdfr)
+        SELECT ei.id
+             , tcmi.stdt_id
+             , ei.sets_id
+             , ei.wrter_id
+             , ei.wrter_id
+        FROM aidt_lms.evl_info ei
+             JOIN aidt_lms.tc_cla_mb_info tcmi ON ei.cla_id = tcmi.cla_id
+        WHERE ei.id = #{evlId}
+        AND tcmi.stdt_id IN (<foreach item="stdtId" collection="targetStdtList" separator=",">#{stdtId}</foreach>)
+    </insert>
+
+    <insert id="createTchTaskCreateForTextbk_taskResultInfoCustom" parameterType="map" useGeneratedKeys="true">
+        /* IntegPublishMapper.createTchTaskCreateForTextbk_taskResultInfoCustom */
+        INSERT INTO aidt_lms.task_result_info (task_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd, mrk_cp_at)
+        SELECT ti.id
+             , tcmi.stdt_id
+             , ti.sets_id
+             , ti.wrter_id
+             , ti.wrter_id
+             , '1'
+             , 'N'
+        FROM aidt_lms.task_info ti
+             JOIN aidt_lms.tc_cla_mb_info tcmi ON ti.cla_id = tcmi.cla_id AND ti.wrter_id = tcmi.user_id
+        WHERE ti.id = #{taskId}
+          AND tcmi.stdt_id IN (<foreach item="stdtId" collection="targetStdtList" separator=",">#{stdtId}</foreach>)
+    </insert>
+
+    <select id="listPublishGrpInfo" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.listPublishGrpInfo */
+        SELECT pb.id AS publish_id
+             , pb.sets_id
+             , eb.exam_nm
+             , publish_type
+             , trgt_id
+             , pb.exam_id
+             , pb.cla_id
+             , "" AS cla_nm
+             , IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt
+             , IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt
+             , IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                       FROM aidt_lms.evl_result_info eri3
+                                                       WHERE eri3.evl_id = pb.trgt_id
+                                                       GROUP BY eri3.evl_id), 0), 0) AS publish_stdt_cnt
+             , (SELECT COUNT(DISTINCT tcm.stdt_id)
+                FROM aidt_lms.tc_cla_mb_info tcm
+                WHERE tcm.cla_id = pb.cla_id
+                  AND tcm.actvtn_at = 'Y'
+        ) AS cla_stdt_cnt
+        FROM aidt_lms.publish_box pb
+                 INNER JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+                 LEFT JOIN aidt_lms.tc_cla_info tci ON pb.cla_id = tci.cla_id
+        WHERE pb.del_at = 'N'
+          AND publish_grp_id = #{publishGrpId}
+        ORDER BY pb.reg_dt DESC
+    </select>
+
+    <select id="selectPublishBoxList" parameterType="pagingParam" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxList */
+        SELECT
+            COUNT(*) OVER () AS fullCount,
+            m.val AS curriBookNm,
+            if(ei.pd_set_at = 'N', ei.evl_prg_dt, '') as liveEvlStDt,
+            <include refid="findPublishBoxCommon"/>
+        FROM aidt_lms.publish_box pb
+        LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+        LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+        LEFT JOIN aidt_lms.tc_cla_info tci ON pb.cla_id = tci.cla_id
+        LEFT JOIN aidt_lms.`user` u ON pb.wrter_id = u.user_id
+        LEFT JOIN aidt_lcms.textbook t ON pb.textbk_id = t.id
+        LEFT JOIN aidt_lcms.meta m ON t.curriBook = m.id
+        WHERE 1=1
+        AND pb.del_at = 'N'
+        AND pb.wrter_id = #{param.wrterId}
+        <if test="param.sttsCds == null or param.sttsCds.size() == 0">
+            AND 1=0
+        </if>
+        <if test="param.publishTypes != null and param.publishTypes.size() > 0">
+            AND pb.publish_type IN
+            <foreach collection="param.publishTypes" item="type" open="(" separator="," close=")">
+                #{type}
+            </foreach>
+        </if>
+        <if test="param.claIds != null and param.claIds.size() > 0">
+            AND (pb.publish_type IN (2,3) OR pb.cla_id IN
+            <foreach collection="param.claIds" item="claId" open="(" separator="," close=")">
+                #{claId}
+            </foreach>
+            )
+        </if>
+        <if test="param.sttsCds != null and param.sttsCds.size() > 0">
+            AND (
+            (pb.publish_type = 3 AND
+            (SELECT COUNT(*)
+            FROM (
+            <foreach collection="param.sttsCds" item="sttsCd" separator=" UNION ALL ">
+                SELECT #{sttsCd} AS sttsCd
+            </foreach>
+            ) temp WHERE temp.sttsCd IN (3, 4, 5)
+            ) = 3
+            )
+            OR ei.evl_stts_cd IN
+            <foreach item="sttsCd" collection="param.sttsCds" open="(" separator="," close=")">
+                #{sttsCd}
+            </foreach>
+            )
+        </if>
+        <if test="param.dateFrom != null and param.dateFrom != '' and param.dateTo != null and param.dateTo != ''">
+            AND pb.reg_dt BETWEEN #{param.dateFrom} AND DATE_ADD(#{param.dateTo}, INTERVAL 1 DAY)
+        </if>
+        <if test="param.keyword != null and param.keyword != ''">
+            AND eb.exam_nm LIKE CONCAT('%', #{param.keyword}, '%')
+        </if>
+        <choose>
+            <!-- 전체 TAP -->
+            <when test="param.orderBy == 1">
+                ORDER BY
+                CASE
+                    WHEN live_on = 1 THEN 1   -- 진행중+실시간 최상위
+                    WHEN stts_nm = '진행중' THEN 2
+                    WHEN stts_nm = '예정' THEN 3
+                    WHEN stts_nm = '종료' THEN 4
+                ELSE 5
+                END,
+                CASE
+                    WHEN stts_nm = '진행중' AND live_on = 1 THEN 1
+                    WHEN stts_nm = '진행중' THEN 2
+                ELSE 3
+                END,
+                pb.reg_dt DESC
+            </when>
+
+            <!-- 진행중 TAP -->
+            <when test="param.orderBy == 2">
+                ORDER BY
+                CASE
+                    WHEN live_on = 1 THEN 1
+                    ELSE 2
+                END,
+                ei.pd_evl_ed_dt ASC,
+                pb.reg_dt DESC
+            </when>
+
+            <!-- 예정 TAP -->
+            <when test="param.orderBy == 3">
+                ORDER BY
+                pb.reg_dt DESC
+            </when>
+
+            <!-- 종료 TAP -->
+            <when test="param.orderBy == 4">
+                ORDER BY
+                CASE
+                    WHEN check_stts = '채점 필요' THEN 1
+                    WHEN check_stts IN ('채점 완료', '채점 불필요') THEN 2
+                    ELSE 3
+                END,
+                ei.pd_evl_ed_dt DESC,
+                pb.reg_dt DESC
+            </when>
+
+            <!-- orderBy 값이 없을 때 -->
+            <otherwise>
+                ORDER BY pb.id DESC
+            </otherwise>
+        </choose>
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findPublishBoxDetail" parameterType="map" resultType="camelHashMap">
+        SELECT DISTINCT
+            pb.id AS publish_id,
+            pb.sets_id,
+            (select sets_id from exam_box eb2 where eb2.id = FN_GET_ORIGINAL_PARENT(eb.id)) as originalSetsId,
+            pb.cla_id,
+            CASE
+                WHEN pb.publish_type = 1 THEN '비바클래스 발행'
+                WHEN pb.publish_type = 2 THEN 'URL 응시 발행'
+                WHEN pb.publish_type = 3 THEN '시험지 출력'
+                END AS publish_use,
+            eb.exam_nm AS publish_nm,
+            "" AS cla_nm,
+            DATE_FORMAT(pb.reg_dt, '%Y-%m-%d-%H:%i') AS reg_dt,
+            ei.pd_set_at,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt,
+            ei.tim_st_at,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN ei.tim_time
+                WHEN pb.publish_type = 3 THEN NULL
+                END AS timTime,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN
+                    CASE
+                        WHEN ei.evl_stts_cd = 1 THEN '예정'
+                        WHEN ei.evl_stts_cd = 2 THEN '진행중'
+                        ELSE '종료'
+                        END
+                WHEN pb.publish_type = 3 THEN NULL
+                END AS stts_nm,
+            CASE
+                WHEN pb.publish_type IN(1, 2) THEN ei.evl_stts_cd
+                WHEN pb.publish_type = 3 THEN NULL
+                END AS stts_cd,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN
+                    CASE
+                        WHEN ei.evl_stts_cd = 2
+                            THEN aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)
+                        WHEN (SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)),'T', 'F')
+                              FROM aidt_lms.evl_result_info eri
+                                       JOIN aidt_lms.evl_result_detail erd
+                                            ON eri.id = erd.evl_result_id
+                              WHERE eri.evl_id = ei.id
+                              GROUP BY eri.evl_id
+                             ) = 'F'
+                            THEN (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0, '채점 필요', '채점 완료')
+                                  FROM aidt_lms.evl_result_info eri2
+                                  WHERE eri2.evl_id = ei.id
+                        )
+                        ELSE '채점 불필요'
+                        END
+                WHEN pb.publish_type = 3 THEN NULL
+                END AS check_stts,
+            IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                    FROM aidt_lms.evl_result_info eri3
+                                                    WHERE eri3.evl_id = pb.trgt_id
+                                                    GROUP BY eri3.evl_id), 0), NULL) AS target_cnt,
+            IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                    FROM aidt_lms.evl_result_info eri4
+                                                    WHERE eri4.evl_id = pb.trgt_id
+                                                      AND eri4.subm_at = 'Y'
+                                                    GROUP BY eri4.evl_id), 0), NULL) AS submit_cnt,
+            pb.exam_id,
+            eb.textbk_id,
+            eb.del_at AS exam_del_at,
+            pb.publish_type,
+            pb.trgt_id,
+            pb.hint_on_off,
+            t.curriBook,
+            m2.val AS curriSchoolVal,
+            m3.id AS curriSubjectId,
+            m3.code AS curriSubject,
+            m3.val AS curriSubjectVal,
+            m4.val AS curriGradeVal,
+            m5.val AS curriSemesterVal,
+            m6.code AS curriBookCd,
+            m6.val AS curriBookNm,
+            pb.wrter_id
+        FROM aidt_lms.publish_box pb
+                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+                 LEFT JOIN aidt_lms.`user` u ON pb.wrter_id = u.user_id
+                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+                 INNER JOIN aidt_lcms.textbook t on eb.textbk_id = t.id
+                 LEFT JOIN (
+            SELECT t.id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+                 , t.curriBook
+            FROM aidt_lcms.textbook t
+                     LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                         INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on t.id = t2.id
+                 LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+                 LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+                 LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+                 LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+                 LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+                 LEFT JOIN aidt_lcms.meta m6 ON t2.curriBook = m6.id
+        WHERE 1=1
+          AND pb.del_at = 'N'
+          AND pb.id = #{publishId}
+    </select>
+
+    <select id="getPublishTypeAndTrgtId" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.getPublishTypeAndTrgtId */
+        SELECT
+            pb.publish_type,
+            pb.trgt_id
+        FROM aidt_lms.publish_box pb
+        WHERE pb.id = #{publishId}
+    </select>
+
+<!--    <select id="taskStntDetail" parameterType="map" resultType="camelHashMap">-->
+<!--        /* IntegPublishMapper.detailPublishBoxInfo */-->
+<!--        SELECT-->
+<!--            u.user_id AS stdt_user_id,-->
+<!--            tri.subm_at-->
+<!--        FROM aidt_lms.task_result_info tri-->
+<!--            LEFT JOIN aidt_lms.user u-->
+<!--                ON u.user_id = tri.mamoym_id-->
+<!--        WHERE tri.task_id =#{trgtId}-->
+<!--        <if test="orderBy != null and orderBy != ''">-->
+<!--            <choose>-->
+<!--                <when test="orderBy == 1">-->
+<!--                    ORDER BY u.user_id ASC-->
+<!--                </when>-->
+<!--                <when test="orderBy == 2">-->
+<!--                    ORDER BY tri.mdfy_dt ASC-->
+<!--                </when>-->
+<!--                <when test="orderBy == 3">-->
+<!--                    ORDER BY tri.task_result_scr DESC-->
+<!--                </when>-->
+<!--                <when test="orderBy == 4">-->
+<!--                    ORDER BY u.user_id ASC-->
+<!--                </when>-->
+<!--            </choose>-->
+<!--        </if>-->
+<!--    </select>-->
+
+    <select id="selectEvlStntDetail" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.selectEvlStntDetail */
+        SELECT
+            IF(#{publishType} = 2, u.flnm, '') AS flnm,
+            u.user_id AS stdt_user_id,
+            eri.subm_at,
+        (SELECT
+             ROUND(SUM(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)), 2)
+         FROM aidt_lms.evl_result_detail erd
+         WHERE erd.evl_result_id = eri.id) AS evl_result_scr
+        FROM aidt_lms.evl_result_info eri
+            LEFT JOIN aidt_lms.user u
+                ON u.user_id = eri.mamoym_id
+        WHERE eri.evl_id = #{trgtId}
+<!--        <if test="publishType == 2">-->
+<!--            AND eri.subm_at = 'Y'-->
+<!--        </if>-->
+        <if test="orderBy != null and orderBy != ''">
+            <choose>
+                <when test="orderBy == 1">
+                    ORDER BY
+                    CASE WHEN eri.subm_at = 'N' THEN 1 ELSE 0 END ASC, -- 미제출자 뒤로
+                    eri.subm_dt DESC,
+                    <choose>
+                        <when test="publishType == 2">
+                            u.flnm ASC,
+                            u.user_id ASC
+                        </when>
+                        <otherwise>
+                            u.user_id ASC
+                        </otherwise>
+                    </choose>
+                </when>
+                <when test="orderBy == 2">
+                    ORDER BY
+                    CASE WHEN eri.subm_at  = 'N' THEN 1 ELSE 0 END ASC, -- 미제출자 뒤로
+                    eri.subm_at DESC,
+                    evl_result_scr DESC,
+                    <choose>
+                        <when test="publishType == 2">
+                            u.flnm ASC,
+                            u.user_id ASC
+                        </when>
+                        <otherwise>
+                            u.user_id ASC
+                        </otherwise>
+                    </choose>
+                </when>
+                <when test="orderBy == 3">
+                    <choose>
+                        <when test="publishType == 2">
+                            ORDER BY u.flnm ASC
+                        </when>
+                        <otherwise>
+                            ORDER BY u.user_id ASC
+                        </otherwise>
+                    </choose>
+                </when>
+            </choose>
+        </if>
+    </select>
+
+
+    <select id="selectPublishBoxClaStdtList" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxClaStdtList */
+        WITH latest_per_id AS (
+            /* 1) 개별 mamoym_id 별로: 제출(Y) 우선, 최신 mdfy_dt 1건만 남김 */
+            SELECT *
+            FROM (
+                     SELECT
+                         eri.mamoym_id,
+                         SUBSTRING_INDEX(eri.mamoym_id, '-', 2) AS user_prefix,  -- gcym####-6248
+                         eri.evl_id,
+                         eri.subm_at,
+                         eri.mdfy_dt,
+                         ROW_NUMBER() OVER (
+                     PARTITION BY eri.mamoym_id
+                     ORDER BY (eri.subm_at='Y') DESC, eri.mdfy_dt DESC
+                     ) AS rn
+                     FROM evl_result_info eri
+                     WHERE eri.evl_id IN (
+                         SELECT pb.trgt_id
+                         FROM publish_box pb
+                         WHERE pb.wrter_id = #{param.wrterId}
+                           AND pb.publish_type = 1
+                        <if test="param.claIds != null and param.claIds.size() > 0">
+                            AND pb.cla_id IN
+                            <foreach collection="param.claIds" item="claId" open="(" separator="," close=")">
+                                #{claId}
+                            </foreach>
+                        </if>
+                     )
+                    <if test="param.stdtUserIds != null and param.stdtUserIds.size() > 0">
+                        AND eri.mamoym_id IN
+                        <foreach collection="param.stdtUserIds" item="stdtUserId" open="(" separator="," close=")">
+                            #{stdtUserId}
+                        </foreach>
+                    </if>
+                 ) x
+            WHERE rn = 1
+        ),
+             joined AS (
+                 /* 2) pb/eb 조인해서 표시 컬럼 붙이기 */
+                 SELECT
+                     l.user_prefix,
+                     l.mamoym_id,
+                     l.subm_at,
+                     l.mdfy_dt,
+                     pb.id        AS publish_id,
+                     pb.sets_id,
+                     pb.exam_id,
+                     pb.trgt_id,
+                     pb.hint_on_off,
+                     pb.cla_id,
+                     eb.exam_nm   AS publish_nm
+                 FROM latest_per_id l
+                          LEFT JOIN publish_box pb
+                                    ON l.evl_id = pb.trgt_id
+                                        AND pb.wrter_id = #{param.wrterId}
+                                        AND pb.publish_type = 1
+                          LEFT JOIN exam_box eb
+                                    ON eb.id = pb.exam_id
+             ),
+             ranked AS (
+                 /* 3) 같은 사람(user_prefix) 안에서 대표 1건 고르기:
+                       - 제출(Y) 우선 -> 최신 mdfy_dt */
+                 SELECT
+                     j.*,
+                     ROW_NUMBER() OVER (
+                 PARTITION BY j.user_prefix
+                 ORDER BY (j.subm_at='Y') DESC,
+                     j.mdfy_dt DESC,
+                     CAST(SUBSTRING_INDEX(j.mamoym_id,'-',-1) AS UNSIGNED) DESC
+                 ) AS rk
+                 FROM joined j
+             ),
+             agg_ids AS (
+                 SELECT
+                     user_prefix,
+                     GROUP_CONCAT(
+                             mamoym_id
+                                 ORDER BY CAST(SUBSTRING_INDEX(mamoym_id,'-',-1) AS UNSIGNED)
+                     SEPARATOR ','
+                     ) AS merged_ids
+                 FROM joined
+                 GROUP BY user_prefix
+             )
+        SELECT
+            COUNT(*) OVER () AS fullCount,
+            a.merged_ids AS stdt_user_ids,
+            '' AS flnm,
+            IF(r.subm_at='Y', r.publish_id,  NULL) AS publish_id,
+            IF(r.subm_at='Y', r.publish_nm,  NULL) AS publish_nm,
+            IF(r.subm_at='Y', r.sets_id,     NULL) AS sets_id,
+            IF(r.subm_at='Y', r.exam_id,     NULL) AS exam_id,
+            IF(r.subm_at='Y', r.trgt_id,     NULL) AS trgt_id,
+            IF(r.subm_at='Y', r.hint_on_off, NULL) AS hint_on_off
+        FROM ranked r
+                 JOIN agg_ids a ON a.user_prefix = r.user_prefix
+        WHERE r.rk = 1
+        ORDER BY r.cla_id, r.user_prefix
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="selectPublishBoxClaStdtDetailList" parameterType="pagingParam" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxClaStdtDetailList */
+        SELECT
+            COUNT(*) OVER () AS fullCount,
+            pb.id AS publish_id,
+            pb.sets_id,
+            pb.cla_id,
+            CASE
+                WHEN pb.publish_type = 1 THEN '클래스'
+                WHEN pb.publish_type = 2 THEN 'URL'
+                WHEN pb.publish_type = 3 THEN '출력용'
+                END AS publish_use,
+            eb.exam_nm AS publish_nm,
+            "" AS cla_nm,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN
+                    CASE
+                        WHEN ei.evl_stts_cd = 1 THEN '예정'
+                        WHEN ei.evl_stts_cd = 2 THEN '진행중'
+                        ELSE '종료'
+                    END
+                WHEN pb.publish_type = 3 THEN NULL
+            END AS stts_nm,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN
+                    CASE
+                        WHEN ei.evl_stts_cd = 2 THEN aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)
+                        WHEN (SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)),'T', 'F')
+                                FROM aidt_lms.evl_result_info eri
+                                JOIN aidt_lms.evl_result_detail erd ON eri.id = erd.evl_result_id
+                                WHERE eri.evl_id = ei.id
+                                GROUP BY eri.evl_id
+                             ) = 'F'
+                        THEN (SELECT
+                                CASE
+                                    WHEN COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0
+                                    THEN '채점 필요'
+                                    ELSE '채점 완료'
+                                END
+                                FROM aidt_lms.evl_result_info eri2
+                                WHERE eri2.evl_id = ei.id
+                              )
+                        ELSE '채점 불필요'
+                    END
+                WHEN pb.publish_type = 3 THEN '직접 채점'
+            END AS check_stts,
+            eri.subm_at,
+            eri.mrk_cp_at,
+            pb.exam_id,
+            pb.publish_type,
+            pb.trgt_id,
+            pb.hint_on_off,
+            pb.textbk_id
+        FROM aidt_lms.publish_box pb
+            LEFT JOIN aidt_lms.exam_box eb ON eb.id = pb.exam_id
+            LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+            LEFT JOIN aidt_lms.tc_cla_info tci ON pb.cla_id = tci.cla_id
+            LEFT JOIN aidt_lms.`user` u ON pb.wrter_id = u.user_id
+            LEFT JOIN aidt_lms.evl_result_info eri ON pb.trgt_id = eri.evl_id
+        WHERE 1 = 1
+          AND pb.del_at = 'N'
+          AND pb.wrter_id = #{param.wrterId}
+            <if test="param.stdtUserIds != null and param.stdtUserIds.size > 0">
+                AND eri.mamoym_id IN
+                <foreach collection="param.stdtUserIds" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </if>
+            <if test="param.stdtUserIds == null or param.stdtUserIds.size == 0">
+                AND 1=0  <!-- 빈 리스트면 매치 없도록 -->
+            </if>
+          <if test="param.keyword != null and param.keyword != ''">
+            AND eb.exam_nm LIKE CONCAT('%', #{param.keyword}, '%')
+          </if>
+          <if test="param.dateFrom != null and param.dateFrom != '' and param.dateTo != null and param.dateTo != ''">
+            AND pb.reg_dt BETWEEN #{param.dateFrom} AND DATE_ADD(#{param.dateTo}, INTERVAL 1 DAY)
+          </if>
+        ORDER BY pb.id DESC
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="selectPublishBoxNicknameList" parameterType="pagingParam" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxNicknameList */
+        SELECT
+            COUNT(*) OVER () AS fullCount,
+            pb.id AS publish_id,
+            pb.sets_id,
+            pb.cla_id,
+            u.user_id AS stdt_user_id,
+            u.flnm AS nickNm,
+            eb.exam_nm AS publish_nm,
+            (SELECT
+                 init_at
+             FROM aidt_lms.publish_nicknm_auth pna
+             WHERE pna.publish_id = pb.id
+               AND pna.user_id = u.user_id) AS init_at,
+            CASE
+                WHEN ei.evl_stts_cd = 1 THEN '예정'
+                WHEN ei.evl_stts_cd = 2 THEN '진행중'
+                ELSE '종료'
+            END AS stts_nm,
+            DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d') AS pd_publish_st_dt,
+            DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d') AS pd_publish_ed_dt,
+            CASE
+                WHEN eri.eak_stts_cd <![CDATA[ < ]]> 5 THEN '채점 필요'
+                WHEN eri.eak_stts_cd = 5 THEN '채점 완료'
+                ELSE '채점 불필요'
+            END AS check_stts,
+            pb.exam_id AS exam_id,
+            pb.trgt_id,
+            pb.hint_on_off,
+            pb.textbk_id,
+            pb.publish_type
+        FROM aidt_lms.publish_box pb
+            INNER JOIN aidt_lms.exam_box eb ON eb.id = pb.exam_id
+            INNER JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+            INNER JOIN aidt_lms.evl_result_info eri ON pb.trgt_id = eri.evl_id
+                                                    AND eri.subm_at = 'Y'
+            INNER JOIN aidt_lms.user u ON eri.mamoym_id = u.user_id
+        WHERE pb.del_at = 'N'
+          AND pb.wrter_id = #{param.wrterId}
+          AND pb.publish_type = 2
+          <if test="param.sttsCds == null or param.sttsCds.size() == 0">
+            AND 1=0
+          </if>
+          <if test="param.nickNm != null and param.nickNm != ''">
+            AND u.flnm LIKE CONCAT('%', #{param.nickNm}, '%')
+          </if>
+          <choose>
+            <when test="param.sttsCds != null and param.sttsCds.size() > 0">
+                AND ei.evl_stts_cd IN
+                <foreach item="sttsCd" collection="param.sttsCds" open="(" separator="," close=")">
+                    #{sttsCd}
+                </foreach>
+            </when>
+            <otherwise>
+                AND ei.evl_stts_cd IN (2, 3, 4, 5)
+            </otherwise>
+          </choose>
+          <if test="param.dateFrom != null and param.dateFrom != '' and param.dateTo != null and param.dateTo != ''">
+            AND pb.reg_dt BETWEEN #{param.dateFrom} AND DATE_ADD(#{param.dateTo}, INTERVAL 1 DAY)
+          </if>
+        ORDER BY pb.id DESC
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="getPublishBoxEndingSoonCnt" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.getPublishBoxEndingSoonCnt */
+        SELECT
+            base.publish_use,
+            COALESCE(t.cnt, 0) AS cnt
+        FROM (SELECT '클래스'  AS publish_use
+              UNION ALL
+              SELECT 'URL'
+              ) AS base
+            LEFT JOIN (SELECT
+                           sub.publish_use,
+                           COUNT(*) AS cnt
+                       FROM (SELECT
+                                 CASE
+                                     WHEN pb.publish_type = 1 THEN '클래스'
+                                     WHEN pb.publish_type = 2 THEN 'URL'
+                                     END AS publish_use
+                             FROM aidt_lms.publish_box pb
+                                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+                             WHERE pb.del_at = 'N'
+                               AND pb.wrter_id = #{wrterId}
+                               AND pb.publish_type IN (1, 2)
+                               AND ei.pd_evl_ed_dt IS NOT NULL
+                               AND (ei.pd_evl_ed_dt BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL COALESCE(#{intervalDt}, 3) DAY))
+                            ) AS sub
+                       GROUP BY sub.publish_use
+                ) AS t ON base.publish_use = t.publish_use
+    </select>
+
+    <select id="getPublishBoxNeedFeedBackCnt" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.getPublishBoxNeedFeedBackCnt */
+        SELECT
+            base.publish_use,
+            COALESCE(sub.cnt, 0) AS cnt
+        FROM (SELECT '클래스' AS publish_use
+              UNION ALL
+              SELECT 'URL' AS publish_use
+             ) AS base
+                 LEFT JOIN (SELECT
+                                CASE
+                                    WHEN pb.publish_type = 1 THEN '클래스'
+                                    WHEN pb.publish_type = 2 THEN 'URL'
+                                    END AS publish_use,
+                                COUNT(DISTINCT pb.trgt_id) AS cnt
+                            FROM aidt_lms.publish_box pb
+                                LEFT JOIN aidt_lms.evl_result_info eri ON pb.trgt_id = eri.evl_id AND pb.publish_type IN (1, 2)
+                            WHERE pb.del_at = 'N'
+                              AND pb.wrter_id = #{wrterId}
+                              AND (pb.publish_type IN (1, 2) AND EXISTS (SELECT 1
+                                                                         FROM aidt_lms.evl_result_info eri2
+                                                                         WHERE eri2.evl_id = pb.trgt_id
+                                                                           AND eri2.genrvw IS NULL
+                                                                         ))
+                            GROUP BY publish_use
+                            ) AS sub ON base.publish_use = sub.publish_use
+    </select>
+
+    <select id="getPublishBoxNeedCheckCnt" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.getPublishBoxNeedCheckCnt */
+        SELECT
+            base.publish_use,
+            COALESCE(sub.cnt, 0) AS cnt
+        FROM (SELECT '클래스'  AS publish_use
+              UNION ALL
+              SELECT ' URL'  AS publish_use
+             ) AS base
+                 LEFT JOIN (SELECT
+                                sub.publish_use,
+                                COUNT(*) AS cnt
+                            FROM (SELECT DISTINCT
+                                      pb.id,
+                                      CASE
+                                          WHEN pb.publish_type = 1 THEN '클래스'
+                                          WHEN pb.publish_type = 2 THEN 'URL'
+                                          END AS publish_use,
+                                      CASE
+                                          WHEN  pb.publish_type IN (1, 2) THEN
+                                              IF((SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)), 'T', 'F')
+                                                  FROM aidt_lms.evl_result_info eri
+                                                           JOIN aidt_lms.evl_result_detail erd
+                                                                ON eri.id = erd.evl_result_id
+                                                  WHERE eri.evl_id = pb.trgt_id
+                                                  GROUP BY eri.evl_id) = 'F',
+                                                 (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0, '채점 필요', '채점 완료')
+                                                  FROM aidt_lms.evl_result_info eri2
+                                                  WHERE eri2.evl_id = pb.trgt_id), '채점 불필요')
+                                          END AS check_stts
+                                  FROM aidt_lms.publish_box pb
+                                           LEFT JOIN aidt_lms.evl_info ei  ON pb.trgt_id = ei.id
+                                           LEFT JOIN aidt_lms.tc_cla_mb_info tci ON pb.cla_id   = tci.cla_id
+                                           LEFT JOIN aidt_lms.`user` u ON pb.wrter_id = u.user_id
+                                  WHERE pb.del_at = 'N'
+                                    AND pb.wrter_id = #{wrterId}
+                                 ) AS sub
+                            WHERE sub.check_stts = '채점 필요'
+                            GROUP BY sub.publish_use
+        ) AS sub ON base.publish_use = sub.publish_use
+    </select>
+
+    <select id="selectPublishBoxEndingSoonDetailList" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxEndingSoonDetailList */
+        SELECT DISTINCT
+            pb.id AS publish_id,
+            CASE
+                WHEN pb.publish_type = 1 THEN '클래스'
+                WHEN pb.publish_type = 2 THEN 'URL'
+                END AS publish_use,
+            eb.exam_nm AS publish_nm,
+            "" cla_nm,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt,
+            IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                    FROM aidt_lms.evl_result_info eri3
+                                                    WHERE eri3.evl_id = pb.trgt_id
+                                                    GROUP BY eri3.evl_id), 0), 0) AS target_cnt,
+            IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                    FROM aidt_lms.evl_result_info eri4
+                                                    WHERE eri4.evl_id = pb.trgt_id
+                                                      AND eri4.subm_at = 'Y'
+                                                    GROUP BY eri4.evl_id), 0), 0) AS submit_cnt,
+            eb.id AS exam_id,
+            eb.textbk_id,
+            eb.del_at AS exam_box_del_at,
+            pb.publish_type,
+            pb.trgt_id,
+            pb.sets_id,
+            pb.hint_on_off
+        FROM aidt_lms.publish_box pb
+                 LEFT JOIN aidt_lms.task_info ti ON pb.trgt_id = ti.id
+                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+                 LEFT JOIN aidt_lms.tc_cla_mb_info tci ON pb.cla_id = tci.cla_id
+                 LEFT JOIN aidt_lms.`user` u ON pb.wrter_id = u.user_id
+                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+        WHERE pb.del_at = 'N'
+          AND pb.wrter_id = #{wrterId}
+          AND pb.publish_type IN (1, 2)
+          AND ei.pd_evl_ed_dt IS NOT NULL
+          AND (ei.pd_evl_ed_dt BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL COALESCE(#{intervalDt}, 3) DAY))
+    </select>
+
+    <select id="selectPublishBoxNeedFeedBackDetailList" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxNeedFeedBackDetailList */
+        SELECT DISTINCT
+            pb.id AS publish_id,
+            CASE
+                WHEN pb.publish_type = 1 THEN '클래스'
+                WHEN pb.publish_type = 2 THEN 'URL'
+                END AS publish_use,
+            eb.exam_nm AS publish_nm,
+            "" AS cla_nm,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt,
+            IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN
+                    COALESCE((SELECT COUNT(1) FROM aidt_lms.evl_result_info eri3
+                              WHERE eri3.evl_id = pb.trgt_id
+                              GROUP BY eri3.evl_id), 0)
+                ELSE 0
+                END AS target_cnt,
+            CASE
+                WHEN pb.publish_type IN (1, 2) THEN
+                    COALESCE((SELECT COUNT(1) FROM aidt_lms.evl_result_info eri4
+                              WHERE eri4.evl_id = pb.trgt_id AND eri4.subm_at = 'Y'
+                              GROUP BY eri4.evl_id), 0)
+                ELSE 0
+                END AS submit_cnt,
+            eb.id AS exam_id,
+            eb.textbk_id,
+            eb.del_at AS exam_box_del_at,
+            pb.publish_type,
+            pb.trgt_id,
+            pb.sets_id,
+            pb.hint_on_off
+        FROM aidt_lms.publish_box pb
+                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id AND pb.publish_type IN (1, 2)
+                 LEFT JOIN aidt_lms.tc_cla_mb_info  tci ON pb.cla_id   = tci.cla_id
+                 LEFT JOIN aidt_lms.`user`       u   ON pb.wrter_id = u.user_id
+                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+        WHERE pb.del_at = 'N'
+          AND pb.wrter_id = #{wrterId}
+          AND (pb.publish_type IN (1, 2) AND EXISTS (SELECT 1
+                                                     FROM evl_result_info eri2
+                                                     WHERE eri2.evl_id = pb.trgt_id
+                                                       AND eri2.genrvw IS NULL
+        ))
+        ORDER BY publish_use, pb.trgt_id
+    </select>
+
+    <select id="selectPublishBoxNeedCheckDetailList" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishBoxNeedCheckDetailList */
+        SELECT DISTINCT
+            *
+        FROM (SELECT
+                  pb.id AS publish_id,
+                  CASE
+                      WHEN pb.publish_type = 1 THEN '클래스'
+                      WHEN pb.publish_type = 2 THEN 'URL'
+                      END AS publish_use,
+                  eb.exam_nm AS publish_nm,
+                  "" AS cla_nm,
+                  IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt,
+                  IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt,
+                  CASE
+                      WHEN pb.publish_type IN (1, 2) THEN
+                          IF((SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)), 'T', 'F')
+                              FROM aidt_lms.evl_result_info eri
+                                       JOIN aidt_lms.evl_result_detail erd
+                                            ON eri.id = erd.evl_result_id
+                              WHERE eri.evl_id = pb.trgt_id
+                              GROUP BY eri.evl_id) = 'F', (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0, '채점 필요', '채점 완료')
+                                                           FROM aidt_lms.evl_result_info eri2
+                                                           WHERE eri2.evl_id = pb.trgt_id), '채점 불필요')
+                      END AS check_stts,
+                  IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                          FROM aidt_lms.evl_result_info eri3
+                                                          WHERE eri3.evl_id = pb.trgt_id
+                                                          GROUP BY eri3.evl_id), 0), NULL) AS target_cnt,
+                  IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                                          FROM aidt_lms.evl_result_info eri4
+                                                          WHERE eri4.evl_id = pb.trgt_id
+                                                            AND eri4.subm_at = 'Y'
+                                                          GROUP BY eri4.evl_id), 0), NULL) AS submit_cnt,
+                  eb.id AS exam_id,
+                  eb.textbk_id,
+                  eb.del_at AS exam_box_del_at,
+                  pb.publish_type,
+                  pb.trgt_id,
+                  pb.sets_id,
+                  pb.hint_on_off
+              FROM aidt_lms.publish_box pb
+                       LEFT JOIN aidt_lms.evl_info     ei  ON pb.trgt_id = ei.id
+                       LEFT JOIN aidt_lms.tc_cla_mb_info  tci ON pb.cla_id   = tci.cla_id
+                       LEFT JOIN aidt_lms.`user`       u   ON pb.wrter_id = u.user_id
+                       LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+              WHERE pb.del_at = 'N'
+                AND pb.wrter_id = #{wrterId}
+             ) AS t WHERE t.check_stts = '채점 필요'
+
+    </select>
+
+<!--    <select id="findPublishBoxRecentOptionList" parameterType="map" resultType="camelHashMap">-->
+<!--        /* IntegPublishMapper.findPublishBoxRecentOptionList */-->
+<!--        SELECT-->
+<!--            pb.publish_grp_id AS grp_id,-->
+<!--            (SELECT JSON_ARRAYAGG(exam_id)-->
+<!--             FROM (SELECT DISTINCT pb_inner.exam_id-->
+<!--                   FROM aidt_lms.publish_box pb_inner-->
+<!--                   WHERE pb_inner.publish_grp_id = pb.publish_grp_id) subquery-->
+<!--            ) AS exam_id_list,-->
+<!--            pb.wrter_id AS tc_user_id,-->
+<!--            pb.publish_type,-->
+<!--            ei.evl_se_cd,-->
+<!--            DATE_FORMAT(MAX(pb.reg_dt), '%Y-%m-%d-%H:%i') AS reg_dt  &#45&#45 최신 등록일 가져오기-->
+<!--        FROM aidt_lms.publish_box pb-->
+<!--                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id-->
+<!--                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id-->
+<!--        WHERE pb.del_at = 'N'-->
+<!--          AND pb.wrter_id = #{wrterId}-->
+<!--        GROUP BY pb.publish_grp_id-->
+<!--        ORDER BY MAX(pb.reg_dt) DESC-->
+<!--            LIMIT 5-->
+<!--    </select>-->
+
+<!--    <select id="findPublishBoxRecentOptionClaInfoList" parameterType="map" resultType="camelHashMap">-->
+<!--        /* IntegPublishMapper.findPublishBoxRecentOptionClaInfoList */-->
+<!--        SELECT-->
+<!--            main.id AS publish_id,-->
+<!--            main.grp_id,-->
+<!--            main.cla_id,-->
+<!--            main.cla_nm,-->
+<!--            main.student_list,-->
+<!--        IF(-->
+<!--        main.publish_type = 2,-->
+<!--        NULL,-->
+<!--        IF(main.trgt_cnt = main.student_cnt, '전체', COALESCE(main.trgt_cnt, 0))-->
+<!--        ) AS trgt_cnt-->
+<!--        FROM (SELECT DISTINCT-->
+<!--                  pb.id,-->
+<!--                  pb.publish_grp_id AS grp_id,-->
+<!--                  pb.cla_id,-->
+<!--                  pb.publish_type,-->
+<!--                  CASE-->
+<!--                      WHEN pb.publish_type = 1 THEN CONCAT(tcmi.grade_cd, '학년 ', tcmi.cla_nm, '반')-->
+<!--                      WHEN pb.publish_type = 2 THEN '닉네임 발행'-->
+<!--                      ELSE NULL-->
+<!--                      END AS cla_nm,-->
+<!--                  CASE-->
+<!--                      WHEN pb.publish_type = 1 THEN-->
+<!--                          COALESCE((SELECT COUNT(1)-->
+<!--                                    FROM aidt_lms.tc_cla_mb_info tcmi-->
+<!--                                    WHERE tcmi.user_id = pb.wrter_id), 0)-->
+<!--                      ELSE 0-->
+<!--                  END AS student_cnt,-->
+<!--                  CASE-->
+<!--                      WHEN pb.publish_type = 1 THEN-->
+<!--                          COALESCE((SELECT COUNT(1)-->
+<!--                                    FROM aidt_lms.evl_result_info eri3-->
+<!--                                    WHERE eri3.evl_id = pb.trgt_id-->
+<!--                                    GROUP BY eri3.evl_id), 0)-->
+<!--                      ELSE 0-->
+<!--                      END AS trgt_cnt,-->
+<!--                  (SELECT JSON_ARRAYAGG(eri.mamoym_id)-->
+<!--                   FROM evl_result_info eri-->
+<!--                   WHERE eri.evl_id = pb.trgt_id) AS student_list-->
+<!--              FROM publish_box pb-->
+<!--                       LEFT JOIN exam_box eb ON eb.id = pb.exam_id-->
+<!--                       LEFT JOIN task_info ti ON pb.trgt_id = ti.id-->
+<!--                       LEFT JOIN evl_info ei ON pb.trgt_id = ei.id-->
+<!--                       LEFT JOIN tc_cla_mb_info tcmi ON pb.wrter_id = tcmi.user_id-->
+<!--              WHERE pb.del_at = 'N'-->
+<!--                AND pb.wrter_id = #{wrterId}-->
+<!--                AND pb.publish_grp_id IN-->
+<!--                <foreach collection="grpIdList" item="grpId" open="(" separator="," close=")">-->
+<!--                    #{grpId}-->
+<!--                </foreach>-->
+<!--              GROUP BY pb.id-->
+<!--             ) main-->
+<!--    </select>-->
+
+    <update id="updateUseHint" parameterType="map">
+        /* IntegPublishMapper.updateUserHint */
+        UPDATE aidt_lms.publish_box
+        SET
+            hint_on_off = #{hintOnOff},
+            mdfy_dt = NOW()
+        WHERE id = #{publishId}
+    </update>
+
+    <update id="deletePublishBox" parameterType="map">
+        /* IntegPublishMapper.deletePublishBox */
+        UPDATE aidt_lms.publish_box pb
+        SET pb.del_at = 'Y'
+          , pb.mdfy_dt = NOW()
+        WHERE pb.id IN
+        <foreach item="publishId" collection="publishIds" open="(" separator="," close=")">
+              #{publishId}
+        </foreach>
+    </update>
+
+    <select id="checkUserExists" parameterType="map" resultType="int">
+        /* IntegPublishMapper.checkUserExists */
+        SELECT
+            count(*)
+        FROM aidt_lms.publish_nicknm_auth epna
+        WHERE user_id = #{userId}
+          AND publish_id = #{publishId}
+    </select>
+
+    <insert id="createPublishNickNmUserAuth">
+        /* IntegPublishMapper.createPublishNickNmUserAuth */
+        INSERT INTO aidt_lms.publish_nicknm_auth
+            (
+             publish_id,
+             user_id,
+             pwd
+        )
+        VALUES
+            (
+             #{publishId},
+             #{userId},
+             SHA2(#{pwd}, 256)
+            )
+    </insert>
+    <insert id="createTchEvalCreateForTextbk_evlResultDetail" parameterType="map" useGeneratedKeys="true">
+        INSERT INTO aidt_lms.evl_result_detail
+            (
+             evl_result_id,
+             evl_iem_id,
+             sub_id,
+             mrk_ty,
+             eak_stts_cd,
+             errata,
+             evl_iem_scr,
+             evl_iem_scr_result,
+             rgtr,
+             mdfr,
+             eak_at,
+             mrk_cp_at
+        )
+        SELECT
+            eri.id,
+            eii.evl_iem_id,
+            eii.sub_id,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN '3'
+                ELSE eii.mrk_ty
+                END AS mrk_ty,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN '5'
+                ELSE '1'
+                END AS eak_stts_cd,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN '4'
+                ELSE NULL
+                END AS errata,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN 0
+                ELSE eii.evl_iem_scr
+                END AS evl_iem_scr,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN 0
+                ELSE eii.evl_iem_scr
+                END AS evl_iem_scr_result,
+            ei.wrter_id,
+            ei.wrter_id,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN 'Y'
+                ELSE 'N'
+                END AS eak_at,
+            CASE COALESCE(m2.code, m1.code)
+                WHEN 'concept' THEN 'Y'
+                ELSE 'N'
+                END AS mrk_cp_at
+        FROM aidt_lms.evl_info ei
+        JOIN aidt_lms.evl_result_info eri ON ei.id = eri.evl_id
+        JOIN aidt_lms.evl_iem_info eii ON ei.id = eii.evl_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 ON m1.name = 'articleType' AND m1.id = (SELECT articleType FROM aidt_lcms.article WHERE id = eii.evl_iem_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 ON m2.name = 'articleType' AND m2.id = (SELECT meta_id FROM aidt_lcms.article_meta_map WHERE article_id = eii.evl_iem_id AND sub_id = eii.sub_id AND meta_name = 'articleType')
+        WHERE ei.id = #{evlId}
+          AND eri.mamoym_id IN (<foreach item="stdtId" collection="targetStdtList" separator=",">#{stdtId}</foreach>)
+          AND NOT EXISTS (SELECT
+                              1
+                          FROM aidt_lms.evl_result_detail erd
+                          WHERE erd.evl_result_id = eri.id
+                            AND erd.evl_iem_id = eii.evl_iem_id
+                          )
+        ORDER BY eri.id, eii.id
+    </insert>
+
+    <select id="validateAuth" parameterType="map" resultType="boolean">
+        /* IntegPublishMapper.validateAuth */
+        SELECT
+            COUNT(1) > 0
+        FROM aidt_lms.publish_nicknm_auth epna
+        WHERE user_id = #{userId}
+          AND pwd = SHA2(#{pwd}, 256)
+          AND publish_id = #{publishId}
+    </select>
+
+    <select id="findPublishBoxRecentOptionList2" resultType="camelHashMap">
+        /* IntegPublishMapper.findPublishBoxRecentOptionList */
+        SELECT
+            pb.publish_grp_id,
+            pb.publish_type,
+            CASE
+                WHEN pb.publish_type = 1 THEN '클래스'
+                WHEN pb.publish_type = 2 THEN 'URL'
+                WHEN pb.publish_type = 3 THEN '출력용'
+                END AS publish_use,
+            DATE_FORMAT(max(pb.reg_dt), '%Y-%m-%d-%H:%i') AS reg_dt,
+            ei.evl_se_cd
+        FROM aidt_lms.publish_box pb
+                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+                 LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON pb.wrter_id = tcmi.user_id
+                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+        WHERE pb.wrter_id = #{wrterId}
+        GROUP BY pb.publish_grp_id
+        ORDER BY MAX(pb.reg_dt) DESC
+        LIMIT 5
+    </select>
+
+    <select id="findPublishBoxOptionPublishInfoList" resultType="camelHashMap">
+        /* IntegPublishMapper.findPublishBoxOptionPublishInfoList */
+        SELECT DISTINCT
+            pb.exam_id,
+            eb.exam_nm AS publish_id
+        FROM aidt_lms.publish_box pb
+                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+        WHERE publish_grp_id = #{grpId}
+    </select>
+
+    <select id="findPublishBoxOptionClaInfoList" resultType="camelHashMap">
+        /* IntegPublishMapper.findPublishBoxOptionClaInfoList */
+        SELECT
+            a.id AS publishId,
+            a.exam_id,
+            a.cla_id,
+            a.cla_nm,
+            IF(a.trgt_cnt = a.stdt_cnt, '전체', a.trgt_cnt) AS trgt_cnt,
+            a.student_list
+        FROM (
+                 SELECT
+                     pb.id,
+                     pb.exam_id,
+                     pb.cla_id,
+                     "" AS cla_nm,
+                     IF(pb.publish_type = 1,
+                        COALESCE((SELECT COUNT(1)
+                                  FROM aidt_lms.evl_result_info eri3
+                                  WHERE eri3.evl_id = pb.trgt_id
+                                  GROUP BY eri3.evl_id), 0),
+                        NULL) AS trgt_cnt,
+                     IF(pb.publish_type = 1,
+                        COALESCE((SELECT COUNT(1)
+                                  FROM aidt_lms.tc_cla_mb_info tcmi
+                                  WHERE tcmi.cla_id = pb.cla_id
+                                    AND tcmi.actvtn_at = 'Y'), 0),
+                        NULL) AS stdt_cnt,
+                     -- 🔥 학생 리스트 JSON 배열로 가져오기
+                     IF(pb.publish_type = 1,
+                        (SELECT JSON_ARRAYAGG(tcmi2.stdt_id)
+                         FROM aidt_lms.tc_cla_mb_info tcmi2
+                         WHERE tcmi2.cla_id = pb.cla_id
+                           AND tcmi2.actvtn_at = 'Y'),
+                        NULL) AS student_list
+                 FROM aidt_lms.publish_box pb
+                          LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+                          LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON pb.cla_id = tcmi.cla_id
+                 WHERE pb.publish_grp_id = #{grpId}
+                 GROUP BY pb.id
+             ) a
+    </select>
+
+    <update id="updatePassword" parameterType="map">
+        /* IntegPublishMapper.updatePassword */
+        UPDATE aidt_lms.publish_nicknm_auth
+        SET pwd = SHA2(#{newPwd}, 256),
+            init_at = 'N'
+        WHERE user_id = #{stdtUserId}
+          AND publish_id = #{publishId}
+    </update>
+
+    <select id="checkStdtInWrterCla" parameterType="map" resultType="boolean">
+        SELECT EXISTS (
+            SELECT 1
+            FROM aidt_lms.tc_cla_mb_info
+            WHERE user_id = #{wrterId}
+              AND stdt_id = #{stdtUserId}
+        )
+    </select>
+
+    <update id="updatePublishNickNmAuthInit" parameterType="map">
+        UPDATE aidt_lms.publish_nicknm_auth
+        SET pwd = SHA2(1234, 256),
+            init_at = #{initAt},
+            mdfr = '/integ/publish/nickname-auth/init',
+            mdfy_dt = NOW()
+        WHERE publish_id = #{publishId}
+          AND user_id = #{stdtUserId}
+    </update>
+
+    <select id="selectPublishDeleteInfoList" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishDeleteInfoList */
+        SELECT
+            pb.id AS publish_id,
+            pb.publish_type,
+            pb.del_at,
+            CASE WHEN pb.publish_type = 3 THEN NULL ELSE ei.pd_set_at END AS pd_set_at,
+            CASE WHEN pb.publish_type = 3 THEN NULL ELSE ei.evl_prg_dt END AS pd_publish_st_dt,
+            CASE WHEN pb.publish_type = 3 THEN NULL ELSE ei.evl_cp_dt END AS pd_publish_ed_dt,
+            CASE WHEN pb.publish_type = 3 THEN NULL ELSE pb.trgt_id END AS trgt_id
+        FROM aidt_lms.publish_box pb
+            LEFT JOIN aidt_lms.evl_info ei
+                ON pb.trgt_id = ei.id
+                AND pb.publish_type != 3
+        WHERE pb.id IN
+            <foreach item="publishId" collection="publishIds" open="(" separator="," close=")">
+                #{publishId}
+            </foreach>
+    </select>
+
+
+    <select id="findStdtByFlnm" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.findStdtByFlnm */
+        SELECT
+            u.user_id AS stdtUserId,
+            u.flnm,
+            pna.publish_id
+        FROM aidt_lms.publish_nicknm_auth pna
+            INNER JOIN aidt_lms.user u ON u.user_id = pna.user_id
+        WHERE u.flnm = #{nickNm}
+          AND pna.publish_id = #{publishId}
+    </select>
+
+    <select id="selectPublishClaStdtClaList" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.selectPublishClaStdtClaList */
+        SELECT DISTINCT
+            pb.cla_id,
+            "" AS cla_nm
+        FROM aidt_lms.publish_box pb
+                 INNER JOIN aidt_lms.tc_cla_info tci ON pb.wrter_id = tci.user_id
+        WHERE pb.del_at = 'N'
+          AND pb.wrter_id = #{wrterId}
+        ORDER BY pb.cla_id ASC
+    </select>
+
+    <select id="selectPublishPodOptionByPublishId" parameterType="map" resultType ="camelHashMap">
+        SELECT
+            ppo.code,
+            ppo.val
+        FROM aidt_lms.publish_pod_option ppo
+        WHERE 1=1
+          AND publish_id = #{publishId}
+    </select>
+    <select id="checkUserInit" parameterType="map" resultType="string">
+        /* IntegPublishMapper.checkUserExists */
+        SELECT
+            init_at
+        FROM aidt_lms.publish_nicknm_auth pna
+        WHERE user_id = #{userId}
+          AND pwd = SHA2(#{pwd}, 256)
+          AND publish_id = #{publishId}
+    </select>
+
+    <!--공통쿼리-->
+
+    <sql id="findPublishBoxCommon">
+    pb.id AS publish_id,
+    pb.sets_id,
+    pb.cla_id,
+    eb.exam_nm AS publish_nm,
+    CASE
+        WHEN pb.publish_type = 1 THEN '클래스'
+        WHEN pb.publish_type = 2 THEN 'URL'
+        WHEN pb.publish_type = 3 THEN '출력용'
+        END AS publish_use,
+    IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'), NULL) AS pd_publish_st_dt,
+    IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'), NULL) AS pd_publish_ed_dt,
+    CASE
+        WHEN pb.publish_type IN (1, 2) THEN
+            CASE
+                WHEN ei.evl_stts_cd = 1 THEN '예정'
+                WHEN ei.evl_stts_cd = 2 THEN '진행중'
+                ELSE '종료'
+        END
+        WHEN pb.publish_type = 3 THEN NULL
+        END AS stts_nm,
+    CASE
+    WHEN pb.publish_type = 1 THEN
+        CASE
+            WHEN ei.evl_stts_cd = 2 THEN aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)
+            WHEN (SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)), 'T', 'F')
+                  FROM aidt_lms.evl_result_info eri
+                      JOIN aidt_lms.evl_result_detail erd
+                          ON eri.id = erd.evl_result_id
+                  WHERE eri.evl_id = ei.id
+                  GROUP BY eri.evl_id
+                  ) = 'F'
+                THEN (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0, '채점 필요', '채점 완료')
+                      FROM aidt_lms.evl_result_info eri2
+                      WHERE eri2.evl_id = ei.id
+                      )
+            ELSE '채점 불필요'
+    END
+    WHEN pb.publish_type = 2 THEN
+        CASE
+            WHEN ei.evl_stts_cd = 2 THEN aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)
+            WHEN (SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)), 'T', 'F')
+                  FROM aidt_lms.evl_result_info eri
+                      JOIN aidt_lms.evl_result_detail erd
+                          ON eri.id = erd.evl_result_id
+                  WHERE eri.evl_id = ei.id
+                    AND eri.subm_at = 'Y'  -- 제출한 학생만 고려
+                  GROUP BY eri.evl_id
+                  ) = 'F'
+                THEN (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0, '채점 필요', '채점 완료')
+                      FROM aidt_lms.evl_result_info eri2
+                      WHERE eri2.evl_id = ei.id
+                        AND eri2.subm_at = 'Y'  -- 제출한 학생만 고려
+                      )
+            ELSE '채점 불필요'
+    END
+    WHEN pb.publish_type = 3 THEN '직접 채점'
+    END AS check_stts,
+    IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                            FROM aidt_lms.evl_result_info eri3
+                                            WHERE eri3.evl_id = pb.trgt_id
+                                            GROUP BY eri3.evl_id), 0), NULL) AS target_cnt,
+    IF(pb.publish_type IN (1, 2), COALESCE((SELECT COUNT(1)
+                                            FROM aidt_lms.evl_result_info eri4
+                                            WHERE eri4.evl_id = pb.trgt_id
+                                              AND eri4.subm_at = 'Y'
+                                            GROUP BY eri4.evl_id), 0), NULL) AS submit_cnt,
+    pb.exam_id,
+    pb.publish_type,
+    pb.trgt_id,
+    pb.hint_on_off,
+    pb.textbk_id,
+    ei.tim_time,
+    (case
+		when ei.pd_set_at = 'N'
+				and ei.evl_stts_cd = 2
+				and ei.evl_prg_dt is not null
+				and (ei.evl_cp_dt is null OR ei.evl_cp_dt > NOW())
+				then 1
+		else 0
+	end) as live_on
+    </sql>
+
+    <update id="updateTimTime">
+        /* IntegPublishMapper.updateTimTime */
+        UPDATE evl_info
+        SET
+            tim_st_at = #{timStAt},
+            tim_time = CASE
+                           WHEN #{timStAt} = 'N' THEN NULL
+                           WHEN #{timStAt} = 'Y' THEN TIME_FORMAT(STR_TO_DATE(#{timTime}, '%H:%i:%s'), '%H:%i:%s')
+                           ELSE tim_time  -- 🔹 예외적인 경우 기존 값 유지 (안전장치)
+                END,
+            mdfr = 'system',
+            mdfy_dt = NOW()
+        WHERE id = #{evlId};
+    </update>
+
+    <update id="updatePdSet" parameterType="map">
+        /* IntegPublishMapper.updatePdSet */
+        UPDATE evl_info
+        SET pd_set_at = #{pdSetAt},
+        <if test="sttsCd == 1">
+            evl_prg_dt = #{pdEvlStDt},
+            evl_cp_dt = #{pdEvlEdDt},
+            pd_evl_st_dt = #{pdEvlStDt},
+            pd_evl_ed_dt = #{pdEvlEdDt},
+        </if>
+        <if test="sttsCd == 2">
+            evl_cp_dt = #{pdEvlEdDt},
+            pd_evl_ed_dt = #{pdEvlEdDt},
+        </if>
+        mdfr = '/integ/publish/pdSet',
+        mdfy_dt = NOW()
+        WHERE id = #{evlId}
+        AND (#{sttsCd} != 3);
+    </update>
+
+    <update id="updatePdSetAtN" parameterType="map">
+        /* IntegPublishMapper.updatePdSetAtN */
+        UPDATE evl_info
+        SET pd_set_at = #{pdSetAt},
+            evl_prg_dt = NULL,
+            evl_cp_dt = NULL,
+            pd_evl_st_dt = NULL,
+            pd_evl_ed_dt = NULL,
+            mdfr = '/integ/publish/pdSet',
+            mdfy_dt = NOW()
+        WHERE id = #{evlId}
+    </update>
+
+    <select id="hasStdtTakenEvl" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.hasStdtTakenEvl */
+        SELECT
+        mamoym_id as userStdtId
+        FROM evl_result_info
+        WHERE evl_id = #{evlId}
+        AND mamoym_id IN
+        <foreach collection="targetStdtList" item="stdtId" open="(" separator="," close=")">
+            #{stdtId}
+        </foreach>
+    </select>
+
+    <select id="getSttsCdAndPdSetAt" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.getSttsCdAndPdSetAt */
+        select
+            evl_stts_cd,
+            pd_set_at,
+            DATE_FORMAT(evl_cp_dt, '%Y-%m-%d %H:%i') AS evl_cp_dt
+        from aidt_lms.evl_info
+        where id = #{trgtId}
+    </select>
+
+    <select id="isStdtInCla" parameterType="map" resultType="boolean">
+        /* IntegPublishMapper.isStdtInCla */
+        SELECT
+            COUNT(*) > 0
+        FROM aidt_lms.tc_cla_mb_info tcmi
+        WHERE tcmi.cla_id = (SELECT cla_id FROM aidt_lms.evl_info WHERE id = #{evlId})
+          AND tcmi.stdt_id = #{stdtId}
+    </select>
+
+    <insert id="createTchEvalCreateForTextbk_evlInfo" parameterType="map" useGeneratedKeys="true" keyProperty="evlId">
+        /* IntegPublishMapper.createTchEvalCreateForTextbk_evlInfo */
+        INSERT INTO aidt_lms.evl_info
+        (
+        wrter_id,
+        cla_id,
+        textbook_id,
+        evl_nm,
+        evl_se_cd,
+        sets_id,
+        <if test="pdSetAt == 'Y'.toString()">
+            pd_evl_st_dt,
+            pd_evl_ed_dt,
+            evl_prg_dt,
+            evl_cp_dt,
+        </if>
+        <if test="timStAt == 'Y'.toString()">
+            tim_time,
+        </if>
+        eam_mth,
+        eam_trget,
+        eam_exm_num,
+        pd_set_at,
+        tim_st_at,
+        rwd_set_at,
+        evl_stdr_set,
+        evl_stts_cd,
+        rgtr,
+        mdfr,
+        tmpr_strg_at,
+        rpt_auto_othbc_at
+        )
+        VALUES
+        (
+        #{wrterId},
+        #{claId},
+        #{textbookId},
+        #{evlNm},
+        #{evlSeCd},
+        #{setsId},
+        <if test="pdSetAt == 'Y'.toString()">
+            #{pdEvlStDt},
+            #{pdEvlEdDt},
+            #{pdEvlStDt},
+            #{pdEvlEdDt},
+        </if>
+        <if test="timStAt == 'Y'.toString()">
+            #{timTime},
+        </if>
+        #{eamMth},
+        #{eamTrget},
+        (select count(1) from aidt_lcms.sets_article_map sam where sets_id = #{setsId}),
+        #{pdSetAt},
+        #{timStAt},
+        #{rwdSetAt},
+        #{evlStdrSet},
+        #{evlSttsCd},
+        '/integ/pub/exam',
+        '/integ/pub/exam',
+        'N',
+        'N'
+        )
+    </insert>
+
+    <insert id="createTchEvalCreateForTextbk_evlIemInfo" parameterType="map" useGeneratedKeys="true">
+        /* IntegPublishMapper.createTchEvalCreateForTextbk_evlIemInfo */
+        INSERT INTO aidt_lms.evl_iem_info (evl_id, evl_iem_id, sub_id, evl_iem_scr, mrk_ty, rgtr, mdfr)
+        select #{evlId}
+             , s.article_id
+             , s.sub_id
+             , s.points
+             , CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end as mrk_ty
+             , 'system'
+             , 'system'
+        from aidt_lcms.setsummary s
+                 left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+        where s.set_id = #{setsId}
+        order by s.id
+    </insert>
+
+    <update id="modifyEvalStatusToInProgress" parameterType="map">
+        /* IntegPublishMapper.modifyEvalStatusToInProgress */
+        UPDATE aidt_lms.evl_info
+        SET evl_stts_cd = 2    /* 진행중 */
+        WHERE 1 = 1
+          AND id = #{evlId}
+          AND evl_stts_cd = 1  /* 예정 */
+          AND pd_set_at = 'Y'  /* 수업외 평가 */
+          AND (now() <![CDATA[>=]]> evl_prg_dt AND now() <![CDATA[<=]]> evl_cp_dt)
+          AND tmpr_strg_at = 'N'
+    </update>
+
+    <select id="findEvlInfo" parameterType="map" resultType="camelHashMap">
+        /* IntegPublishMapper.findEvlInfo */
+        SELECT ifnull(now() > ei.evl_cp_dt, 0) as deadline
+             , ei.*
+        FROM aidt_lms.evl_info ei
+        WHERE ei.id = #{evlId}
+    </select>
+    <select id="selectPublishBoxExamLiveOnStatus" resultType="java.lang.Integer">
+        /*IntegPublishMapper.selectPublishBoxExamLiveOnStatus*/
+        SELECT count(*)
+        FROM aidt_lms.publish_box pb
+                 LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+                 LEFT JOIN aidt_lms.evl_info ei ON pb.trgt_id = ei.id
+                 LEFT JOIN aidt_lms.tc_cla_info tci ON pb.cla_id = tci.cla_id
+                 LEFT JOIN aidt_lms.`user` u ON pb.wrter_id = u.user_id
+        WHERE pb.wrter_id = #{wrterId}
+          AND pb.cla_id = #{claId}
+          AND ei.pd_set_at = 'N'
+          AND ei.evl_stts_cd = 2
+          AND ei.evl_prg_dt is not null
+          AND (ei.evl_cp_dt is null OR ei.evl_cp_dt > NOW());
+    </select>
+
+    <delete id="deleteTchEvalDeleteEvalResultDetail" parameterType="map" >
+        /* IntegPublishMapper.deleteTchEvalDeleteEvalResultDetail */
+        DELETE
+        FROM aidt_lms.evl_result_detail
+        WHERE evl_result_id IN (SELECT id
+                                FROM aidt_lms.evl_result_info
+                                WHERE evl_id = #{evlId}
+        )
+    </delete>
+
+    <delete id="deleteTchEvalDeleteEvalResultInfo" parameterType="map" >
+        /* IntegPublishMapper.deleteTchEvalDeleteEvalResultInfo */
+        DELETE
+        FROM aidt_lms.evl_result_info
+        WHERE evl_id = #{evlId}
+    </delete>
+
+    <delete id="deleteTchEvalDeleteEvalIemInfo" parameterType="map" >
+        /* IntegPublishMapper.deleteTchEvalDeleteEvalIemInfo */
+        DELETE
+        FROM aidt_lms.evl_iem_info
+        WHERE evl_id = #{evlId}
+    </delete>
+
+    <delete id="deleteTchEvalDeleteEvalTrnTrget" parameterType="map" >
+        /* IntegPublishMapper.deleteTchEvalDeleteEvalTrnTrget */
+        DELETE
+        FROM aidt_lms.evl_trn_trget
+        WHERE evl_id = #{evlId}
+    </delete>
+
+    <delete id="deleteTchEvalDeleteEvalInfo" parameterType="map" >
+        /* IntegPublishMapper.deleteTchEvalDeleteEvalInfo */
+        DELETE
+        FROM aidt_lms.evl_info
+        WHERE id = #{evlId}
+    </delete>
+
+    <insert id="insertVivaClassWithDrawUser" parameterType="java.util.List">
+        /* IntegPublishMapper.insertVivaClassWithDrawUser */
+        INSERT INTO aidt_lms.user_withdraw_hist (
+        user_id, user_se_cd, platform, integ_user_id, withdraw_dt, rgtr
+        ) VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userSeCd}
+            , #{user.platform}
+            , #{user.integUserId}
+            , #{user.withdrawDt}
+            , #{user.rgtr}
+            )
+        </foreach>
+    </insert>
+
+    <select id="selectWithDrawTcList" resultType="map">
+        /* IntegPublishMapper.selectWithDrawTcList */
+        SELECT user_id
+             , user_se_cd
+             , platform
+             , integ_user_id
+             , sync_at
+        FROM aidt_lms.user_withdraw_hist uwh
+        WHERE DATE(DATE_ADD(withdraw_dt, INTERVAL 6 MONTH)) = CURDATE()
+          AND user_se_cd = 'T'
+          AND sync_at = 'N'
+    </select>
+
+    <select id="selectWithDrawStList" resultType="map">
+        /* IntegPublishMapper.selectWithDrawStList */
+        SELECT user_id
+             , user_se_cd
+             , platform
+             , integ_user_id
+             , sync_at
+        FROM aidt_lms.user_withdraw_hist uwh
+        WHERE DATE(DATE_ADD(withdraw_dt, INTERVAL 3 YEAR)) = CURDATE()
+          AND user_se_cd = 'S'
+          AND sync_at = 'N'
+    </select>
+
+    <select id="selectStdtListWithTcList" parameterType="java.util.List" resultType="string">
+        /* IntegPublishMapper.selectStdtListWithTcList */
+        SELECT DISTINCT stdt_id
+        FROM aidt_lms.tc_cla_mb_info
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </select>
+
+    <delete id="deleteTcClaMbInfoWithTcIdList" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteTcClaMbInfoWithTcIdList */
+        DELETE FROM aidt_lms.tc_cla_mb_info
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteTcClaInfoWithTcIdList" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteTcClaInfoWithTcIdList */
+        DELETE FROM aidt_lms.tc_cla_info
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteTcRegInfoWithTcIdList" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteTcRegInfoWithTcIdList */
+        DELETE FROM aidt_lms.tc_reg_info
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteStdtRegInfoWithTcIdList" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteStdtRegInfoWithTcIdList */
+        DELETE FROM aidt_lms.stdt_reg_info
+        WHERE user_id IN
+        <foreach collection="list" item="stdtId" open="(" separator="," close=")">
+            #{stdtId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteSpPrchsHist" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteSpPrchsHist */
+        DELETE FROM aidt_lms.sp_prchs_hist
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteSpPrchsInfo" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteSpPrchsInfo */
+        DELETE FROM aidt_lms.sp_prchs_info
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteUserWithUserId" parameterType="java.util.List">
+        /* IntegPublishMapper.deleteUserWithUserId */
+        DELETE FROM aidt_lms.user
+        WHERE user_id IN
+        <foreach collection="list" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </delete>
+
+    <select id="selectPublishBoxExist" parameterType="map" resultType="int">
+        select exists (
+        select 1
+        from aidt_lms.publish_box pb
+        where pb.wrter_id = #{wrterId}
+        <if test="claIds != null and claIds.size > 0">
+            and pb.cla_id in
+            <foreach item="item" index="index" collection="claIds" open="(" separator="," close=")">
+                #{item}
+            </foreach>
+        </if>
+        and pb.del_at = 'N'
+        ) as existFlag
+    </select>
+</mapper>
+

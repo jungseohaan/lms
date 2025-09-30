@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.assessment.mapper.EvlStatusChangeMapper">
+
+    <!-- 평가 상태 진행 중으로 변경 -->
+    <update id="updateEvlStatusChangeToInProgress">
+        /** EvlStatusChangeMapper.modifyEvlStatusChangeToInProgress */
+        <![CDATA[
+        UPDATE aidt_lms.evl_info
+        SET evl_stts_cd = 2
+        WHERE 1 = 1
+          AND evl_stts_cd = 1
+          AND pd_set_at = 'Y'
+          AND now() >= evl_prg_dt /* 2024-10-07 평가 상태가 예정 > 진행 중으로 변경 시, 딜레이 걸리는 이슈로 인해 수정 */
+          AND tmpr_strg_at = 'N'
+        ]]>
+    </update>
+
+    <!-- 평가 상태 완료로 바뀔 교사들에게 알람 등록 -->
+    <select id="findEvlNtcnToTchList" resultType="camelHashMap">
+        /** EvlStatusChangeMapper.findEvlNtcnToTchList */
+        <![CDATA[
+        select
+            textbook_id as textbk_id
+             , "T" as trget_cd
+             , "3" as ntcn_ty_cd
+             , "7" as trget_ty_cd
+             , "평가 리포트가 생성되었습니다. 평가 리포트를 확인해 보세요." as ntcn_cn
+             , '' as link_url
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , sets_id
+             , cla_id
+        from
+            aidt_lms.evl_info ei
+                left join aidt_lms.user um ON ei.wrter_id = um.user_id
+        WHERE 1 = 1
+          AND evl_stts_cd = 2
+          AND now() > evl_cp_dt
+        ]]>
+    </select>
+
+    <!-- 평가 상태 완료로 변경 -->
+    <update id="updateEvlStatusChangeToComplete">
+        /** EvlStatusChangeMapper.updateEvlStatusChangeToComplete */
+        <![CDATA[
+        UPDATE aidt_lms.evl_info
+        SET evl_stts_cd = 3, mdfy_dt = now()
+        WHERE 1 = 1
+          AND evl_stts_cd = 2
+          AND evl_cp_dt is not null
+          AND now() >= evl_cp_dt
+        ]]>
+    </update>
+
+    <!-- evl_result_info 제출 여부가 'N'인 건들 조회 -->
+    <select id="findEvlResultInfoNotSubmitted" resultType="camelHashMap">
+        /** EvlStatusChangeMapper.findEvlResultInfoNotSubmitted */
+        <![CDATA[
+          SELECT id, evl_result_id, evl_iem_id
+          FROM aidt_lms.evl_result_detail
+          WHERE 1 = 1
+            /* AND eak_stts_cd <> 5 */ /* 주석처리 */
+            /* AND mrk_ty in (1,2) */ /* 채점유형 : 자동/수동, 개념-채점불가(3), 모든 유형이 '개념'인 경우도 있기때문에 주석처리함 */
+            AND evl_result_id IN (SELECT eri.id
+                                  FROM aidt_lms.evl_result_info eri
+                                  WHERE 1 = 1
+                                    AND eri.done_yn ='Y'
+                                    AND eri.evl_id IN (SELECT id
+                                                   FROM aidt_lms.evl_info
+                                                   WHERE 1 = 1
+                                                     AND evl_stts_cd = 3
+                                                     /* 조건추가 및 변경 */
+                                                     /* 2024-06-28, 프론트에서 제출하기 API 처리시간을 고려해서 마감일 + 2분으로 처리 */
+                                                   /* AND DATE_ADD(evl_cp_dt, INTERVAL 2 MINUTE) < NOW() */
+                                                    AND evl_cp_dt < NOW()
+                                                     )
+                                    AND eri.subm_at = 'N'
+                                    /*
+                                       2024-06-17. 타이머 마감 또는 기한 마감인 경우와 상관없이
+                                       평가/과제 응시 시작한 학생의 경우 무조건 제출하기 처리로 프로세스 변경 (최지연 CP님)
+                                    */
+                                    /* 응시전 인 학생만 대상으로 미제출자 처리한다 (2024-06-17) */
+                                    /* 2024-06-28 아래 쿼리로 원복 */
+                                    /*
+                                    AND (eri.eak_stts_cd = 1
+                                        OR (eri.eak_stts_cd = 2
+                                                AND 0 = (select count(1) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id and erd.eak_at = 'Y' and erd.mrk_ty < 3)
+                                        )
+                                    )*/
+                                    AND eri.eak_stts_cd <> 5
+                                    /* (수업중 평가)의 경우 학생별로 추가시간을 받을 수 있기때문에 */
+                                    /* 평가완료일시 + 추가시간 < 현재시간 경우의 학생만 대상으로 상태 변경 진행 */
+                                    AND DATE_ADD((select evl_cp_dt from aidt_lms.evl_info where id = eri.evl_id) , INTERVAL ifnull(eri.evl_adi_sec,0) SECOND) < NOW()
+                                  )
+        ]]>
+    </select>
+
+    <!-- articleType이 NULL 인 경우 조회 : 사용하지 않음 -->
+<!--    <select id="findCodeIfNull" parameterType="String" resultType="String">-->
+<!--        /** EvlStatusChangeMapper.findCodeIfNull */-->
+<!--        SELECT code-->
+<!--        FROM aidt_lcms.meta-->
+<!--        WHERE name = 'articleType'-->
+<!--          AND id = (SELECT meta_id-->
+<!--                    FROM aidt_lcms.article_meta_map-->
+<!--                    WHERE article_id = #{evlIemId} AND meta_name = 'articleType');-->
+<!--    </select>-->
+
+    <!-- articleType이 NULL 이 아닌 경우 조회 -->
+    <select id="findCodeIfNotNull" parameterType="String" resultType="String">
+        /** EvlStatusChangeMapper.findCodeIfNotNull */
+        SELECT code
+        FROM aidt_lcms.meta
+        WHERE name = 'articleType'
+          AND id = (SELECT articleType FROM aidt_lcms.article WHERE id = #{evlIemId});
+    </select>
+
+    <!-- 평가 상세 최종 처리 -->
+    <update id="updateEvlResultDetailFinalProcess" parameterType="String">
+        /** EvlStatusChangeMapper.updateEvlFinalProcess */
+        <![CDATA[
+        UPDATE aidt_lms.evl_result_detail
+        SET
+            /* 개념인 경우 4 */
+            errata = if(mrk_ty = 3, 4, 2),
+            eak_at = 'Y',
+            eak_stts_cd = 5,
+            mrk_cp_at = 'Y',
+            evl_iem_scr = 0,
+            evl_iem_scr_result = 0
+        WHERE 1=1
+        AND id = #{id}
+        ]]>
+    </update>
+
+    <!-- 평가 상세 최종 처리(Bulk 처리)  -->
+    <update id="bulkUpdateEvlResultDetailFinalProcess" parameterType="String">
+        /** EvlStatusChangeMapper.bulkUpdateEvlResultDetailFinalProcess */
+        UPDATE aidt_lms.evl_result_detail
+        SET
+            /* 개념인 경우 4 */
+            errata = if(mrk_ty = 3, 4, 2),
+            eak_at = 'Y',
+            eak_stts_cd = 5,
+            mrk_cp_at = 'Y',
+            evl_iem_scr = 0,
+            evl_iem_scr_result = 0,
+            mdfy_dt = now()
+        WHERE 1=1
+          AND id in
+            <foreach collection="list" item="id" open="(" close=")" separator=",">
+                #{id}
+            </foreach>
+    </update>
+
+    <!-- 평가 결과 최종 정리 -->
+    <update id="updateEvlResultFinalProcesss" parameterType="String">
+        /** EvlStatusChangeMapper.updateEvlResultFinalProcesss */
+        <![CDATA[
+        UPDATE aidt_lms.evl_result_info
+        SET
+            eak_stts_cd = 5, evl_result_scr = 0, mrk_cp_at = 'Y'
+        WHERE 1=1
+        AND id = #{id}
+        ]]>
+    </update>
+
+    <!-- 평가 결과 최종 정리(Bulk 처리) -->
+    <update id="bulkUpdateEvlResultFinalProcess" parameterType="String">
+        /** EvlStatusChangeMapper.bulkUpdateEvlResultFinalProcess */
+        UPDATE aidt_lms.evl_result_info
+        SET
+            eak_stts_cd = 5, evl_result_scr = 0, mrk_cp_at = 'Y', mdfy_dt = now()
+        WHERE 1=1
+          AND id in
+            <foreach collection="list" item="id" open="(" close=")" separator=",">
+                #{id}
+            </foreach>
+    </update>
+
+    <!-- 평가 최종 정리 -->
+    <update id="updateEvlInfoFinalProcess">
+        /* EvlStatusChangeMapper.updateEvlInfoFinalProcess */
+        <![CDATA[
+        UPDATE
+            aidt_lms.evl_info
+        SET mrk_cp_dt   = now(),
+            evl_stts_cd = 5,
+            mdfy_dt     = now()
+        WHERE 1 = 1
+            /* 조건추가 */
+          AND evl_stts_cd = 3
+          AND evl_cp_dt < NOW()
+          AND id IN (SELECT evl_id
+                     FROM aidt_lms.evl_result_info
+                     GROUP BY evl_id
+                     HAVING COUNT(DISTINCT mamoym_id) = SUM(CASE WHEN eak_stts_cd = 5 THEN 1 ELSE 0 END));
+        ]]>
+    </update>
+
+    <!-- 업데이트된 ID 조회 -->
+    <select id="findUpdatedEvlIds" resultType="string">
+        /* EvlStatusChangeMapper.findUpdatedEvlIds */
+        <![CDATA[
+        SELECT GROUP_CONCAT(id) as updatedIds
+        FROM aidt_lms.evl_info
+        WHERE evl_stts_cd = 5
+        AND mdfy_dt >= DATE_SUB(NOW(), INTERVAL 1 SECOND)
+        ]]>
+    </select>
+
+    <!-- 미제출자 중에 답안제출 이력이 있는 평가-학생 정보 조회 -->
+    <select id="findEvlSubmAtN" resultType="camelHashMap">
+        /** EvlStatusChangeMapper.findEvlSubmAtN */
+        SELECT
+       		A.*
+       	FROM (
+       		SELECT
+       			b.evl_id,
+       			b.mamoym_id as user_id,
+       			b.id as resultInfoId,
+                /* 조건 변경 : [학습이력이 있는 미제출자] -> [진입 흔적이 있는 미제출자] */
+       			/* sum(c.sub_mit_anw is not null or c.sub_mit_anw_url is not null) as sub_mit_anw_cnt */
+                   sum(IF(c.eak_at = 'Y',1,0)) as eak_at_cnt /* 진입 흔적이 있는지 체크 */
+       		FROM aidt_lms.evl_info a
+       			INNER JOIN aidt_lms.evl_result_info b
+       				ON a.id = b.evl_id
+       					AND b.subm_at = 'N' /* 미제출 */
+         				AND b.eak_stts_cd <![CDATA[<>]]> 5 /* 체점완료(5)가 아닌 */
+       					AND DATE_ADD(a.evl_cp_dt , INTERVAL ifnull(b.evl_adi_sec,0) SECOND) <![CDATA[<]]> NOW()
+       		            AND b.done_yn ='Y'
+       			INNER JOIN aidt_lms.evl_result_detail c
+       				ON b.id = c.evl_result_id
+                        AND c.mrk_ty in (1,2) /* 문항/활동만, 개념은 eak_at이 Y임 */
+       		WHERE 1=1
+                AND a.evl_stts_cd = 3
+       			/* 조건추가 및 변경 */
+       			/* 2024-06-28, 프론트에서 제출하기 API 처리시간을 고려해서 마감일 + 2분으로 처리 */
+       		  /*	AND DATE_ADD(a.evl_cp_dt, INTERVAL 2 MINUTE) <![CDATA[<]]> NOW() */
+                AND a.evl_cp_dt <![CDATA[<]]> NOW()
+       		group by b.evl_id, b.mamoym_id, b.id
+       		order by b.evl_id, b.mamoym_id
+       	) A
+       	WHERE 1=1
+       		/* AND sub_mit_anw_cnt > 0 */
+               AND eak_at_cnt > 0
+    </select>
+
+    <update id="modifyStntEvalSubmitResultDetail" parameterType="java.util.List">
+        /** EvlStatusChangeMapper.modifyStntEvalSubmitResultDetail */
+        UPDATE aidt_lms.evl_result_detail erd
+          join aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+           SET erd.eak_at = 'Y'
+             , erd.eak_stts_cd = if (erd.mrk_ty = 2,3,5)
+             , erd.eak_st_dt = now()
+             , erd.eak_ed_dt = now()
+             , erd.errata= (case when erd.mrk_ty = 1 then 2 when erd.mrk_ty = 2 then 4 else erd.errata end)
+             , erd.evl_iem_scr=if(erd.mrk_ty in (1,2), 0, erd.evl_iem_scr)
+             , erd.evl_iem_scr_result=if(erd.mrk_ty in (1,2), 0, erd.evl_iem_scr_result)
+             , erd.mrk_cp_at= (case when erd.mrk_ty = 1 then 'Y' when erd.mrk_ty = 2 then 'N' else erd.mrk_cp_at end)
+         where eri.id in
+            <foreach collection="list" item="map" open="(" close=")" separator=",">
+                #{map.resultInfoId}
+            </foreach>
+           AND (erd.eak_at = 'N' or erd.errata is null)
+    </update>
+
+    <update id="modifyStntEvalSubmitResultInfo" parameterType="java.util.List">
+        /** EvlStatusChangeMapper.modifyStntEvalSubmitResultInfo */
+        UPDATE aidt_lms.evl_result_info eri
+        join (select a.id as resultInfoId
+                     , sum(if (a.eak_stts_cd <![CDATA[<]]> 5,1,0)) eakSttsCdCnt
+                  from (select in_eri.id, in_erd.eak_stts_cd
+                          from aidt_lms.evl_result_info in_eri
+                          join aidt_lms.evl_result_detail in_erd on in_eri.id = in_erd.evl_result_id
+                         where in_eri.id in
+                        <foreach collection="list" item="map" open="(" close=")" separator=",">
+                            #{map.resultInfoId}
+                        </foreach>
+                            and in_eri.done_yn = 'Y'
+                        ) a
+                 group by a.id
+                 ) erd  on eri.id = erd.resultInfoId
+           SET eri.eak_ed_dt = now()
+             , eri.subm_at = 'Y'
+             , eri.subm_dt = now()
+             , eri.eak_stts_cd = CASE WHEN erd.eakSttsCdCnt = 0 THEN 5 ELSE 3 END
+             , eri.mrk_cp_at = CASE WHEN erd.eakSttsCdCnt = 0 THEN 'Y' ELSE mrk_cp_at END
+         WHERE eri.id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.resultInfoId}
+        </foreach>
+            and eri.done_yn = 'Y'
+    </update>
+
+    <!-- 리워드 지급 hist 생성 -->
+    <insert id="createRwdEarnHist" parameterType="java.util.List" useGeneratedKeys="true" keyColumn="id">
+        /** EvlStatusChangeMapper.createRwdEarnHist */
+        INSERT INTO aidt_lms.rwd_earn_hist
+        (
+            id, user_id, cla_id, se_cd, menu_se_cd
+            , sve_se_cd, trgt_id, rwd_se_cd, rwd_amt, rwd_use_amt
+            , rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        select null, eri.mamoym_id, ei.cla_id, 1, '3'
+             , '4', ei.id, '1', 10, 0
+             , eri.mamoym_id, now(), eri.mamoym_id, now()
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_info ei on eri.evl_id = ei.id
+        where eri.id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.resultInfoId}
+        </foreach>
+    </insert>
+
+    <!-- 리워드 존재 여부 확인 -->
+    <select id="findRwdEarnInfo" parameterType="java.util.List" resultType="camelHashMap">
+        /** EvlStatusChangeMapper.findRwdEarnInfo */
+        select eri.id as resultInfoId, rei.id as rwdEarnInfoId
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_info ei on eri.evl_id = ei.id
+        left join aidt_lms.rwd_earn_info rei on eri.mamoym_id = rei.user_id and ei.cla_id = rei.cla_id
+        where eri.id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.resultInfoId}
+        </foreach>
+    </select>
+
+    <!-- 리워드 미 존재 시 생성 -->
+    <insert id="createRwdEarnInfo" parameterType="java.util.List" useGeneratedKeys="true" keyColumn="id">
+        /** EvlStatusChangeMapper.createRwdEarnInfo */
+        INSERT INTO aidt_lms.rwd_earn_info (
+              id , user_id , cla_id
+            , ht_earn_gramt , st_earn_gramt , ht_blnc , st_blnc
+            , rgtr , reg_dt , mdfr , mdfy_dt
+        )
+        select null, eri.mamoym_id, ei.cla_id
+             , 10, 0, 10, 0
+             , eri.mamoym_id, now(), eri.mamoym_id, now()
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_info ei on eri.evl_id = ei.id
+        where eri.id in
+        <foreach collection="list" item="resultInfoId" open="(" close=")" separator=",">
+            #{resultInfoId}
+        </foreach>
+    </insert>
+
+    <!-- 리워드 기 존재 시 갱신 -->
+    <update id="modifyRwdEarnInfo" parameterType="java.util.List">
+        /** EvlStatusChangeMapper.modifyRwdEarnInfo */
+        UPDATE aidt_lms.rwd_earn_info
+        SET
+        ht_blnc = ht_blnc + 10
+        ,ht_earn_gramt = ht_earn_gramt + 10
+        ,mdfy_dt = NOW()
+        WHERE id in
+        <foreach collection="list" item="rwdEarnInfoId" open="(" close=")" separator=",">
+            #{rwdEarnInfoId}
+        </foreach>
+    </update>
+
+    <!-- 리워드 발급 알림 -->
+    <insert id="createNtcnInfo" parameterType="java.util.List" useGeneratedKeys="true" keyColumn="id">
+        /** EvlStatusChangeMapper.createNtcnInfo */
+        INSERT INTO aidt_lms.ntcn_info
+            ( rcve_id, textbk_id, cla_id, trget_cd, ntcn_ty_cd
+            , trget_ty_cd, ntcn_cn, redng_at, link_url, encrg_at
+            , stnt_nm, rgtr, mdfr)
+        select eri.mamoym_id, ei.textbook_id, ei.cla_id, 'S', '3'
+             , '10', '평가 진행을 완료하여 하트리워드 10을 획득하였습니다.', 'N', '', 'N'
+             , u.flnm, ei.wrter_id, ei.wrter_id
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_info ei on eri.evl_id = ei.id
+        left join aidt_lms.user u ON u.user_id = eri.mamoym_id
+        where eri.id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.resultInfoId}
+        </foreach>
+    </insert>
+
+    <!-- 리포트 자동 공개 처리가 필요한 평가 조회 -->
+    <select id="findEvlAutoRptList" resultType="camelHashMap">
+        /** EvlStatusChangeMapper.findEvlAutoRptList */
+        select id as evlId
+        from aidt_lms.evl_info
+        WHERE 1 = 1
+          AND evl_stts_cd >= 3
+          AND rpt_auto_othbc_at = 'Y'
+          AND IFNULL(rpt_othbc_at, 'N') = 'N'
+    </select>
+
+    <select id="selectrCeateAiPrscrEvlToTaskTarget" resultType="camelHashMap">
+        /** EvlStatusChangeMapper.selectrCeateAiPrscrEvlToTaskTarget */
+        select ei.id, ei.evl_se_cd, ei.wrter_id, m.val
+        from aidt_lms.evl_info ei
+                 join aidt_lcms.textbook_meta_map tmm
+                      on ei.textbook_id = tmm.textbook_id
+                          and tmm.meta_name = 'curriBook'
+                 join aidt_lcms.meta m
+                      on tmm.meta_id = m.id
+                          and m.is_active = 1
+        where 1 = 1
+          and ei.evl_stts_cd = 5           /* 채점 완료 */
+          and ei.mrk_cp_dt is not null     /* 채점 완료 일시 */
+          and ei.prscr_std_crt_at <![CDATA[<>]]> 'Y'   /* 처방학습 생성 여부 */
+          and ei.prscr_std_crt_at <![CDATA[<>]]> 'X'   /* 처방학습 생성 여부 */
+          and ei.prscr_std_set_at <![CDATA[<>]]> 'Y'   /* 처방학습 출제 여부 */
+          and DATE_FORMAT(ei.mrk_cp_dt, '%Y-%m-%d') = DATE_FORMAT(now(), '%Y-%m-%d')
+    </select>
+
+    <!-- 평가 상태 완료로 변경 -->
+    <update id="updateEvlResultStatusChangeToComplete">
+        /** EvlStatusChangeMapper.updateEvlResultStatusChangeToComplete */
+        <![CDATA[
+
+        update aidt_lms.evl_result_info eri
+        join aidt_lms.evl_info ei on ei.id = eri.evl_id
+        set eri.eak_stts_cd = 5, eri.mdfy_dt = now()
+        where ei.evl_stts_cd > 2
+          and now() >= ei.evl_cp_dt
+          and eri.eak_stts_cd < 5
+          and eri.subm_at = 'N'
+          and eri.done_yn = 'N'
+
+        ]]>
+    </update>
+
+    <!-- 평가 상태 완료로 변경2 -->
+    <update id="updateEvlResultStatusChangeToComplete2">
+        /** EvlStatusChangeMapper.updateEvlResultStatusChangeToComplete2 */
+        <![CDATA[
+
+        UPDATE aidt_lms.evl_result_info eri
+        JOIN (
+            SELECT eri.id
+            FROM aidt_lms.evl_info ei
+            JOIN aidt_lms.evl_result_info eri ON ei.id = eri.evl_id
+            JOIN aidt_lms.evl_result_detail erd ON eri.id = erd.evl_result_id
+            WHERE ei.evl_stts_cd > 2
+              AND NOW() >= ei.evl_cp_dt
+              AND eri.eak_stts_cd < 5
+              AND eri.subm_at = 'Y'
+            GROUP BY eri.id
+            HAVING COUNT(DISTINCT erd.id) = SUM(CASE WHEN erd.eak_stts_cd = 5 THEN 1 ELSE 0 END)
+        ) AS target ON eri.id = target.id
+        SET eri.eak_stts_cd = 5,
+            eri.mdfy_dt = NOW()
+
+        ]]>
+    </update>
+
+    <!-- 평가 종료 시 교사 리포트 확인 여부 N으로 초기화 -->
+    <update id="modifyTchEvalReportChkAtOnCompleteList" parameterType="list">
+        /* EvalReportMapper.modifyTchEvalReportChkAtOnCompleteList */
+        UPDATE aidt_lms.evl_result_info
+        SET tch_rpt_chk_at = 'N'
+          , mdfy_dt = NOW()
+          , mdfr = 'evalStatusChangeBatch'
+        WHERE evl_id IN
+            <foreach collection="list" item="evlId" open="(" separator="," close=")">
+                #{evlId}
+            </foreach>
+    </update>
+
+</mapper>
+

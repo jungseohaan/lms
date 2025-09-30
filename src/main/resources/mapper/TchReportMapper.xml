@@ -1,0 +1,822 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.assessment.mapper.TchReportMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findTchReportTotStd" parameterType="map" resultType="camelHashMap">
+        # 과제 항목 수 up
+                SELECT
+                    IFNULL(sum(f.cnt), 0) as cnt
+                FROM (
+                    select IFNULL(count(*), 0) as cnt
+                    from aidt_lms.task_result_detail a
+                    where a.task_result_id in (select id
+                        from aidt_lms.task_result_info
+                        where task_id in
+                            (select id from aidt_lms.task_info where cla_id = #{claId} and textbk_id = #{textbkId}))
+                    and (
+                    <if test="smstr == 1 ">
+                        DATE_FORMAT(a.eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                    </if>
+                    <if test="smstr == 2 ">
+                        DATE_FORMAT(a.eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                    </if>
+                    )
+                    group by a.task_iem_id
+
+                        UNION ALL
+
+                    # 평가 항목 수
+                    select IFNULL(count(*), 0) as cnt
+                    from aidt_lms.evl_result_detail b
+                    where b.evl_result_id in (select id
+                        from aidt_lms.evl_result_info
+                        where evl_id in
+                            (select id from aidt_lms.evl_info where cla_id = #{claId} and textbook_id = #{textbkId}))
+                        and (
+                        <if test="smstr == 1 ">
+                           DATE_FORMAT(b.eak_ed_dt, '%Y%m%d') BETWEEN
+                           DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                        </if>
+                        <if test="smstr == 2 ">
+                           DATE_FORMAT(b.eak_ed_dt, '%Y%m%d') BETWEEN
+                           DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                        </if>
+                    )
+                    group by b.evl_iem_id
+
+                        UNION ALL
+                    #학습 항목 수
+                    select IFNULL(count(*), 0) as cnt
+                    from aidt_lms.std_dta_result_detail c
+                    where c.dta_result_id in (select id
+                        from aidt_lms.std_dta_result_info
+                        where textbk_tab_id in
+                            (select id from aidt_lms.tab_info where wrter_id = #{stntId} and cla_id = #{claId} and textbk_id = #{textbkId})
+                            )
+                    and (
+                    <if test="smstr == 1 ">
+                        DATE_FORMAT(c.eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                    </if>
+                    <if test="smstr == 2 ">
+                        DATE_FORMAT(c.eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                    </if>
+                    )
+                    group by c.dta_iem_id
+                ) f
+    </select>
+
+    <!--현재 사용하지 않음-->
+    <select id="findTchReportCrrRate" parameterType="map" resultType="camelHashMap" >
+        /* TchReportMapper.findTchReportCrrRate */
+                # 과제 항목 수
+                select
+                    IFNULL((
+                ## 총 정답 수
+                           (select IFNULL(count(*), 0)
+                            from aidt_lms.task_result_detail
+                            where task_result_id in (select id
+                                                     from aidt_lms.task_result_info
+                                                     where task_id in
+                                                           (select id from aidt_lms.task_info where cla_id = #{claId} and textbk_id = #{textbkId})
+
+                )
+                              and errata = 1
+                    and (
+                        <if test="smstr == 1 ">
+                            DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                            DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                        </if>
+                        <if test="smstr == 2 ">
+                            DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                            DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                        </if>
+                    )
+        ) +
+                # 평가 항목 수
+                           (select IFNULL(count(*), 0)
+                            from aidt_lms.evl_result_detail
+                            where evl_result_id in (select id
+                                                    from aidt_lms.evl_result_info
+                                                    where evl_id in
+                                                          (select id from aidt_lms.evl_info where cla_id = #{claId} and textbook_id = #{textbkId})
+
+                )
+                              and errata = 1
+                    and (
+                    <if test="smstr == 1 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                    </if>
+                    <if test="smstr == 2 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                    </if>
+                    )
+        ) +
+
+                #학습 항목 수
+                           (select IFNULL(count(*), 0)
+                            from aidt_lms.std_dta_result_detail
+                            where dta_result_id in (select id
+                                                    from aidt_lms.std_dta_result_info
+                                                    where textbk_tab_id in
+                                                          (select id
+                                                           from aidt_lms.tab_info
+                                                           where wrter_id = #{userId}
+                                                             and cla_id = #{claId}
+                                                             and textbk_id = #{textbkId})
+
+                            )
+                              and errata = 1
+                    and (
+                    <if test="smstr == 1 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                    </if>
+                    <if test="smstr == 2 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                    </if>
+                    )
+        )
+                           )
+                           /
+                # 과제 항목 수
+
+                       (
+                           ## 총 항목 수
+                           (select IFNULL(count(*), 0)
+                            from aidt_lms.task_result_detail
+                            where task_result_id in (select id
+                                                     from aidt_lms.task_result_info
+                                                     where task_id in
+                                                           (select id from aidt_lms.task_info where cla_id = #{claId} and textbk_id = #{textbkId})
+
+                )
+                        and (
+                        <if test="smstr == 1 ">
+                            DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                            DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                        </if>
+                        <if test="smstr == 2 ">
+                            DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                            DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                        </if>
+                        )
+        ) +
+                # 평가 항목 수
+                           (select IFNULL(count(*), 0)
+                            from aidt_lms.evl_result_detail
+                            where evl_result_id in (select id
+                                                    from aidt_lms.evl_result_info
+                                                    where evl_id in
+                                                          (select id from aidt_lms.evl_info where cla_id = #{claId} and textbook_id = #{textbkId})
+
+                )
+                    and (
+                    <if test="smstr == 1 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                    </if>
+                    <if test="smstr == 2 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                    </if>
+                    )
+        ) +
+
+                #학습 항목 수
+                           (select IFNULL(count(*), 0)
+                            from aidt_lms.std_dta_result_detail
+                            where dta_result_id in (select id
+                                                    from aidt_lms.std_dta_result_info
+                                                    where textbk_tab_id in
+                                                          (select id
+                                                           from aidt_lms.tab_info
+                                                           where wrter_id = #{userId}
+                                                             and cla_id = #{claId}
+                                                             and textbk_id = #{textbkId})
+
+                        )
+                    and (
+                    <if test="smstr == 1 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+                    </if>
+                    <if test="smstr == 2 ">
+                        DATE_FORMAT(eak_ed_dt, '%Y%m%d') BETWEEN
+                        DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+                    </if>
+                    )
+        )
+                           ) * 100, 0)
+                as crr_rate
+    </select>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findTchReportStdTotList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportMapper.findTchReportStdTotList */
+        SELECT
+            x.val           as unit_name
+            , count(y.id)   as slf_std_num
+            ,TRUNCATE(IFNULL(AVG(y.usd_scr), 0) ,1) as curr_undstn
+            ,IFNULL(SUM(UNIX_TIMESTAMP(y.std_st_dt)), 0) as a
+            , IFNULL(SUM(UNIX_TIMESTAMP(y.std_ed_dt)), 0) as b
+            , CONCAT(count(y.id), '명 | ', count(y.id), '회 | ', TIME_FORMAT( SEC_TO_TIME( SUM(TIMEDIFF(y.std_ed_dt, y.std_st_dt))/count(y.id) ) , '%H:%i:%s') ) as slf_std_smry
+        FROM (
+            SELECT row_number() over() as unit_num
+                , b.*
+            FROM aidt_lcms.meta a
+                inner join aidt_lcms.meta b
+                    ON a.code = b.description
+                        AND b.is_active = 1
+                        AND b.name = 'studyMap1'
+                inner join aidt_lcms.meta c
+                    on c.id = b.parent_id
+                        and c.is_active = 1
+            WHERE a.parent_id = (select curriBook FROM aidt_lcms.textbook WHERE id = #{textbkId}) and a.is_active = 1
+            ORDER BY c.parent_id, c.code
+        ) x LEFT JOIN (
+            SELECT a.id
+                    , a.usd_scr
+                    , a.unit_num
+                    , a.textbk_id
+                    , b.std_st_dt
+                    , b.std_ed_dt
+                    , b.std_at
+            FROM aidt_lms.slf_std_info a
+                LEFT JOIN aidt_lms.slf_std_result_info b
+                ON a.id = b.std_id
+            UNION ALL
+               SELECT a.id
+                       , b.usd_scr
+                       , a.unit_num
+                       , a.textbk_id
+                       , b.std_st_dt
+                       , b.std_ed_dt
+                       , b.std_at
+               FROM aidt_lms.slf_ai_std_info a
+                   LEFT JOIN aidt_lms.slf_ai_std_result_info b
+                   ON a.id = b.std_ai_id
+        ) y
+            ON y.std_at = 'Y'
+            AND y.textbk_id = #{textbkId}
+            AND x.unit_num = y.unit_num
+        <if test="smstr == 1 ">
+            AND (
+                DATE_FORMAT(y.std_ed_dt, '%Y%m%d') BETWEEN
+                DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+            )
+        </if>
+        <if test="smstr == 2 ">
+            AND (
+            DATE_FORMAT(y.std_ed_dt, '%Y%m%d') BETWEEN
+            DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+            )
+        </if>
+        GROUP BY x.val, x.unit_num, x.parent_id
+    </select>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findTchReportEvlTotList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportMapper.findTchReportEvlTotList up */
+        select id                             as evl_id
+             , eam_mth                        as eam_mth
+             , F_CODE_NM('eam_mth', eam_mth)  as eam_mth_nm
+             , evl_nm
+             , (select count(*) from aidt_lms.evl_result_info where evl_id = id and subm_at = 'Y')   as appy_stnt
+             , (select count(*) from aidt_lms.tc_cla_mb_info where cla_id = #{claId} and actvtn_at = 'Y')                as tot_stnt
+             , IFNULL((
+                    select SUM(tt1.evl_result_scr)
+                    from (
+                        select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                        from aidt_lms.evl_result_info t1
+                        where t1.evl_id = ei.id
+                        group by t1.mamoym_id
+                    ) tt1
+               ), 0) /
+               IFNULL((select count(*) from aidt_lms.evl_result_info where evl_id = id and subm_at = 'Y'), 0) as avg
+            ,IFNULL((
+                SELECT SEC_TO_TIME(SUM(TIMESTAMPDIFF(SECOND, eak_st_dt, eak_ed_dt)))
+                FROM aidt_lms.evl_result_info
+                WHERE evl_id = id
+            ), 0) / IFNULL((SELECT COUNT(*) FROM aidt_lms.evl_result_info WHERE evl_id = id AND subm_at = 'Y'), 0) AS avg_time
+             , evl_stdr_set
+             , evl_stdr_set_at
+             , case evl_stdr_set_at
+                   when 'Y' then
+                       case evl_stdr_set
+                           when 1 then
+                               CONCAT(
+                                       (select concat('상(', count(*), ')')
+                                        from (select tt1.evl_result_scr /
+                                                     IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info where evl_id = ei.id), 0) * 100 as target
+                                                from (
+                                                    select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                                                    from aidt_lms.evl_result_info t1
+                                                    where t1.evl_id = ei.id
+                                                    group by t1.mamoym_id
+                                                ) tt1
+                                            ) a
+                                        where a.target <![CDATA[>=]]> evl_gd_stdr_scr)
+                                   ,
+                                       (select concat('중(', count(*), ')')
+                                        from (select tt1.evl_result_scr /
+                                                     IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info where evl_id = ei.id), 0) * 100 as target
+                                                from (
+                                                    select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                                                    from aidt_lms.evl_result_info t1
+                                                    where t1.evl_id = ei.id
+                                                    group by t1.mamoym_id
+                                                ) tt1
+                                            ) a
+                                        where a.target <![CDATA[<]]> evl_gd_stdr_scr
+                                          and a.target <![CDATA[>=]]> evl_av_stdr_scr)
+                                   ,
+                                       (select concat('하(', count(*), ')')
+                                        from (select tt1.evl_result_scr /
+                                                     IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info where evl_id = ei.id), 0) * 100 as target
+                                                from (
+                                                    select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                                                    from aidt_lms.evl_result_info t1
+                                                    where t1.evl_id = ei.id
+                                                    group by t1.mamoym_id
+                                                ) tt1
+                                            ) a
+                                        where a.target <![CDATA[<]]> evl_av_stdr_scr)
+                               ) #   as evlResult ##  상 중 하
+                           when 2 then
+                               CONCAT(
+                                       (select concat('통과(', count(*), ')')
+                                        from (select evl_result_scr /
+                                                     IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info where evl_id = ei.id), 0) * 100 as target
+                                                from (
+                                                    select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                                                    from aidt_lms.evl_result_info t1
+                                                    where t1.evl_id = ei.id
+                                                    group by t1.mamoym_id
+                                                ) tt1
+                                            ) a
+                                        where a.target <![CDATA[>=]]> evl_ps_stdr_scr)
+                                   , (select concat('실패(', count(*), ')')
+                                      from (select evl_result_scr /
+                                                   IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info where evl_id = ei.id), 0) * 100 as target
+                                                from (
+                                                    select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                                                    from aidt_lms.evl_result_info t1
+                                                    where t1.evl_id = ei.id
+                                                    group by t1.mamoym_id
+                                                ) tt1
+                                            ) a
+                                      where a.target <![CDATA[<]]> evl_ps_stdr_scr)
+                               ) #   as evlResult ## 통과 실패
+                           else IFNULL((
+                                    select SUM(tt1.evl_result_scr)
+                                    from (
+                                        select min((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = t1.id)) as evl_result_scr
+                                        from aidt_lms.evl_result_info t1
+                                        where t1.evl_id = ei.id
+                                        group by t1.mamoym_id
+                                    ) tt1
+                                ), 0) /
+                                IFNULL((select count(*) from aidt_lms.evl_result_info where evl_id = id and subm_at = 'Y'), 0)
+                           end #as evlResult
+                   when 'N' then
+                       CONCAT((select concat('완료(', count(*), ')') from aidt_lms.evl_result_info where evl_id = id and subm_at = 'Y')
+                           , (select concat('미완료(', count(*), ')') from aidt_lms.evl_result_info where evl_id = id and subm_at = 'N'))
+            end
+            as evl_result
+        from aidt_lms.evl_info ei
+        where cla_id = #{claId}
+          and textbook_id = #{textbkId}
+        <if test="smstr == 1 ">
+            AND (
+            DATE_FORMAT(evl_cp_dt, '%Y0101') BETWEEN
+            DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0831')
+            )
+        </if>
+        <if test="smstr == 2 ">
+            AND (
+            DATE_FORMAT(evl_cp_dt, '%Y0101') BETWEEN
+            DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+            )
+        </if>
+    </select>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findTchReportTaskTotList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportMapper.findTchReportTaskTotList up */
+        select id                                                                                      as task_id
+             , eam_mth
+             , F_CODE_NM('eam_mth', eam_mth)                                                           as eam_mth_nm
+             , task_nm
+             , (select count(*) from aidt_lms.task_result_info where task_id = id and subm_at = 'Y')            as appy_stnt
+             , (select count(*) from aidt_lms.tc_cla_mb_info where cla_id = #{claId} and actvtn_at = 'Y')                                 as tot_stnt
+             , IFNULL((select SUM(task_result_scr) from aidt_lms.task_result_info where task_id = id), 0) /
+               IFNULL((select count(*) from aidt_lms.task_result_info where task_id = id and subm_at = 'Y'), 0) as avg
+             , (select count(*) from aidt_lms.task_result_info where task_id = id and task_result_anct = 1)     as excellent
+             , (select count(*) from aidt_lms.task_result_info where task_id = id and task_result_anct = 2)     as average
+             , (select count(*) from aidt_lms.task_result_info where task_id = id and task_result_anct = 3)     as improvement
+            ,SEC_TO_TIME(
+                    IFNULL(
+                        (
+                            SELECT SUM(TIMESTAMPDIFF(SECOND, eak_st_dt, eak_ed_dt))
+                            FROM aidt_lms.task_result_info
+                            WHERE task_id = id
+                        ),
+                        0
+                    ) /
+                    IFNULL(
+                        (SELECT COUNT(*) FROM aidt_lms.task_result_info WHERE task_id = id AND subm_at = 'Y'),
+                        0
+                    )
+                ) AS avg_time
+        from aidt_lms.task_info
+        where cla_id = #{claId}
+          and textbk_id = #{textbkId}
+        <if test="smstr == 1 ">
+            AND (
+            DATE_FORMAT(pd_evl_ed_dt, '%Y%m%d') BETWEEN
+                DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+            )
+        </if>
+        <if test="smstr == 2 ">
+            AND (
+            DATE_FORMAT(pd_evl_ed_dt, '%Y%m%d') BETWEEN
+            DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+            )
+        </if>
+    </select>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findTchReportTotalUndstn" parameterType="map" resultType="camelHashMap" >
+        /* TchReportMapper.findTchReportTotalUndstn */
+        SELECT TRUNCATE(IFNULL(AVG(usd_scr), 0) ,1) as undstn
+        FROM aidt_lms.std_usd_unit_day_hist
+        WHERE std_at = 'Y'
+        AND textbk_id = #{textbkId}
+        AND cla_id = #{claId}
+        AND stdt_id IN
+            (
+                SELECT stdt_id
+                FROM aidt_lms.tc_cla_mb_info
+                WHERE cla_id = #{claId}
+                and actvtn_at = 'Y'
+            )
+        <if test="smstr == 1 ">
+            AND (
+            DATE_FORMAT(std_dt, '%Y%m%d') BETWEEN
+                DATE_FORMAT(NOW(), '%Y0301') AND DATE_FORMAT(NOW(), '%Y0831')
+            )
+        </if>
+        <if test="smstr == 2 ">
+            AND (
+            DATE_FORMAT(std_dt, '%Y%m%d') BETWEEN
+            DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 6 MONTH), '%Y0901') AND DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 12 MONTH), '%Y0229')
+            )
+        </if>
+    </select>
+
+    <select id="findTchReportExamScopeList" parameterType="map" resultType="camelHashMap" >
+        /* 리포트 범위 정보 조회 (학급관리 > 리포트 > 결과보기 화면) */
+        select
+            distinct
+            id,
+            id_path_nm
+        from
+            aidt_lcms.v_curri_tree
+        where
+            1=1
+          and textbk_id = #{textbkId}
+          and id in (
+            select distinct b.meta_id
+            from
+                aidt_lcms.sets_article_map a
+                    inner join aidt_lcms.article_meta_map b
+                               on a.article_id = b.article_id
+                                   and b.sub_id = 0
+                                   and b.meta_name = 'studyMap_1' /* 지식요인 */
+            where
+                1=1
+              and a.sets_id = #{setsId}
+        )
+        order by id_path
+    </select>
+
+    <select id="findStdReportForArticleCnt" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForArticleCnt*/
+        select count(*) as totArticleCnt
+          from (select ti.id          as tabId
+                     , sam.article_id as articleId
+                     , sdrd.sub_id
+                  from aidt_lms.tab_info ti
+                           left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+                           left join aidt_lcms.sets_article_map sam on ti.sets_id = sam.sets_id
+                           left join aidt_lms.std_dta_result_detail sdrd
+                                     on sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id
+                 where 1=1
+                   and ti.cla_id = #{claId}
+                   and ti.textbk_id = #{textbkId}
+                   and ti.crcul_id = #{crculId}
+                   and ti.expos_at = 'Y'
+                   and sdrd.dta_iem_id is not null
+                 group by tabId, sdrd.sub_id, articleId) as sum
+
+    </select>
+
+    <select id="findStdReportForLastClaInfo" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForLastClaInfo*/
+        select DATE_FORMAT(mdfy_dt, '%Y-%m-%d')                                        as lastStdDt
+             , ifnull((select tab_nm from aidt_lms.tab_info where id = tab_id limit 1), '교과서') as tabNm
+            from aidt_lms.tc_lastlesson_crcul
+         where textbk_id = #{textbkId}
+           and cla_id = #{claId}
+           and crcul_id = #{crculId}
+    </select>
+
+    <select id="findStdReportForRecodeInfo" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForRecodeInfo*/
+        select
+            sec_to_time(avg(timestampdiff(second, std_st_dt, ifnull(std_ed_dt, 0)))) as avgStudyTime
+             , date_format(if(ifnull(std_ed_dt, 0) > std_st_dt, std_ed_dt, std_st_dt), '%Y-%m-%d') as latestDate
+          from aidt_lms.std_recode_info
+         where cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and crcul_id = #{crculId}
+
+    </select>
+
+    <select id="findStdReportForCrrctInfo" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForCrrctInfo*/
+        select count(*)                                                               as totCnt
+                , sum(case when errata = 1 then 1 when errata = 3 then 0.5 else 0 end)                            as crrctCnt
+                , round(sum(case when errata = 1 then 1 when errata = 3 then 0.5 else 0 end) / count(*) * 100, 2) as crrctRate
+          FROM (select sdrd.dta_iem_id, errata, sdri.mamoym_id
+                  from aidt_lms.tab_info ti
+                           left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+                           left join aidt_lcms.sets_article_map sam on ti.sets_id = sam.sets_id
+                           inner join aidt_lms.std_dta_result_detail sdrd
+                                      on sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and mrk_ty  <![CDATA[<>]]>  3 and sdrd.errata <![CDATA[<>]]> 4
+                                          and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+                           inner join aidt_lms.tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and ti.cla_id = tcmi.cla_id and actvtn_at = 'Y'
+                 where 1=1
+                   and ti.cla_id = #{claId}
+                   and ti.textbk_id = #{textbkId}
+                   and ti.crcul_id = #{crculId}
+                    <if test="tabId != null and tabId != '' ">
+                        /*특정 탭별*/
+                        and sdri.textbk_tab_id = #{tabId}
+                    </if>
+                   <if test="stntId != null and stntId != '' ">
+                    /*특정 학생별*/
+                    and sdri.mamoym_id = #{stntId}
+                   </if>
+               ) as subquery
+    </select>
+
+    <select id="findStdReportForCrrctInfoWithAI" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForCrrctInfoWithAI*/
+        select count(*)                                                               as totCnt
+        , sum(case when errata = 1 then 1 when errata = 3 then 0.5 else 0 end)                            as crrctCnt
+        , round(sum(case when errata = 1 then 1 when errata = 3 then 0.5 else 0 end) / count(*) * 100, 2) as crrctRate
+        FROM (select sdrd.dta_iem_id, errata, sdri.mamoym_id
+        from aidt_lms.tab_info ti
+        left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+        left join aidt_lcms.sets_article_map sam on sam.sets_id = sdri.sets_id
+        inner join aidt_lms.std_dta_result_detail sdrd
+        on sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and mrk_ty  <![CDATA[<>]]>  3 and sdrd.errata <![CDATA[<>]]> 4
+        and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+        where ti.wrter_id = #{userId}
+        and ti.cla_id = #{claId}
+        and ti.textbk_id = #{textbkId}
+        and ti.crcul_id = #{crculId}
+        <if test="tabId != null and tabId != '' ">
+            /*특정 탭별*/
+            and sdri.textbk_tab_id = #{tabId}
+        </if>
+        <if test="stntId != null and stntId != '' ">
+            /*특정 학생별*/
+            and sdri.mamoym_id = #{stntId}
+        </if>
+        ) as subquery
+    </select>
+
+    <select id="findStdReportForStdSubmInfo" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForStdSubmInfo*/
+        select round(avg(rate.submRate), 2)                                                        as avgSubmRate
+             , round((select count(*)
+                        from aidt_lms.tc_cla_mb_info
+                       where cla_id = #{claId}
+                         and actvtn_at = 'Y'
+                       ) * (round(avg(rate.submRate), 2) / 100), 2) as avgSubmStntCnt
+             , (select count(*)
+                  from aidt_lms.tc_cla_mb_info
+                 where cla_id = #{claId}
+                   and actvtn_at = 'Y'
+                 )                                                  as totStntCnt
+          from (select dta_iem_id, sum(submCnt), count(mamoym_id), round(sum(submCnt) / count(mamoym_id) * 100, 2) as submRate
+                  from (select sdrd.dta_iem_id
+                             , (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null) as submCnt
+                             , mamoym_id
+                          from aidt_lms.tab_info ti
+                                   left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+                                   left join aidt_lcms.sets_article_map sam on ti.sets_id = sam.sets_id
+                                   left join aidt_lms.std_dta_result_detail sdrd
+                                             on sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and
+                                                mrk_ty <![CDATA[<>]]> 3
+                                   inner join aidt_lms.tc_cla_mb_info tcmi on sdri.mamoym_id = tcmi.stdt_id and ti.cla_id = tcmi.cla_id and actvtn_at = 'Y'
+                         where 1=1
+                           and ti.cla_id = #{claId}
+                           and ti.textbk_id = #{textbkId}
+                           and ti.crcul_id = #{crculId}
+                           and ti.expos_at = 'Y'
+                           and sdrd.dta_iem_id is not null) as t
+                 group by t.dta_iem_id) as rate
+
+    </select>
+
+    <select id="findStdReportForStntStdSubmInfo" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findStdReportForStntStdSubmInfo*/
+
+        SELECT (SELECT COUNT(DISTINCT sam.article_id)
+                FROM aidt_lms.tab_info ti
+                         INNER JOIN aidt_lcms.sets_article_map sam ON ti.sets_id = sam.sets_id
+                WHERE ti.id = #{tabId}
+                  AND ti.cla_id = #{claId}
+                  AND ti.textbk_id = #{textbkId}
+                  AND ti.crcul_id = #{crculId}
+                  AND ti.expos_at = 'Y') as totStntCnt
+             , (select count(*)
+                  from (select ti.id, sdrd.dta_iem_id
+                          from aidt_lms.tab_info ti
+                                   left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+                                   left join aidt_lcms.sets_article_map sam on ti.sets_id = sam.sets_id
+                                   left join aidt_lms.std_dta_result_detail sdrd
+                                             on sdri.id = sdrd.dta_result_id
+                                                 and sam.article_id = sdrd.dta_iem_id
+                                                 and mrk_ty  <![CDATA[<>]]>  3
+                                                 and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+                         where 1=1
+                           and ti.id = #{tabId}
+                           and ti.cla_id = #{claId}
+                           and ti.textbk_id = #{textbkId}
+                           and ti.crcul_id = #{crculId}
+                           and ti.expos_at = 'Y'
+                           and sdrd.dta_iem_id is not null
+                           and sdri.mamoym_id = #{stntId}) as stntsubmcnt)                as avgSubmStntCnt
+
+                , round(
+                (select count(*)
+                 from (select ti.id, sdrd.dta_iem_id
+                       from aidt_lms.tab_info ti
+                                left join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+                                left join aidt_lcms.sets_article_map sam on ti.sets_id = sam.sets_id
+                                left join aidt_lms.std_dta_result_detail sdrd
+                                          on sdri.id = sdrd.dta_result_id
+                                              and sam.article_id = sdrd.dta_iem_id
+                                              and mrk_ty <![CDATA[<>]]> 3
+                                              and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+                       where 1=1
+                         and ti.id = #{tabId}
+                         and ti.cla_id = #{claId}
+                         and ti.textbk_id = #{textbkId}
+                         and ti.crcul_id = #{crculId}
+                         and ti.expos_at = 'Y'
+                         and sdrd.dta_iem_id is not null
+                         and sdri.mamoym_id = #{stntId}) as stntsubmcnt) * 100.0 /
+                nullif((SELECT COUNT(DISTINCT sam.article_id)
+                        FROM aidt_lms.tab_info ti
+                                 INNER JOIN aidt_lcms.sets_article_map sam ON ti.sets_id = sam.sets_id
+                        WHERE ti.id = #{tabId}
+                          AND ti.cla_id = #{claId}
+                          AND ti.textbk_id = #{textbkId}
+                          AND ti.crcul_id = #{crculId}
+                          AND ti.expos_at = 'Y'), 0), 2) as avgSubmRate
+
+    </select>
+
+    <select id="findAllNoSubMitAnwAt" parameterType="map" resultType="camelHashMap" >
+        /*TchReportMapper.findAllNoSubMitAnwAt*/
+        WITH testData AS (
+            SELECT
+                sdrd.dta_iem_id,
+                sdrd.mrk_ty,
+                sdrd.sub_mit_anw,
+                sdrd.sub_mit_anw_url
+            FROM aidt_lms.tab_info ti
+                     LEFT JOIN aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+                     INNER JOIN aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+            WHERE ti.wrter_id = #{userId}
+              AND ti.cla_id = #{claId}
+              AND ti.textbk_id = #{textbkId}
+              AND ti.crcul_id = #{crculId}
+            <if test="tabId != null and tabId != '' ">
+                /*특정 탭별*/
+                and sdri.textbk_tab_id = #{tabId}
+            </if>
+            <if test="stntId != null and stntId != '' ">
+                /*특정 학생별*/
+                and sdri.mamoym_id = #{stntId}
+            </if>
+        )
+        SELECT
+            CASE
+                WHEN NOT EXISTS (SELECT 1 FROM testData WHERE mrk_ty != 3)
+                    OR NOT EXISTS (SELECT 1 FROM testData WHERE sub_mit_anw IS NOT NULL AND sub_mit_anw != '')
+                    /* OR NOT EXISTS (SELECT 1 FROM testData WHERE sub_mit_anw_url IS NOT NULL AND sub_mit_anw_url != '') */
+                    OR NOT EXISTS (SELECT 1 FROM testData WHERE NOT (sub_mit_anw IS NULL OR sub_mit_anw = '') OR NOT (sub_mit_anw_url IS NULL OR sub_mit_anw_url = ''))
+            THEN 'Y'
+            ELSE 'N'
+        END AS allNoSubMitAnwAt;
+
+    </select>
+
+    <select id="findTchReportLastActivity" parameterType="map" resultType="camelHashMap">
+        select
+            case
+                -- 1) 셋 다 null 이면 디폴트 'L' 처리
+                when last_lesson is null and last_task is null and last_evl is null then 'L'
+
+                -- 2) 최대값 = last_lesson 이면 'L'
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01')
+                     ) = coalesce(last_lesson, '1900-01-01') then 'L'
+
+                -- 3) 최대값 = last_task 이면 'H'
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01')
+                     ) = coalesce(last_task, '1900-01-01') then 'H'
+
+                -- 4) 최대값 = last_evl 이면 'E'
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01')
+                     ) = coalesce(last_evl, '1900-01-01') then 'E'
+
+                else null
+                end as last_type,
+
+            -- 최대값 출력 (last_datetime)
+            greatest(
+                    coalesce(last_lesson, '1900-01-01'),
+                    coalesce(last_task, '1900-01-01'),
+                    coalesce(last_evl, '1900-01-01')
+            ) as last_datetime,
+
+            -- 원본 값 출력
+            last_lesson,
+            last_task,
+            last_evl
+
+        from (
+                 select
+                     (select max(mdfy_dt)
+                      from aidt_lms.tc_lastlesson
+                      where wrter_id = #{userId}
+                        and cla_id = #{claId}
+                        and textbk_id = #{textbkId}
+                     ) as last_lesson,
+
+                     (select max(ti.mrk_cp_dt)
+                      from aidt_lms.task_info ti
+                               inner join aidt_lms.task_result_info tri
+                                          on ti.id = tri.task_id
+                      where ti.wrter_id = #{userId}
+                        and ti.cla_id = #{claId}
+                        and ti.textbk_id = #{textbkId}
+                        and tri.eak_stts_cd = 5
+                        and ti.task_stts_cd = 5
+                        and tri.mrk_cp_at = 'Y'
+                     ) as last_task,
+
+                     (select max(ei.mrk_cp_dt)
+                      from aidt_lms.evl_info ei
+                               inner join aidt_lms.evl_result_info eri
+                                          on ei.id = eri.evl_id
+                      where ei.wrter_id = #{userId}
+                        and ei.cla_id = #{claId}
+                        and ei.textbook_id = #{textbkId}
+                        and eri.eak_stts_cd = 5
+                        and ei.evl_stts_cd = 5
+                        and eri.mrk_cp_at = 'Y'
+                     ) as last_evl
+
+             ) as t
+    </select>
+</mapper>

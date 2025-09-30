@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.log.mapper.BtchExcnLogMapper">
+
+    <select id="checkBatchInfoExist" parameterType="string" resultType="camelHashMap">
+        /* BtchExcnLogMapper.checkBatchInfoExist */
+        select
+            id as btch_id
+        from aidt_lms.btch_info bi
+        where bi.btch_nm = #{btchNm}
+        /* and bi.sbjct_cd = sbjctCd
+        and bi.btch_gb_se_cd = btchGbSeCd
+        and bi.cls_nm = clsNm
+        and bi.btch_cron = btchCron */
+    </select>
+
+    <insert id="createBtchInfo" parameterType="map" useGeneratedKeys="true" keyProperty="btchId" keyColumn="id">
+        /* BtchExcnLogMapper.createBtchInfo */
+        INSERT INTO aidt_lms.btch_info
+        (id, sbjct_cd, btch_gb_se_cd, btch_nm, btch_dc, cls_nm, btch_cron)
+        VALUES
+        (null, #{sbjctCd}, #{btchGbSeCd}, #{btchNm}, #{btchDc}, #{clsNm}, #{btchCron})
+    </insert>
+
+    <select id="checkBatchDetailExist" parameterType="map" resultType="camelHashMap">
+        /* BtchExcnLogMapper.checkBatchDetailExist */
+        select
+            *
+        from aidt_lms.btch_excn_detail bed
+        where 1=1
+        <choose>
+            <when test=' btchDetId != null '>
+                and id =#{btchDetId}
+            </when>
+                <otherwise>
+                    <if test="btchId != null and btchId != '' ">
+                        and bed.btch_id = #{btchId}
+                    </if>
+                        and bed.btch_excn_dt = DATE_FORMAT(CURDATE(), "%Y%m%d")
+                        and bed.btch_rslt_at = 'Y'
+                </otherwise>
+            </choose>
+    </select>
+
+
+    <insert id="createBtchDetailInfo" parameterType="map" useGeneratedKeys="true" keyProperty="btchDetId" keyColumn="id">
+        /* BtchExcnLogMapper.createBtchDetailInfo */
+        INSERT INTO aidt_lms.btch_excn_detail
+            (id, btch_id, btch_excn_dt, btch_excn_prg_dt, btch_excn_cp_dt, btch_excn_rslt_cnt, btch_rslt_at, fail_dc)
+        VALUES
+            (null, #{btchId}, DATE_FORMAT(CURDATE(), "%Y%m%d"),
+                now(),
+                now(),
+             0, 'Y', null)
+    </insert>
+
+    <update id="modifyBtchDetailInfo" parameterType="map" >
+        /* BtchExcnLogMapper.modifyBtchDetailInfo */
+        UPDATE aidt_lms.btch_excn_detail
+        SET
+        <if test="btchId != null and btchId != '' ">
+            btch_id = #{btchId},
+        </if>
+        <if test="btchExcnDt != null and btchExcnDt != '' ">
+            btch_excn_dt = #{btchExcnDt},
+        </if>
+            btch_excn_cp_dt = now(),
+        <if test="btchExcnRsltCnt != null ">
+            btch_excn_rslt_cnt = #{btchExcnRsltCnt},
+        </if>
+        <if test='btchRsltAt != null and btchRsltAt != "" '>
+            btch_rslt_at = #{btchRsltAt},
+        </if>
+        <if test="failDc != null and failDc != '' ">
+            fail_dc = #{failDc},
+        </if>
+            mdfy_dt = now()
+        WHERE id =#{btchDetId}
+    </update>
+
+</mapper>

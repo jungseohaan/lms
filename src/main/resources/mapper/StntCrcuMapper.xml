@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.StntCrcuMapper">
+    <select id="selectStntCrcuLastposition" parameterType="map" resultType="camelHashMap">
+        /* StntCrcuMapper.selectStntCrcuLastposition */
+        SELECT
+            id
+           ,wrter_id as user_id
+           ,cla_id
+           ,textbk_id
+           ,textbk_idx_id
+           ,crcul_id
+           ,brand_id
+           ,rgtr
+           ,reg_dt
+           ,mdfr
+           ,mdfy_dt
+        FROM  aidt_lms.std_lastlesson
+        WHERE wrter_id = #{userId}
+        AND textbk_id = #{textbkId}
+        AND cla_id = #{claId}
+        <if test=' id != null and !("").equals(id) '>
+            AND id=#{id}
+        </if>
+        ORDER BY mdfy_dt DESC, reg_dt DESC
+        LIMIT 1
+
+    </select>
+
+    <insert id="createStntCrcuLastposition" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntCrcuMapper.createStntCrcuLastposition */
+        INSERT INTO aidt_lms.std_lastlesson
+        (
+            id
+            ,wrter_id
+            ,cla_id
+            ,textbk_id
+            ,textbk_idx_id
+            ,crcul_id
+            ,brand_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{claId}
+            ,#{textbkId}
+            ,(SELECT textbookIndex_id FROM aidt_lcms.textbook WHERE id = #{textbkId})
+            ,#{crculId}
+            ,null
+            ,#{userId}
+            ,now()
+            ,#{userId}
+            ,now()
+        )
+    </insert>
+
+    <update id="updateStntCrcuLastposition" parameterType="map">
+        /* StntCrcuMapper.updateStntCrcuLastposition */
+        UPDATE aidt_lms.std_lastlesson
+        SET crcul_id = #{crculId}
+            ,mdfr = #{userId}
+            ,mdfy_dt = now()
+        WHERE id = #{id}
+    </update>
+
+
+</mapper>

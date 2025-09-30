@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.article.mapper.TchAutoArticleEngMapper">
+    <select id="findTchHomewkAutoQstnExtrEng" parameterType="map" resultType="camelHashMap">
+        /* TchAutoArticleEngMapper.findTchHomewkAutoQstnExtrEng */
+        select
+            /* RANK() over ( partition by evaluationArea order by frequency, evaluationArea,  id) as rankInfo,  우선순위 부분 체크 */
+            RANK() over (PARTITION BY stdDomain ORDER BY frequency, stdDomain, id) AS rankInfo,
+            A.*
+        from
+            (
+            select
+               a.id,
+               (select val from aidt_lcms.meta where id =(select meta_id from aidt_lcms.article_meta_map where article_id  = a.id and meta_name='studyMap2')) as stdDomain,
+               b.sub_id,
+               a.name,
+               a.thumbnail, /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+               a.curriBook,
+               a.curriUnit1, /* 차시(단원) */
+               a.curriUnit2, /* 차시(단원) */
+               a.curriUnit3, /* 차시(단원) */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'evaluationArea' and x.meta_id = y.id and x.sub_id = 0 limit 1) as evaluationArea, /* 평가영역 */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'evaluationArea3' and x.meta_id = y.id and x.sub_id = 0 limit 1) as evaluationArea3, /* 평가영역 */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'contentsItem' and x.meta_id = y.id and x.sub_id = 0 limit 1) as contentsItem, /* 평가영역 */
+                (select m.val from aidt_lcms.meta m where m.id = b.meta_id) as questionTypeNm,
+                (select m.val from aidt_lcms.meta m where m.id = d.meta_id) difyNm,
+                0 as evlIemScr,
+                (
+                select sum(cnt) from (
+                /* 평가에 출제이력이 있는 문항 */
+                    select count(*) cnt
+                      from aidt_lms.evl_info t1
+                      join aidt_lms.evl_result_info t2 on t2.evl_id = t1.id
+                      join aidt_lms.evl_result_detail t3 on t3.evl_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                      where 1=1
+                           and t1.cla_id = #{claId}
+                           and t1.textbook_id = #{textbookId}
+                        and t3.evl_iem_id = a.id
+               union all
+               /* 과제에 출제이력이 있는 문항 */
+                   select count(*) cnt
+                   from aidt_lms.task_info t1
+                   join aidt_lms.task_result_info t2 on t2.task_id = t1.id
+                   join aidt_lms.task_result_detail t3 on t3.task_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                  where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbookId}
+                     and t3.task_iem_id = a.id
+               union all
+               /* 수업에 출제이력이 있는 문항 */
+                   select count(*) cnt
+                  from aidt_lms.tab_info t1
+                    join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                    join aidt_lms.std_dta_result_detail t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                    where 1=1
+                          and t1.cla_id = #{claId}
+                           and t1.textbk_id = #{textbookId}
+                     and t3.dta_iem_id = a.id
+               union all
+               /* 자기주도학습 */
+                   select count(*) cnt
+                  from aidt_lms.slf_std_info t1
+                  join aidt_lms.slf_std_result_info t2 on t2.std_id = t1.id
+                  where 1=1
+                        and t1.textbk_id = #{textbookId}
+                        and t1.cla_id = #{claId}
+                     and t2.module_id = a.id
+                ) k
+               ) as frequency /* 자동출제문항 빈도수 */
+        from
+            aidt_lcms.article a
+                inner join aidt_lcms.article_meta_map b
+                    on a.id = b.article_id
+                        and b.meta_name = 'questionType'
+                        and b.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+                        and b.sub_id = 0
+                inner join aidt_lcms.article_meta_map c
+                    on a.id = c.article_id
+                        and c.meta_name = 'articleCategory'
+                        and c.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+                        and c.sub_id = 0
+                inner join aidt_lcms.article_meta_map d
+                    on a.id = d.article_id
+                        and d.meta_name = 'difficulty'
+                        and d.meta_id in (select id from aidt_lcms.meta where name = 'difficulty' and `code` in (#{difyCode})) /* 난이도 */
+                        and d.sub_id = 0
+        where
+            1=1
+                and a.is_active = 1
+                and a.is_publicOpen = 1
+                and a.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+                and a.articleType in (
+                    select id from aidt_lcms.meta where name = 'articleType' and code = 'question' /* 유형(문항) */
+                )
+                and a.id in (
+                   select article_id from aidt_lcms.article_meta_map where meta_id in (<foreach item="item" collection="eamScp" separator=",">#{item}</foreach>) /* 요청파라미터 : 출제범위(eamScp) 값 */
+                )
+        ) A
+        where 1 =1
+             and (
+                curriUnit1 is not null
+              or curriUnit2    is not null
+              or curriUnit3    is not null
+              or evaluationArea is not null
+              or evaluationArea3 is not null
+              or contentsItem is not null)
+        order by
+            rankInfo,
+            evaluationArea /* 우선순위 부분 체크 */
+        limit #{difyLimit}
+    </select>
+</mapper>

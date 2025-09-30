@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.selflrn.mapper.StntStdAiMapper">
+    <select id="findStntStdAi_slfAiStdInfo" parameterType="map" resultType="camelHashMap">
+        /* StntStdAiMapper.findStntStdAi_slfAiStdInfo */
+        select asi.*
+        from   aidt_lms.slf_ai_std_info asi
+        where  asi.stdt_id = #{userId}
+        and    asi.textbk_id = #{textbookId}
+        and	   asi.cla_id = #{claId}
+        and    asi.unit_num = #{unitNum}
+		<if test="stdAiId != null and stdAiId != '' ">and    asi.id = #{stdAiId}</if>
+        limit 1
+    </select>
+
+    <select id="findStntStdAi_stdUsdInfo" parameterType="map" resultType="camelHashMap">
+        select x.* from (
+        	select a.id as stdUsdId
+		         , a.unit_num
+        	     , a.meta_id
+        	     , a.kwg_main_id
+        	     , a.usd_scr
+        	     , case
+        	           when a.usd_scr > 80 then 'lv4'
+        	           when a.usd_scr <![CDATA[<=]]> 80 and a.usd_scr > 50 then 'lv3'
+        	           when a.usd_scr <![CDATA[<=]]> 50 and a.usd_scr > 30 then 'lv2'
+        	           else 'lv1'
+        	       end as lvlId
+        	     , case
+        	           when a.usd_scr > 80 then '중상'
+        	           when a.usd_scr <![CDATA[<=]]> 80 and a.usd_scr > 50 then '중'
+        	           when a.usd_scr <![CDATA[<=]]> 50 and a.usd_scr > 30 then '중하'
+        	           else '하'
+        	       end as lvlNm
+        	from std_usd_info a
+        	where a.std_at = 'Y'
+        	  and a.stdt_id = #{userId}
+        	  and a.textbk_id = #{textbookId}
+        	  and a.cla_id = #{claId}
+        	  and a.unit_num = #{unitNum}
+        	order by a.usd_scr
+        	limit 3
+        ) x order by x.usd_scr desc
+    </select>
+
+	<select id="findStntStdAi_newArticleId" parameterType="map" resultType="camelHashMap">
+		 /* StntStdAiMapper.findStntStdAi_newArticleId */
+		select article_id
+		from aidt_lcms.article_meta_map
+		where meta_name = 'difficulty'
+		  and meta_id in (
+		    /* 레벨 영역 */
+		    select id
+		    from aidt_lcms.meta
+		    where id in (select meta_id
+		                 from aidt_lcms.article_meta_map
+		                 where meta_name = 'difficulty'
+		                   and (article_id, sub_id) in
+		                       (select article_id, sub_id
+		                        from aidt_lcms.article_meta_map
+		                        where meta_name = 'studyMap_1' /* 지식요인 */
+		                          and meta_id = #{kwgMainId}          /* @지식요인 meta_id */
+		                        group by article_id, sub_id)
+		                 group by meta_id)
+		      and val = #{lvlNm}) /* @레벨 # 위의 쿼리의 레벨 초기 값. 레벨 변경 요인에 따라 다시 호출 */
+		  and article_id in
+		      (
+		          /* 유형 영역 */
+		          select article_id
+		          from aidt_lcms.article_meta_map
+		          where meta_name = 'studyMap_2'
+					AND sub_id = 0
+					<choose>
+						<when test="studyMapTwoId != null and studyMapTwoId != '' ">
+							and meta_id = #{studyMapTwoId}
+						</when>
+						<otherwise>
+							and meta_id in (select id
+															    from aidt_lcms.meta
+															    where id in (select meta_id
+															 				from aidt_lcms.article_meta_map
+															 				where meta_name = 'studyMap_2'
+															 				  and (article_id, sub_id) in
+															 					  (select article_id, sub_id /* 지식요인으로 article id 구하기 */
+															 					   from aidt_lcms.article_meta_map
+															 					   where meta_name = 'studyMap_1' /* 지식요인 */
+															 						 and meta_id = #{kwgMainId}          /* @지식요인 meta_id */
+															 					   group by article_id, sub_id)
+															 				group by meta_id)
+															    )
+						</otherwise>
+					</choose>
+
+		            and article_id in (
+		              /* 지식요인 영역 */
+									select article_id
+									  from aidt_lcms.article
+									 where article_id in (select article_id
+														    from aidt_lcms.article_meta_map
+														   where meta_name = 'studyMap_1'        /* 지식요인 */
+															 and meta_id = #{kwgMainId}          /* @지식요인 meta_id */
+															AND sub_id = 0
+														   group by article_id)
+											and is_publicOpen = '1'))							 /* 대상 artilce 모수를 오픈된 것으로 한정 */
+		  /* 학습하지 않은 article */
+		  and article_id not in (
+		    /* 현재 AI학습이력 조회 테이블 구조 변경에 따라 변경가능성 */
+		    select module_id
+		    from aidt_lms.slf_ai_std_result_info
+		    where std_ai_id in
+		          (select id from slf_ai_std_info where stdt_id = #{userId} and textbk_id = #{textbookId} and cla_id = #{claId} and unit_num = #{unitNum}))
+		order by rand()
+		limit 1
+	 </select>
+
+	<select id="findStntStdAi_studyMapTwo" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntStdAi_studyMapTwo */
+		select meta_id as studyMapTwoId
+		from aidt_lcms.article_meta_map
+		where meta_name = 'studyMap_2'
+		and article_id = #{moduleId}
+		and sub_id = 0
+	 </select>
+
+	<insert id="createStntStdAi_slfAiStdInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+		/* StntStdAiMapper.createStntStdAi_slfAiStdInfo */
+		insert into aidt_lms.slf_ai_std_info (id, std_nm, stdt_id, cla_id, textbk_id, unit_num, ed_at, rgtr, reg_dt, mdfr, mdfy_dt)
+		values (null, (select val from aidt_lcms.meta where id = #{metaId})
+		      , #{userId}, #{claId}, #{textbookId}, #{unitNum}, 'N', 'system', now(), 'system', now());
+	</insert>
+
+	<insert id="createStntStdAi_aiStdResultInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+		/* StntStdAiMapper.createStntStdAi_aiStdResultInfo */
+		insert into aidt_lms.slf_ai_std_result_info (id, std_ai_id, module_id, std_usd_id, lvl_id, lvl_nm, kwg_main_id, usd_scr, std_at,
+		                                mrk_cp_at, std_st_dt, sm_exm_at, src_result_info_id, ai_tut_use_at,hnt_use_at)
+		values (null, #{id}, #{articleId}, #{stdUsdId}, #{lvlId}, #{lvlNm}, #{kwgMainId}, #{usdScr}, 'N'
+		        , 'N', now(), #{smExmAt}, #{srcResultInfoId}, 'N', 'N');
+	</insert>
+
+	<select id="findStntStdAi_aiStdResultInfo" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntStdAi_aiStdResultInfo */
+		select concat(1, ' 단원 > ', a.name, ' > ', lvl_nm ) as stdNm
+		     , asri.*
+		from   aidt_lms.slf_ai_std_result_info asri
+		left join aidt_lcms.article a on a.id = asri.module_id
+		where  asri.id = #{id}
+	</select>
+
+	<update id="modifyStntStdAi_aiStdResultInfo" parameterType="map" >
+		/* TchEvalMapper.modifyStntStdAi_aiStdResultInfo */
+		UPDATE aidt_lms.slf_ai_std_result_info
+		set
+		  std_at ='Y'
+		, std_ed_dt = now()
+		<if test="subMitAnw != null and subMitAnw != '' ">, sub_mit_anw=#{subMitAnw}</if>
+		<if test="subMitAnwUrl != null and subMitAnwUrl != '' ">, sub_mit_anw_url=#{subMitAnwUrl}</if>
+		<if test="errata != null and errata != '' ">, errata=#{errata}</if>
+		<if test="aiTutId != null and aiTutId != '' ">, ai_tut_id=#{aiTutId}</if>
+		<if test="aiTutUseAt != null and aiTutUseAt != '' ">, ai_tut_use_at=#{aiTutUseAt}</if>
+		<if test="aiTutChtCn != null and aiTutChtCn != '' ">, ai_tut_cht_cn=#{aiTutChtCn}</if>
+		<if test="hdwrtCn != null and hdwrtCn != '' ">, hdwrt_cn=#{hdwrtCn}</if>
+		<if test="hntUseAt != null and hntUseAt != '' ">, hnt_use_at=#{hntUseAt}</if>
+		, mdfr = 'system'
+		, mdfy_dt = now()
+		where id = #{id}
+		  and std_at = 'N'
+	</update>
+
+	<select id="findStntStdAi_slfAiStdInfo_aiStdResultInfo" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntStdAi_slfAiStdInfo_aiStdResultInfo */
+		select cast(SUBSTRING(asri.lvl_id, 3) as unsigned) lv_num, ifnull(asri.errata,2) as errata, asri.*
+		from aidt_lms.slf_ai_std_info asi
+		join aidt_lms.slf_ai_std_result_info asri on asri.std_ai_id = asi.id
+		where asi.id = #{stdAiId}
+		  and asri.kwg_main_id = #{kwgMainId}
+	</select>
+
+	<update id="modifyStntStdAi_aiStdInfo_edAt" parameterType="map" >
+		/* StntStdAiMapper.modifyStntStdAi_aiStdInfo_edAt */
+		UPDATE aidt_lms.slf_ai_std_info
+		set
+		  ed_at ='Y'
+		, mdfr = 'system'
+		, mdfy_dt = now()
+		where id = #{stdAiId}
+		  and stdt_id =#{userId}
+	</update>
+
+	<select id="findStntStdAi_rwdEarnHist" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntStdAi_rwdEarnHist */
+		select reh.*
+		from aidt_lms.rwd_earn_hist reh
+		where reh.id = #{rwdHistId}
+	</select>
+
+	<select id="findStntStdAi_rwdEarnHist_total" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntStdAi_rwdEarnHist_total */
+		select ifnull(sum(rwd_amt), 0) as rwdAmtTotal
+		from aidt_lms.slf_ai_std_info asi
+		join aidt_lms.slf_ai_std_result_info asri on asri.std_ai_id = asi.id
+		join aidt_lms.rwd_earn_hist reh on reh.trgt_id = asri.id and asi.stdt_id = reh.user_id
+		where asi.stdt_id = #{userId}
+		  and asi.textbk_id = #{textbookId}
+		  and asi.cla_id = #{claId}
+		  and asi.unit_num = #{unitNum}
+		  and reh.cla_id = #{claId}
+		  and reh.se_cd = 1
+	</select>
+
+	<select id="findStntSelfStdInfoList" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntSelfStdInfoList */
+		select
+			id,
+			module_id,
+			std_usd_id,
+			lvl_id,
+			lvl_nm,
+			kwg_main_id,
+			usd_scr,
+			std_at,
+			sub_mit_anw,
+			sub_mit_anw_url,
+			errata,
+			sm_exm_at,
+			src_result_info_id,
+			ai_tut_id,
+			ai_tut_use_at,
+			ai_tut_cht_cn,
+			hdwrt_cn,
+			hnt_use_at
+		from aidt_lms.slf_ai_std_result_info
+		where
+			std_ai_id = (select id from aidt_lms.slf_ai_std_info
+			            	where 1 = 1
+			            	  and stdt_id = #{userId}
+			            	  and textbk_id = #{textbookId}
+			            	  and cla_id = #{claId}
+			            	  and unit_num = #{unitNum})
+		order by std_st_dt
+	</select>
+
+	<select id="findSlfAiStdResultInfo" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findSlfAiStdResultInfo */
+		select
+		a.textbk_id
+		,date_format(now(),'%Y%m%d') as wrtYmd
+		,b.module_id
+		,b.sub_id
+		,a.id as trgtId
+		,b.id as wonAnwTgId
+		,a.std_nm as wonAnwNm
+		from aidt_lms.slf_ai_std_info a
+		join aidt_lms.slf_ai_std_result_info b on a.id = b.std_ai_id
+		where a.id = #{stdAiId}
+	</select>
+
+	<update id="modifyStntStdAiInit_edAt" parameterType="map" >
+		/* StntStdAiMapper.modifyStntStdAiInit_edAt */
+		UPDATE aidt_lms.slf_ai_std_info
+		set    ed_at ='Y'
+		     , mdfr = 'system'
+	     	 , mdfy_dt = now()
+		where  stdt_id = #{userId}
+		and    textbk_id = #{textbookId}
+		and	   cla_id = #{claId}
+		and    unit_num = #{unitNum}
+	</update>
+
+</mapper>

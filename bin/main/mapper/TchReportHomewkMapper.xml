@@ -1,0 +1,1440 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.homework.mapper.TchReportHomewkMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+    <select id="findTchReportHomewkTaskList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchReportHomewkTaskList */
+        select 	(count(*) over () + 1) - (row_number() over (order by ti.id desc)) as no
+            , ti.id /* 평가아이디 */
+            , ti.eam_mth /* 출제방법코드 */
+            , aidt_lms.F_CODE_NM('eam_mth', ti.eam_mth) eamMthNm /* 출제방법명 */
+            , ti.eam_trget /* 출제대상 */
+            , aidt_lms.F_CODE_NM('eam_trget', ti.eam_trget) eam_trget_nm /* 출제대상명 */
+            , ti.task_nm /* 과제명 */
+            , ti.task_stts_cd /* 과제상태 */
+            , aidt_lms.F_CODE_NM('task_stts_cd', ti.task_stts_cd) taskSttsNm /* 과제상태명 */
+            , DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d %H:%i:%s') as taskPrgDt /* 과제시작날짜 */
+            , DATE_FORMAT(ti.task_cp_dt, '%Y-%m-%d %H:%i:%s') as taskCpDt /* 과제마감날짜 */
+            , (select count(1) from aidt_lms.task_result_info tri where tri.task_id = ti.id) targetCnt /* 대상자수 */
+            , (select count(1) from aidt_lms.task_result_info tri where tri.task_id = ti.id and tri.subm_at = 'Y') submitCnt /* 제출자수 */
+            , (select case when count(case when eak_stts_cd != 5 then 1 end) > 0
+                    then '채점필요' else '채점완료' end
+                from aidt_lms.task_result_info
+                where task_id = ti.id) as gradeSttsNm /* 채점상태 */
+            , ti.rpt_othbc_at /* 공개여부 */
+            , DATE_FORMAT(ti.rpt_othbc_dt, '%Y-%m-%d %H:%i:%s') as rpOthbcDt /* 공개일시 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                    from 	aidt_lms.task_scr_md_info tsmi
+                    join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                    join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                    where 	1=1
+                    and 	tri.task_id = ti.id
+                    and 	tsmi.md_rflt_at = 'N') as applScrAt /* 수정 반영 여부 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                from 	aidt_lms.task_scr_md_info tsmi
+                join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                where 	1=1
+                and 	tri.task_id = ti.id ) as modifyHistAt /* 수정 이력 존재 여부 */
+            , count(*) over () as full_count
+            /* 		, tri.subm_at */
+            , (select count(c.id) as cnt
+                from aidt_lms.task_info a
+                left outer join aidt_lcms.setsummary b
+                    on a.sets_id = b.set_id
+                left outer join aidt_lcms.meta c
+                    on b.gradingMethod = c.id
+                    and c.name = 'gradingMethod'
+                    and c.code = 'manual'
+                where a.id = ti.id) as manualCnt  /* 수동채점 갯수 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                from 	aidt_lms.task_scr_md_info tsmi
+                join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                where 	1=1
+                and 	tri.task_id = ti.id ) as modifyHistAt /* 수정 이력 존재 여부 */
+        from 	aidt_lms.task_info ti
+        where 	1=1
+        and 	ti.cla_id = #{param.claId}
+        and 	ti.textbk_id = #{param.textbookId}
+        and 	ti.task_stts_cd >= 3 /* 상태가 완료된 건만 조회 */
+        and     not exists (select 1
+                            from aidt_lms.task_result_info tri
+                            where 	tri.task_id = ti.id
+                            and 	tri.eak_stts_cd <![CDATA[ < ]]> 3
+                ) /* 모든 학생이 완료된 건만 조회 */
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test="param.condition == 'name' ">
+                and ti.task_nm like concat('%',#{param.keyword},'%')
+            </if>
+            <if test="param.condition == 'gubun'">
+                and ti.eam_mth = #{param.keyword}
+            </if>
+            <if test="param.condition == 'status' ">
+                <if test="param.keyword == '1' or param.keyword == 1 ">
+                    and 	(select count(case when eak_stts_cd != 5 then 1 end)
+                    from aidt_lms.task_result_info
+                    where task_id = ti.id) > 0 /* 채점필요*/
+                </if>
+                <if test="param.keyword == '2' or param.keyword == 2 ">
+                    and 	(select count(case when eak_stts_cd != 5 then 1 end)
+                    from aidt_lms.task_result_info
+                    where task_id = ti.id) = 0 /* 채점완료*/
+                </if>
+            </if>
+            <if test="param.condition == 'date' ">
+                and (
+                (ti.task_prg_dt <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                ti.task_prg_dt <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                or (ti.task_cp_dt  <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                ti.task_cp_dt  <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                or (ti.task_prg_dt <![CDATA[<]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                ti.task_cp_dt  <![CDATA[>=]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                )
+            </if>
+        </if>
+        <if test='"Y".equals(param.reqGradeTaskAt)'>
+            and 	(select count(case when eak_stts_cd != 5 then 1 end)
+            from aidt_lms.task_result_info
+            where task_id = ti.id) > 0 /* 채점필요*/
+        </if>
+        <if test='"N".equals(param.reqGradeTaskAt)'>
+            and 	(select count(case when eak_stts_cd != 5 then 1 end)
+            from aidt_lms.task_result_info
+            where task_id = ti.id) = 0 /* 채점완료*/
+        </if>
+        group by ti.id
+        order by ti.task_prg_dt desc
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findReportHomewkResultList_main" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultList_main */
+        select 	ti.id /* 과제ID */
+                , ti.task_nm /* 과제명 */
+                , tri.sets_id /* 셋트지 ID */
+                , ti.rpt_othbc_at
+                , ti.rpt_auto_othbc_at
+                , DATE_FORMAT(ti.rpt_othbc_dt, '%Y-%m-%d %H:%i:%s') as rpOthbcDt
+                , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                        from 	aidt_lms.task_scr_md_info tsmi
+                        join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                        join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                        where 	1=1
+                        and 	tri.task_id = #{taskId}
+                        and 	tsmi.md_rflt_at = 'N') as applScrAt
+                , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                    from 	aidt_lms.task_scr_md_info tsmi
+                    join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                    join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                    where 	1=1
+                    and 	tri.task_id = #{taskId} ) as modifyHistAt
+                , (select count(id) from aidt_lms.task_result_info a where a.task_id = #{taskId} and a.subm_at = 'Y') as submStntCnt /* 제출자 수 */
+                , (select count(id) from aidt_lms.task_result_info a where a.task_id = #{taskId} and a.subm_at = 'N') as notSubmStntCnt /* 미제출자 수 */
+        from 	aidt_lms.task_info ti
+                left join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        WHERE 	1=1
+          and 	ti.id = #{taskId}
+        group by ti.id
+    </select>
+
+    <select id="findReportHomewkResultListStnt_main" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultList_main */
+        select 	ti.id /* 과제ID */
+             , ti.task_nm /* 과제명 */
+             , tri.sets_id /* 셋트지 ID */
+        from 	aidt_lms.task_info ti
+                    left join aidt_lms.task_result_info tri on tri.task_id = ti.id and tri.mamoym_id = #{userId}
+        WHERE 	1=1
+          and 	ti.id = #{taskId}
+        group by ti.id
+    </select>
+
+
+    <select id="findReportHomewkResultList_mdulList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultList_mdulList */
+        select vtrd.task_iem_id
+             , vtrd.sub_id
+             , va.thumbnail
+             , ROUND(SUM(CASE WHEN tri.subm_at = 'Y' AND aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id) = 1 THEN 1
+                WHEN tri.subm_at = 'Y' AND aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id) = 3 THEN 0.5
+                WHEN tri.subm_at = 'Y' AND aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id) = 2 THEN 0
+                ELSE 0 END) /
+                NULLIF(SUM(CASE WHEN tri.subm_at = 'Y' THEN 1 ELSE 0 END), 0) * 100, 2) AS avgCorrectRate
+             , min(va.articleType) as articleType
+             , min(m.val) as articleTypeNm
+        from aidt_lms.task_result_info tri
+        left join aidt_lms.task_result_detail vtrd on vtrd.task_result_id = tri.id
+        left join aidt_lcms.article va on vtrd.task_iem_id = va.id
+        left join aidt_lcms.meta m on va.articleType = m.id
+        where 1=1
+          and tri.task_id = #{taskId}
+        <if test="submAt != null and submAt != '' ">
+          AND tri.subm_at = #{submAt}
+        </if>
+        <if test="userId != null and userId != '' ">
+            and tri.mamoym_id = #{userId}
+        </if>
+        <if test="taskIemId != null and taskIemId != '' ">
+            and vtrd.task_iem_id = #{taskIemId}
+        </if>
+        group by vtrd.task_iem_id
+                , vtrd.sub_id
+        order by vtrd.id, vtrd.task_iem_id, vtrd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultList_stntMdulList" parameterType="map" resultType="camelHashMap">
+        /* TchReportHomewkMapper.findReportHomewkResultList_stntMdulList */
+        select trd.task_iem_id
+             , trd.sub_id
+             , va.thumbnail
+             , (select ROUND(count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(b.id) = 1 then 1 end) / count(case when ifnull(aidt_lms.F_GET_TCH_TASK_ERRATA(b.id), 0) not in (4,0) then 1 end) * 100, 2)
+                from aidt_lms.task_result_info a
+                inner join aidt_lms.task_result_detail b on a.task_id = #{taskId}
+                where a.id = b.task_result_id
+                  and b.task_iem_id = #{taskIemId} and b.sub_id = #{subId}) AS avgCorrectRate
+        from aidt_lms.task_result_info tri
+                 left join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+                 left join aidt_lcms.article va on trd.task_iem_id = va.id
+        where 	1=1
+          and 	tri.task_id = #{taskId}
+          and 	tri.mamoym_id = #{userId}
+          and 	trd.task_iem_id = #{taskIemId}
+          and 	trd.sub_id = #{subId}
+        group by trd.task_iem_id
+               , trd.sub_id
+               , va.thumbnail
+    </select>
+
+    <select id="findReportHomewkResultList_stntList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultList_stntList */
+        select tri.mamoym_id as user_id /* 학생id */
+             , sri.flnm /* 학생명 */
+             , tri.id as taskResultId /* 과제결과id */
+             , vtrd.task_iem_id /* 과제항목id */
+             , vtrd.sub_id
+             , vtrd.mrk_ty /* 채점유형 */
+             , aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id) as errata /* 정오표 */
+             , vtrd.eak_at
+             , tri.subm_at
+             , vtrd.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd',vtrd.eak_stts_cd) as eak_stts_nm
+             , a.thumbnail
+             , tri.sets_id
+             /* , ifnull(tsmi.md_rflt_at,'N') as mdRfltAt */
+             , ( select IF (count(1) > 0 , 'Y', 'N' )
+                from aidt_lms.task_scr_md_info tsmi
+                where tsmi.task_result_detail_id = vtrd.id and md_rflt_at='N') as mdScrAt  /* 점수수정여부 */
+             , tcmi.actvtn_at
+        from aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = tri.mamoym_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id and tri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        left join aidt_lms.task_result_detail vtrd on vtrd.task_result_id = tri.id
+        left join aidt_lcms.article a on a.id = vtrd.task_iem_id
+        /* LEFT join aidt_lms.task_scr_md_info tsmi on tsmi.task_result_detail_id = vtrd.id */
+        where 1=1
+          and tri.task_id = #{taskId}
+          <if test="submAt != null and submAt != '' ">
+            AND tri.subm_at = #{submAt}
+          </if>
+          <if test="stntId != null and stntId != '' ">
+            AND tri.mamoym_id = #{stntId}
+          </if>
+          and vtrd.task_iem_id = #{taskIemId}
+          and vtrd.sub_id = #{subId}
+        order by sri.num
+    </select>
+
+    <select id="findReportHomewkResultList_allStntList" parameterType="map" resultType="camelHashMap">
+        /* TchReportHomewkMapper.findReportHomewkResultList_allStntList */
+        SELECT
+            tri.mamoym_id AS user_id /* 학생id */
+            , sri.flnm /* 학생명 */
+            , tri.id AS taskResultId /* 과제결과id */
+            , vtrd.task_iem_id /* 과제항목id */
+            , vtrd.sub_id
+            , vtrd.mrk_ty /* 채점유형 */
+            <choose>
+                <when test="tchId != null and tchId !=''">
+                    , aidt_lms.F_GET_TCH_TASK_ERRATA(vtrd.id) as errata
+                </when>
+                <otherwise>
+                    , vtrd.errata
+                </otherwise>
+            </choose>
+            , vtrd.eak_at
+            , tri.subm_at
+            , vtrd.eak_stts_cd
+            , aidt_lms.F_CODE_NM('eak_stts_cd',vtrd.eak_stts_cd) AS eak_stts_nm
+            , a.thumbnail
+            , tri.sets_id
+            , ( SELECT IF (count(1) > 0 , 'Y', 'N' )
+                FROM aidt_lms.task_scr_md_info tsmi
+                WHERE tsmi.task_result_detail_id = vtrd.id AND md_rflt_at='N') AS mdScrAt  /* 점수수정여부 */
+            , tcmi.actvtn_at
+            <if test="null != eamMth and 4 == eamMth">
+            , COUNT(tri.mamoym_id) OVER(PARTITION BY tri.mamoym_id) AS task_iem_count
+            </if>
+        FROM aidt_lms.task_info ti
+            INNER JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id
+            LEFT JOIN aidt_lms.stdt_reg_info sri ON sri.user_id = tri.mamoym_id
+            LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON ti.cla_id = tcmi.cla_id AND tri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+            LEFT JOIN aidt_lms.task_result_detail vtrd ON vtrd.task_result_id = tri.id
+            LEFT JOIN aidt_lcms.article a ON a.id = vtrd.task_iem_id
+        WHERE 1=1
+            AND tri.task_id = #{taskId}
+            <if test="submAt != null and submAt != '' ">
+                AND tri.subm_at = #{submAt}
+            </if>
+            <if test="stntId != null and stntId != '' ">
+                AND tri.mamoym_id = #{stntId}
+            </if>
+        <if test="taskIemInfoList != null and taskIemInfoList.size() > 0">
+            AND (vtrd.task_iem_id, vtrd.sub_id) IN
+            <foreach collection="taskIemInfoList" item="item" open="(" separator="," close=")">
+                (#{item.taskIemId}, #{item.subId})
+            </foreach>
+        </if>
+        ORDER BY
+        <choose>
+          <when test="null != eamMth and 4 == eamMth">
+            task_iem_count DESC
+          </when>
+          <otherwise>
+            sri.num
+          </otherwise>
+        </choose>
+    </select>
+
+    <select id="findReportHomewkResultList_stntTaskErrataInfList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultList_stntTaskErrataInfList */
+        select tri.mamoym_id as user_id /* 학생id */
+             , tri.subm_at
+             , sri.flnm /* 학생명 */
+             , sum(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 and trd.mrk_ty != 3 then 1 else 0 end) as anwNum /* 정답수 */
+             , sum(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 2 and trd.mrk_ty != 3 and tri.subm_at = 'Y' then 1 else 0 end) as wrngNum /* 오답수 */
+             , sum(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 3 and trd.mrk_ty != 3 then 1 else 0 end) as triNum /* 세모수 */
+             , tcmi.actvtn_at
+        from aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = tri.mamoym_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id and tri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+        <if test="submAt != null and submAt != '' ">
+            AND tri.subm_at = #{submAt}
+        </if>
+        group by tri.mamoym_id, sri.flnm
+        order by sri.flnm
+    </select>
+
+
+    <select id="tchReportHomewkResultDetailMdul_taskInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.tchReportHomewkResultDetailMdul_taskInfo */
+        select trd.task_iem_id /* 모듈ID */
+             , trd.sub_id
+             , va.thumbnail /* 섬네일 */
+             , count(*) as targetCnt /* 대상자수 - 미응시자는 제외(20240320 요청사항) - 미응시자 포함임(20240405) 제외는 우리반 분석만 해당 */
+             , count(case when tri.subm_at = 'Y' then 1 end) as submitCnt /* 제출자수 */
+             , ROUND(count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) / count(case when ifnull(aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id), 0) not in (4,0) then 1 end) * 100, 2) AS avgCorrectRate /* 정답율: errata - 미제출자는 오답처리 (20240320 요청사항) */
+        from aidt_lms.task_result_detail trd
+                 join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                 join aidt_lcms.article va on va.id = trd.task_iem_id
+        where 1=1
+          and tri.task_id = #{taskId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+/*           and tri.eak_at = 'Y'  미응시자는 제외(20240320 요청사항) */
+        group by trd.task_iem_id
+               , trd.sub_id
+               , va.thumbnail
+    </select>
+
+    <select id="tchReportHomewkResultDetailMdul_image" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.tchReportHomewkResultDetailMdul_image */
+        select  va.url
+             , va.image
+        from 	aidt_lcms.article va
+        where 	va.id = #{taskIemId}
+    </select>
+
+    <select id="tchReportHomewkResultDetailMdul_mdulInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.tchReportHomewkResultDetailMdul_mdulInfo */
+        select  F_META_VAL(`curriYear`, va.curriYear) as curriYear
+             , F_META_VAL(`curriSchool`, va.curriSchool) as curriSchool
+             , F_META_VAL(`curriSubject`, va.curriSubject) as curriSubject
+             , F_META_VAL(`curriGrade`, va.curriGrade) as curriGrade
+             , F_META_VAL(`curriSemester`, va.curriSemester) as curriSemester
+             , F_META_VAL(`articleType`, va.articleType) as articleType
+             , (select m.val from aidt_lms.task_info ti
+                                      inner join aidt_lcms.`sets` s on ti.sets_id = s.id
+                                      inner join aidt_lcms.meta m on s.setCategory = m.id where ti.id = #{taskId}) as setCategory
+             , (select m2.val from aidt_lms.task_info ti
+                                       inner join aidt_lcms.textbook t on t.id = ti.textbk_id
+                                       inner join aidt_lcms.meta m2 on m2.id = t.textbookCategory where ti.id = #{taskId}) as textbookType
+        from 	aidt_lcms.article va
+        where 	va.id = #{taskIemId};
+    </select>
+
+    <select id="findHomewkResultDetailStnt_stntInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findHomewkResultDetailStnt_stntInfo */
+        select  sri.user_id
+                , sri.flnm
+        from 	aidt_lms.stdt_reg_info sri
+        where 	sri.user_id = #{userId}
+    </select>
+
+    <select id="findHomewkReportErrataInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchReportHomewkMapper.findHomewkReportErrataInfoList */
+        select trd.task_iem_id
+             , trd.mrk_ty
+             , trd.eak_stts_cd
+             , trd.eak_at
+             , aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) as errata
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findHomewkResultDetailStnt_stntResultInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findHomewkResultDetailStnt_stntResultInfo */
+        select 	trd.id /* 과제결과상세 id */
+             , tri.id as taskResultId /* 과제결과 id */
+             , trd.task_iem_id /* 과제항목 id */
+             , trd.sub_id
+             , aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) as errata /* 정오표 */
+             , tri.subm_at /* 제출여부 */
+             , trd.sub_mit_anw /* 제출답안 */
+             , trd.sub_mit_anw_url /* 제출답안 url */
+             , trd.fdb_dc /* 피드백 */
+             , trd.mrk_ty
+             , (select json_extract(questionStr, '$."rubrics"') from aidt_lcms.article where id = trd.task_iem_id) as rubric
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, trd.eak_st_dt, trd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solvTime /* 풀이시간 */
+             , a.articleType
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        inner join aidt_lcms.article a on a.id = trd.task_iem_id
+        WHERE 	1=1
+          AND 	tri.mamoym_id = #{userId}
+          and 	trd.task_iem_id = #{taskIemId}
+          and   trd.sub_id = #{subId}
+          and 	tri.task_id = #{taskId}
+    </select>
+
+
+    <select id="tchReportHomewkResultDetailMdul_classAnalysisInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.tchReportHomewkResultDetailMdul_classAnalysisInfo */
+        select ROUND(SUM(CASE aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 WHEN 2 THEN 0 END) / COUNT(trd.id) * 100, 2) AS correctRate /*  정답율: errata - 미제출자는 오답처리 (20240320 요청사항) */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, trd.eak_st_dt, trd.eak_ed_dt)/1000000), 0)),'%H:%i:%s') AS solvSecAvr /*  풀이시간 초 */
+             , ROUND(AVG(IF(tri.subm_at = 'Y', IFNULL(trd.re_idf_cnt, 0), NULL)), 0) as reIdfCntAvg /*  재확인 횟수 평균 - 미제출자는 제외(20240320 요청사항) */
+             , avg(IFNULL(trd.anw_chg_cnt, 0)) anwChgCntAvg /*  답안변경 횟수 평균 */
+             , null as answerRateStr /*  지문별 응답율 - java 로직 AidtCommonUtil.getAnswerCountString 으로 대체. */
+        from aidt_lms.task_result_detail trd
+                 join aidt_lms.task_result_info tri on trd.task_result_id = tri.id
+        where 1=1
+          and tri.task_id = #{taskId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+          and tri.eak_at = 'Y' /*  미응시자는 제외(20240320 요청사항) */
+    </select>
+
+    <select id="tchReportHomewkResultDetailMdul_classAnalysisInfo_answers" parameterType="map" resultType="String" >
+        /* TchReportHomewkMapper.tchReportHomewkResultDetailMdul_classAnalysisInfo_answers */
+        select trd.sub_mit_anw
+        from aidt_lms.task_result_detail trd
+                 join aidt_lms.task_result_info tri on trd.task_result_id = tri.id
+                 join aidt_lcms.article_meta_map amm on amm.article_id = trd.task_iem_id and amm.meta_name = 'questionType'
+                 join aidt_lcms.meta m on amm.meta_id = m.id and m.code in ('scqz', 'mcqz', 'oxqz', 'tfqz') /* 단일선택형/다중선택형/OX형/TF형 일때만 */
+        where 1=1
+          and tri.task_id = #{taskId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+          and tri.eak_at = 'Y' /* 미응시자는 제외(20240320 요청사항) */
+          and TRIM(trd.sub_mit_anw) != ''
+    </select>
+
+
+
+    <select id="tchReportHomewkResultDetailMdul_commentary" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.tchReportHomewkResultDetailMdul_commentary */
+        select  group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+             , group_concat(case when la.part = 'model-answer' then la.data end order by la.sub_id separator '\n') as modelAnswer
+             , group_concat(case when la.part = 'explanation' then la.data end order by la.sub_id separator '\n') as explanation
+        from 	aidt_lcms.log_articlepart la
+        where 	1 = 1
+          and 	la.article_id = #{taskIemId}
+          and   la.sub_id = #{subId}
+        group by la.article_id
+    </select>
+
+
+    <select id="findTchStntSrchReportTaskSummary_main" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchStntSrchReportTaskSummary_main */
+        select 	ti.id /* 과제 아이디 */
+             , ti.task_nm /* 과제명 */
+             , ti.sets_id /* 셋트지 ID */
+             , (select DISTINCT CONCAT(grade_cd, '학년 ', cla_cd, '반') from aidt_lms.tc_cla_info tci where tci.cla_id = ti.cla_id) classNm /* 학년반 */
+             , aidt_lms.F_CODE_NM('eam_mth', ti.eam_mth) as resultTypeNm /* 출제방법 */
+             , DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d %H:%i:%s') as taskPrgDt /* 과제시작날짜 */
+             , DATE_FORMAT(ti.task_cp_dt, '%Y-%m-%d %H:%i:%s') as taskCpDt /* 과제마감날짜 */
+             , tri.subm_at /* 제출여부 */
+             , DATE_FORMAT(tri.subm_dt, '%Y-%m-%d %H:%i:%s') as submDt /* 제출날짜 */
+             , ti.tim_time /* 제한시간 */
+             , (select count(1) from aidt_lms.task_result_detail trd where trd.task_result_id = tri.id ) as eamExmNum /* 총문제수 */
+             , TIME_FORMAT(
+                SEC_TO_TIME(
+                        ROUND(AVG(TIMESTAMPDIFF(SECOND, tri.eak_st_dt, tri.eak_ed_dt)))
+                ), '%H:%i:%s'
+               ) AS durationAvr /* 평가결과 평균 소요시간 String */
+             , tri.task_result_anct /* 결과멘트(코드) */
+             , aidt_lms.F_CODE_NM('task_result_anct', task_result_anct) as taskResultAnctNm /*  결과멘트(명) */
+        from 	aidt_lms.task_info ti
+                    join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        where 	1=1
+          and 	ti.id = #{taskId}
+          and 	tri.mamoym_id = #{userId}
+    </select>
+
+
+    <select id="findTchStntSrchReportTaskSummary_itemList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchStntSrchReportTaskSummary_itemList */
+        select row_number() over (order by trd.id, trd.task_iem_id, trd.sub_id) as num
+             , trd.task_iem_id
+             , trd.task_result_id
+             , trd.sub_id
+             , F_META_VAL(`questionType`, va.questionType) as questionType
+             , trd.eak_at as submAt /* 제출여부 */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND((TIMESTAMPDIFF(SECOND, trd.eak_st_dt, trd.eak_ed_dt)))), '%H:%i:%s') AS solvDuration /* 소요시간 String */
+             , trd.sub_mit_anw
+             , trd.sub_mit_anw_url
+             , aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) as errata
+             , tri.sets_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        join aidt_lcms.article va on trd.task_iem_id = va.id
+        where 1=1
+          and tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.id, trd.task_iem_id, trd.sub_id
+    </select>
+
+    <select id="findTchReportHomewkResultErrataMod_0" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchReportHomewkResultErrataMod_0 */
+        select count(tsmi.id) as task_scr_md_cnt
+             , max(trd.id) as task_result_detail_id
+             , max(ti.rpt_othbc_at) as rpt_othbc_at
+             , ti.task_stts_cd
+        from aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        left join aidt_lms.task_scr_md_info tsmi on tsmi.task_result_detail_id = trd.id and tsmi.md_rflt_at = 'N'
+        where ti.id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+    </select>
+
+    <insert id="insertTchReportHomewkResultErrataMod_0" parameterType="map">
+        /* TchReportHomewkMapper.insertTchReportHomewkResultErrataMod_0 */
+        insert into aidt_lms.task_scr_md_info (
+              task_result_detail_id
+            , errata
+            , md_rflt_at
+            , rgtr
+            , mdfr
+        ) values (
+              #{taskResultDetailId}
+            , #{errata}
+            , 'N'
+            , #{stntId}
+            , #{stntId}
+        )
+    </insert>
+    <update id="updateTchReportHomewkResultErrataMod_0" parameterType="map">
+        /* TchReportHomewkMapper.updateTchReportHomewkResultErrataMod_0 */
+        update aidt_lms.task_scr_md_info tsmi
+        set tsmi.errata = #{errata}
+        , tsmi.mdfr = #{stntId}
+        , tsmi.mdfy_dt = now()
+        where tsmi.task_result_detail_id = #{taskResultDetailId}
+          and tsmi.md_rflt_at = 'N'
+    </update>
+
+    <update id="modifyTchReportHomewkResultErrataMod_1" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultErrataMod_1 */
+        update aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        set trd.mdfy_dt = now()
+        , trd.errata = #{errata}
+        , trd.eak_stts_cd = 5
+        , trd.mrk_cp_at = 'Y'
+        where tri.task_id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+    </update>
+
+    <update id="modifyTchReportHomewkResultErrataMod_2" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultErrataMod_2 */
+        update aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        set tri.mdfy_dt = now()
+        , tri.eak_stts_cd = (
+            select case when count(case when trd.eak_stts_cd != 5 then 1 end) <![CDATA[>]]> 0
+                then 4 else 5 end
+            from aidt_lms.task_result_detail trd
+            where trd.task_result_id = tri.id
+            )
+          , tri.mrk_cp_at = if((
+            select case when count(case when trd.eak_stts_cd != 5 then 1 end) > 0
+            then 4 else 5 end
+            from aidt_lms.task_result_detail trd
+            where trd.task_result_id = tri.id
+            ) = 5, 'Y', 'N')
+        where tri.task_id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+    </update>
+
+    <update id="modifyTchReportHomewkResultErrataMod_3" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultErrataMod_3 */
+        update aidt_lms.task_info ti
+        join (
+            select case
+                when count(case when tri.eak_stts_cd != 5 then 1 end) > 0 then 4
+                when count(*) != 0 then 5
+                end as task_stts_cd
+            from aidt_lms.task_result_info tri
+            where tri.task_id = #{taskId}
+        ) t
+        set ti.mdfy_dt = now()
+        , ti.task_stts_cd = ifnull(t.task_stts_cd, ti.task_stts_cd)
+        , ti.mrk_cp_dt = if(t.task_stts_cd = 5, now(), null)
+        where ti.id =  #{taskId}
+    </update>
+
+    <select id="modifyTchReportHomewkResultErrataMod_errata" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultErrataMod_errata */
+        select count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as anwNum
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 2 then 1 end) as wrngNum
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 3 then 1 end) as triNum
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id and trd.sub_id = #{subId}
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+    </select>
+
+    <update id="modifyTchReportHomewkResultErrataAppl" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultErrataAppl */
+        update aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        join aidt_lms.task_scr_md_info tsmi on tsmi.task_result_detail_id = trd.id and tsmi.md_rflt_at = 'N'
+        set trd.errata = tsmi.errata
+            , trd.mdfr = now()
+            , tsmi.md_rflt_at = 'Y'
+            , tsmi.mdfr = now()
+            , trd.mdfy_dt = now()
+        where tri.task_id = #{taskId}
+    </update>
+
+    <update id="modifyTchReportHomewkResultFdbMod" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultFdbMod */
+        update aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        set trd.fdb_dc = #{fdbDc}
+        , trd.mdfy_dt = now()
+        where 1=1
+          and tri.task_id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+    </update>
+
+    <update id="modifyTchReportHomewkResultMod" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultMod */
+        update aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        set tri.task_result_anct = #{taskResultAnct}
+        , tri.mdfy_dt = now()
+        where 1=1
+          and tri.task_id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+    </update>
+
+    <select id="findReportHomewkResultSummary" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultSummary */
+        select ti.id
+        , ti.task_nm
+        , ti.sets_id
+        , ti.task_prg_dt
+        , ti.task_cp_dt
+        , ti.tim_time as limitTime
+        , '과제' as resultTypeNm
+        , (select DISTINCT CONCAT(aidt_lms.F_CODE_NM('grade_cd',tci.grade_cd),' ',tci.cla_nm)
+           from aidt_lms.tc_cla_info tci
+           where tci.cla_id = ti.cla_id
+           limit 1) as classNm
+        , (select count(*)
+           from aidt_lcms.sets_article_map sam
+           join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+           where sam.sets_id = ti.sets_id) as totalTaskCnt
+        , (select json_object(
+            'targetCnt',count(*),
+            'submitCnt',count(case when subm_at = 'Y' then 1 end),
+            'avgTime',TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(SECOND, eak_st_dt, eak_ed_dt)))),'%H:%i:%s'),
+            'excellent',count(case when task_result_anct = '1' then 1 end),
+            'average',count(case when task_result_anct = '2' then 1 end),
+            'improvement',count(case when task_result_anct = '3' then 1 end))
+           from aidt_lms.task_result_info
+           where task_id = ti.id ) as extra_info
+        from aidt_lms.task_info ti
+        where ti.id = #{taskId}
+    </select>
+
+    <select id="findReportHomewkResultSummary_stnt" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultSummary_stnt */
+        select
+            @ROWNUM := @ROWNUM + 1 as num
+            , sri.user_id
+            , min(sri.flnm) as flnm
+            , min(tri.subm_at) as submAt
+            , TIME_FORMAT(COALESCE(SEC_TO_TIME(ROUND(SUM(TIMESTAMPDIFF(SECOND, trd.eak_st_dt, trd.eak_ed_dt)))),'00:00:00'),'%H:%i:%s') AS solvDuration
+            , min(ti.tim_time) as timTimeTotal
+            , count(case when a.articleType = 21 then 1 end) as questionCntTotal /* 문항개수 */
+            , count(case when a.articleType = 21 and trd.mrk_cp_at  = 'Y' then 1 end) as questionCompleteCnt /* 문항 채점완료개수 */
+            , count(case when a.articleType = 21 and aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as questionCorrentCnt /* 문항 정답개수 */
+            , count(case when a.articleType = 22 then 1 end) as movementCntTotal /* 활동개수 */
+            , count(case when a.articleType = 22 and trd.mrk_cp_at  = 'Y' then 1 end) as movementCompleteCnt /* 활동 채점완료개수 */
+            , count(case when a.articleType = 22 and aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as movementCorrentCnt /* 활동 정답개수 */
+            , 0 as selfJudgeCnt
+            , 0 as otherJudgeCnt
+            , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as anwNum /* 정답수 */
+            , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 2 then 1 end) as wrngNum /* 오답수 */
+            , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 3 then 1 end) as triNum /* 세모수 */
+            , min(tri.task_result_anct) as taskResultAnct
+            , aidt_lms.F_CODE_NM('task_result_anct', min(tri.task_result_anct)) as taskResultAnctNm
+            , MIN(case when a.articleType = 21 then trd.task_iem_id end) AS questionFirstId /* 문항 첫번째 iem_id */
+            , MIN(case when a.articleType = 22 then trd.task_iem_id end) AS movementFirstId /* 활동 첫번째 iem_id */
+            , ti.sets_id
+        from aidt_lms.task_info ti
+        join (select @ROWNUM:=0) as r
+        join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        left join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = tri.mamoym_id
+        left join aidt_lcms.article a on a.id = trd.task_iem_id
+        where ti.id = #{taskId}
+        group by num
+               , sri.user_id
+    </select>
+
+    <select id="findReportHomewkResultIndResult" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndResult */
+        select ti.id
+        , ti.task_nm
+        , ti.sets_id
+        , ( select max(t.cnt)
+            from (
+                select COUNT(*) as cnt
+                from aidt_lms.task_result_info tri
+                left join aidt_lcms.sets_article_map sam on sam.sets_id = tri.sets_id
+                left join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+                where tri.task_id = #{taskId}
+                group by tri.mamoym_id
+             ) t ) as maxCnt
+        from aidt_lms.task_info ti
+        where ti.id = #{taskId}
+    </select>
+
+    <select id="findReportHomewkResultIndResult_stnt" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndResult_stnt */
+        select sri.user_id
+             , sri.flnm
+             , tri.sets_id
+             , tri.id as taskResultId
+        from aidt_lms.task_result_info tri
+        join aidt_lms.stdt_reg_info sri on sri.user_id = tri.mamoym_id
+        where tri.task_id = #{taskId}
+        order by sri.flnm
+    </select>
+
+    <select id="findReportHomewkResultIndResult_result" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndResult_result */
+        select trd.task_result_id
+             , trd.task_iem_id
+             , trd.sub_id
+             , trd.mrk_ty
+             , case when tri.subm_at = 'Y'
+                        then aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id)
+                    else null
+                end as errata
+             /* , aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) as errata */
+             , (select a.thumbnail from aidt_lcms.article a where a.id = trd.task_iem_id  ) as thumbnail
+        from aidt_lms.task_result_info tri
+        left join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+        order by trd.id, trd.task_iem_id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndResult_errata" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndResult_errata */
+        select sri.user_id
+             , sri.flnm
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as anwNum
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 2 then 1 end) as wrngNum
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 3 then 1 end) as triNum
+             , tri.subm_at
+        from aidt_lms.task_result_info tri
+        left join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = tri.mamoym_id
+        where tri.task_id = #{taskId}
+        group by sri.user_id
+               , sri.flnm
+        order by sri.flnm
+       /* order by trd.task_iem_id, trd.id, trd.sub_id */
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_errata" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_errata */
+        select count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as anwNum
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 2 then 1 end) as wrngNum
+             , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 3 then 1 end) as triNum
+        from aidt_lms.task_result_info tri
+        left join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_image" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_image */
+        select a.url
+             , a.image
+             , trd.task_iem_id
+             , trd.sub_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        left join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_mdul" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_mdul */
+        select F_META_VAL(`curriYear`, a.curriYear) as curriYear
+             , F_META_VAL(`curriSchool`, a.curriSchool) as curriSchool
+             , F_META_VAL(`curriBook`, a.curriBook) as curriBook
+             , F_META_VAL(`curriSubject`, a.curriSubject) as curriSubject
+             , F_META_VAL(`curriGrade`, a.curriGrade) as curriGrade
+             , trd.task_iem_id
+             , trd.sub_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        left join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_analysis" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_analysis */
+        select IFNULL(trd.re_idf_cnt, 0) as re_idf_cnt_avg
+             , IFNULL(trd.anw_chg_cnt, 0) as anw_chg_cnt_avg
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, trd.eak_st_dt, trd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solv_sec_avr
+             , trd.sub_mit_anw
+             , trd.task_iem_id
+             , trd.sub_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_coment" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_coment */
+        select trd.task_iem_id
+             , trd.sub_id
+             , group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+             , group_concat(case when la.part = 'model-answer' then la.data end order by la.sub_id separator '\n') as model_answer
+             , group_concat(case when la.part = 'explanation'  then la.data end order by la.sub_id separator '\n') as explanation
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        join aidt_lcms.log_articlepart la on la.article_id = trd.task_iem_id and la.sub_id = trd.sub_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+          and la.part in ( 'hint','model-answer','explanation')
+        group by trd.task_iem_id
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_item" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_item */
+        select trd.task_iem_id
+             , trd.sub_id
+             , tri.subm_at
+             , a.thumbnail
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        left join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_task" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_task */
+        select trd.id
+             , trd.task_result_id
+             , trd.task_iem_id
+             , trd.mrk_ty
+             , aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) as errata
+             , tri.subm_at
+             , trd.sub_mit_anw
+             , trd.sub_mit_anw_url
+             , trd.fdb_dc
+             , trd.sub_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by trd.id, trd.task_iem_id, trd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndMdul_info" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndMdul_info */
+        select ti.id
+             , ti.task_nm
+             , b.sets_id
+             , (select count(*)
+                from aidt_lcms.setsummary s
+                where s.set_id = b.sets_id
+                ) as modNum
+        from aidt_lms.task_info ti
+        inner join aidt_lms.task_result_info b on ti.id = b.task_id and b.mamoym_id = #{userId}
+        where ti.id = #{taskId}
+    </select>
+
+    <select id="findReportHomewkResultIndSummary_mdul" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndSummary_mdul */
+        select row_number() over (order by vtrd.id, vtrd.task_iem_id, vtrd.sub_id) as num
+             , vtrd.task_iem_id
+             , vtrd.task_result_id
+             , vtrd.sub_id
+             , F_META_VAL(`questionType`, a.questionType) as questionType
+             , tri.subm_at
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(SECOND, vtrd.eak_st_dt, vtrd.eak_ed_dt))),'%H:%i:%s') as solvDuration
+             , vtrd.errata
+             , tri.sets_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.stdt_reg_info sri on sri.user_id = tri.mamoym_id
+        join aidt_lms.task_result_detail vtrd on vtrd.task_result_id = tri.id
+        join aidt_lcms.article a on a.id = vtrd.task_iem_id and a.is_active = TRUE
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        order by vtrd.id, vtrd.task_iem_id, vtrd.sub_id
+    </select>
+
+    <select id="findReportHomewkResultIndSummary" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findReportHomewkResultIndSummary */
+        select ti.id
+        , min(ti.task_nm) as task_nm
+        , ti.sets_id
+        , min((select DISTINCT CONCAT(grade_cd, '학년 ', cla_cd, '반') from aidt_lms.tc_cla_info tci where tci.cla_id = ti.cla_id)) as classNm
+        , aidt_lms.F_CODE_NM('eam_mth',min(ti.eam_mth)) as resultTypeNm
+        , min(ti.task_prg_dt) as task_prg_dt
+        , min(ti.task_cp_dt) as task_cp_dt
+        , min(tri.subm_at) as subm_at
+        , min(tri.subm_dt) as subm_dt
+        , min(ti.tim_time) as tim_time
+        , (select count(distinct va.id)
+            from aidt_lcms.sets_article_map sam
+            join aidt_lcms.article va on va.id = sam.article_id and va.is_active = TRUE
+            where sam.sets_id = ti.sets_id) as eamExmNum
+        , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(SECOND, tri.eak_st_dt, tri.eak_ed_dt)))), '%H:%i:%s') AS durationAvr
+        , count(case when tri.task_result_anct = '1' then 1 end) as excellent
+        , count(case when tri.task_result_anct = '2' then 1 end) as average
+        , count(case when tri.task_result_anct = '3' then 1 end) as improvement
+        from aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{userId}
+        group by ti.id
+    </select>
+
+    <select id="findStntSrchReportTaskList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskList */
+        select (count(*) over () + 1) - (row_number() over (order by t.task_prg_dt desc)) as no
+        , t.id
+        , t.eam_mth
+        , aidt_lms.F_CODE_NM('eam_mth', t.eam_mth) as eam_mth_nm
+        , t.task_nm
+        , t.task_stts_cd
+        , aidt_lms.F_CODE_NM('task_stts_cd', t.task_stts_cd) as task_stts_nm
+        , t.task_prg_dt
+        , t.task_cp_dt
+        , t.subm_at
+        , t.task_result_anct
+        , aidt_lms.F_CODE_NM('task_result_anct', t.task_result_anct) as taskResultAnctNm
+        , t.gradeSttsNm
+        , (select json_object(
+            'anwNum',count(case when trd.errata = 1 then 1 end),
+            'wrngNum',count(case when trd.errata = 2 then 1 end),
+            'triNum',count(case when trd.errata = 3 then 1 end))
+           from aidt_lms.task_result_detail trd
+           where trd.task_result_id = t.task_result_id) as extra_info
+        , count(*) over () as full_count
+        from (
+            select ti.id
+            , ti.eam_mth
+            , ti.task_nm
+            , ti.task_stts_cd
+            , ti.task_prg_dt
+            , ti.task_cp_dt
+            , tri.subm_at
+            , tri.task_result_anct
+            , case when tri.eak_stts_cd != 5 then '채점필요' else '채점완료' end as gradeSttsNm
+            , tri.id as task_result_id
+            , ti.reg_dt
+            from aidt_lms.task_info ti
+            join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        where ti.task_stts_cd <![CDATA[>=]]> 3
+          and ti.cla_id = #{param.claId}
+          and ti.textbk_id = #{param.textbkId}
+          and tri.mamoym_id = #{param.stntId}
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test="param.condition == 'name' ">
+                and ti.task_nm like concat('%',#{param.keyword},'%')
+            </if>
+            <if test="param.condition == 'gubun' ">
+                and ti.eam_mth = #{param.keyword}
+            </if>
+            <if test="param.condition == 'date' ">
+                and (
+                    (ti.task_prg_dt <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ti.task_prg_dt <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                    or (ti.task_cp_dt  <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ti.task_cp_dt  <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                    or (ti.task_prg_dt <![CDATA[<]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ti.task_cp_dt  <![CDATA[>=]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                )
+            </if>
+        </if>
+        ) t
+        where 1=1
+            and 	t.task_stts_cd >= 3 /* 상태가 완료된 건만 조회 */
+            and     not exists (select 1
+            from aidt_lms.task_result_info tri
+            where 	tri.task_id = t.id
+            and 	tri.eak_stts_cd <![CDATA[ < ]]> 3
+            ) /* 모든 학생이 완료된 건만 조회 */
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test='param.condition == "status" and (param.keyword == "1" or param.keyword == "2") '>
+                and t.gradeSttsNm = case when #{param.keyword} = '1' then '채점필요' else '채점완료' end
+            </if>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findStntSrchReportTaskDetail_errata" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetail_errata */
+        select
+           count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 1 then 1 end) as anw_num
+         , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 2 then 1 end) as wrng_num
+         , count(case when aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) = 3 then 1 end) as tri_num
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetail_image" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetail_image */
+        select trd.task_iem_id
+             , trd.sub_id
+             , a.url
+             , a.image
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetail_mdul" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetail_mdul */
+        select trd.task_iem_id
+             , trd.sub_id
+             , F_META_VAL(`curriYear`, a.curriYear) as curri_year
+             , F_META_VAL(`curriSchool`, a.curriSchool) as curri_school
+             , F_META_VAL(`curriBook`, a.curriBook) as curri_book
+             , F_META_VAL(`curriSubject`, a.curriSubject) as curri_subject
+             , F_META_VAL(`curriGrade`, a.curriGrade) as curri_grade
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetail_analysis" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetail_analysis */
+        select IFNULL(trd.re_idf_cnt, 0) as re_idf_cnt_avg
+             , IFNULL(trd.anw_chg_cnt, 0) as anw_chg_cnt_avg
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, trd.eak_st_dt, trd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solv_sec_avr
+             , trd.sub_mit_anw
+             , trd.task_iem_id
+             , trd.sub_id
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetail_coment" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetail_coment */
+        select trd.task_iem_id
+             , trd.sub_id
+             , group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+             , group_concat(case when la.part = 'model-answer' then la.data end order by la.sub_id separator '\n') as model_answer
+             , group_concat(case when la.part = 'explanation'  then la.data end order by la.sub_id separator '\n') as explanation
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        join aidt_lcms.log_articlepart la on la.article_id = trd.task_iem_id and la.sub_id = trd.sub_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+          and la.part in ( 'hint','model-answer','explanation')
+        group by trd.task_iem_id
+        order by trd.task_iem_id, trd.id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetailMdul_info" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetailMdul_info */
+        select trd.task_iem_id
+             , trd.sub_id
+             , tri.subm_at
+             , a.thumbnail
+             , a.description
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+        order by trd.id, trd.task_iem_id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetailMdul_task" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetailMdul_task */
+        select trd.id
+             , trd.task_result_id
+             , trd.task_iem_id
+             , trd.sub_id
+             , aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) as errata
+             , trd.eak_at
+             , trd.sub_mit_anw
+             , trd.sub_mit_anw_url
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, trd.eak_st_dt, trd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solv_sec_avr
+             , trd.fdb_dc
+             , trd.mrk_ty
+             , tri.subm_at
+             , a.articleType
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+        inner join aidt_lcms.article a on a.id = trd.task_iem_id
+        where tri.task_id = #{taskId}
+          and tri.mamoym_id = #{stntId}
+        order by trd.id, trd.task_iem_id, trd.sub_id
+    </select>
+
+    <select id="findStntSrchReportTaskDetail" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntSrchReportTaskDetail */
+        select ti.id
+        , ti.task_nm
+        , ti.sets_id
+        , (select count(*)
+            from aidt_lcms.sets_article_map sam
+            join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+            where sam.sets_id = ti.sets_id) as modNum
+        from aidt_lms.task_info ti
+        where ti.id = #{taskId}
+    </select>
+
+    <update id="modifyReportTaskOpen" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportTaskOpen */
+        update  task_info
+        set rpt_othbc_at ='Y'
+          , rpt_othbc_dt = now()
+          , mdfy_dt = now()
+        where id = #{taskId}
+    </update>
+
+
+    <select id="findReportTaskOpenData" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportTaskOpenData */
+        select
+              rpt_othbc_at as  rptOthbcAt
+             ,DATE_FORMAT(rpt_othbc_dt, "%Y-%m-%d %H:%i:%s") AS rptOthbcDt
+        from task_info where id = #{taskId}
+    </select>
+
+    <update id="updateTchReportHomewkReviewSave" parameterType="map">
+        UPDATE aidt_lms.task_result_info
+        SET stdt_prnt_rls_at = #{stdtPrntRlsAt}
+          ,genrvw = #{genrvw}
+          ,mdfr = #{userId}
+          ,mdfy_dt = NOW()
+        WHERE task_id = #{taskId}
+          AND mamoym_id = #{userId}
+    </update>
+
+    <select id="fedInfoList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.fedInfoList */
+        select
+            ti.wrter_id
+            , ti.textbk_id
+            , um.flnm
+            , ti.cla_id
+            , tri.mamoym_id as stnt_id
+        from
+            aidt_lms.task_result_info tri
+                join aidt_lms.task_result_detail trd on task_result_id = tri.id
+                left join aidt_lms.user um ON um.user_id = tri.mamoym_id
+                left join aidt_lms.task_info ti on ti.id = tri.task_id
+        where 1=1
+          and tri.task_id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+        order by um.flnm
+    </select>
+
+    <select id="findSendNtcnTaskList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findSendNtcnTaskList */
+        select
+            tc.stdt_id  as rcve_id
+             , textbk_id
+             , "S" as trget_cd
+             , "5" as ntcn_ty_cd
+             , "99" as trget_ty_cd
+             , CONCAT('{"type":"report-hwk-created","data":{},"shortcut":{"taskId":', #{taskId}, '}}') AS ntcn_cn
+             , '' as link_url
+             , ti.id as trget_id
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , ti.sets_id
+             , tc.cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left join aidt_lms.task_info ti on ti.id =#{taskId}
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where 1=1
+          and ti.cla_id =tc.cla_id
+          and (ti.rpt_auto_othbc_at = 'Y' or ti.rpt_othbc_at = 'Y')
+          and tc.actvtn_at = 'Y'
+        order by flnm
+    </select>
+
+    <select id="findSendNtcnTaskListAuto" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findSendNtcnTaskList */
+        select
+            tc.stdt_id  as rcve_id
+             , textbk_id
+             , "S" as trget_cd
+             , "5" as ntcn_ty_cd
+             , "99" as trget_ty_cd
+             , CONCAT('{"type":"report-hwk-created","data":{},"shortcut":{"taskId":', #{taskId}, '}}') AS ntcn_cn
+             , '' as link_url
+             , ti.id as trget_id
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , ti.sets_id
+             , tc.cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left join aidt_lms.task_info ti on ti.id =#{taskId}
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where 1=1
+          and ti.cla_id =tc.cla_id
+          and ti.rpt_auto_othbc_at = 'Y'
+          and tc.actvtn_at = 'Y'
+        order by flnm
+    </select>
+
+    <select id="findSendNtcnTaskListPassivity" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findSendNtcnTaskList */
+        select
+            tc.stdt_id  as rcve_id
+             , textbk_id
+             , "S" as trget_cd
+             , "5" as ntcn_ty_cd
+             , "99" as trget_ty_cd
+             , CONCAT('{"type":"report-hwk-created","data":{},"shortcut":{"taskId":', #{taskId}, '}}') AS ntcn_cn
+             , '' as link_url
+             , ti.id as trget_id
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , ti.sets_id
+             , tc.cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left join aidt_lms.task_info ti on ti.id =#{taskId}
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where 1=1
+          and ti.cla_id =tc.cla_id
+          and ti.rpt_auto_othbc_at = 'N'
+          and tc.actvtn_at = 'Y'
+        order by flnm
+    </select>
+
+    <select id="findTchReportTaskGeneralReviewInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchReportTaskGeneralReviewInfo */
+        select
+                tri.genrvw
+                , tri.stdt_prnt_rls_at
+        from	aidt_lms.task_result_info tri
+        where 	1=1
+          and 	tri.task_id = #{taskId}
+          and 	tri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findTchReportHomewkGeneralReviewAiEvlWord" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchReportHomewkGeneralReviewAiEvlWord */
+        select distinct
+            c.meta_id
+        from aidt_lms.task_info ti
+                 inner join aidt_lms.task_result_info tri
+                            on ti.id = tri.task_id and tri.mamoym_id = #{userId}
+                 inner join aidt_lcms.setsummary s on s.set_id = tri.sets_id
+                 inner join aidt_lcms.article_meta_map c
+                            on s.article_id = c.article_id and s.sub_id = c.sub_id and c.meta_name = 'studyMap1'
+        where ti.id = #{taskId}
+    </select>
+
+    <select id="findTchReportHomewkResultDetail" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findTchReportHomewkResultDetail */
+        select
+            case when t.correct_rate <![CDATA[>=]]> 80 then 1
+                 when t.correct_rate <![CDATA[>=]]> 50 then 2
+                 when t.correct_rate <![CDATA[>=]]>  0 then 3
+            end as level
+        from (
+            select
+                ROUND(sum(case aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) when 1 then 1 when 3 then 0.5 end) / count(trd.id) * 100, 2) AS correct_rate /* 정답율 */
+            from aidt_lms.task_result_info tri
+            join aidt_lms.task_result_detail trd on trd.task_result_id = tri.id
+            where tri.task_id = #{taskId}
+              and tri.mamoym_id = #{userId}
+        ) t
+    </select>
+
+    <select id="findStntTopFiveList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntTopFiveList */
+        SELECT numTable.num
+             , trd.task_iem_id
+             , trd.sub_id
+             , ROUND(SUM(CASE aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 WHEN 2 THEN 0 END) / COUNT(trd.id) * 100, 2) AS correctRate
+             , (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) AS articleType
+             , (SELECT val FROM aidt_lcms.meta a WHERE a.id = articleType) AS articleTypeNm
+             , CASE WHEN COUNT(CASE WHEN trd.eak_stts_cd != 5 THEN 1 END) > 0 THEN 'Y' ELSE 'N' END AS isGradingRequired
+        FROM aidt_lms.task_result_info tri
+        INNER JOIN aidt_lms.task_result_detail trd ON trd.task_result_id = tri.id
+        LEFT JOIN (
+                   SELECT trd2.task_iem_id
+                        , trd2.sub_id
+                        , ROW_NUMBER() OVER(ORDER BY trd2.id, trd2.task_iem_id, trd2.sub_id) AS num
+                   FROM aidt_lms.task_result_info tri2
+                   INNER JOIN aidt_lms.task_result_detail trd2 ON trd2.task_result_id = tri2.id
+                   WHERE tri2.task_id = #{taskId}
+                   GROUP BY trd2.task_iem_id, trd2.sub_id
+                   ORDER BY trd2.id, trd2.task_iem_id, trd2.sub_id
+               ) numTable ON trd.task_iem_id = numTable.task_iem_id
+                         AND trd.sub_id = numTable.sub_id
+        WHERE tri.task_id = #{taskId}
+          AND tri.subm_at = 'Y'
+          AND (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) != 20
+          AND NOT (
+               (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) = 22
+               AND trd.eak_stts_cd != 5
+           )
+        GROUP BY trd.task_iem_id, trd.sub_id
+        HAVING IFNULL(ROUND(SUM(CASE aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 WHEN 2 THEN 0 END) / COUNT(trd.id) * 100, 2), 0) != 100
+        ORDER BY correctRate
+               , trd.id
+               , trd.task_iem_id
+               , trd.sub_id
+        LIMIT 5
+    </select>
+
+    <select id="findStntGuideNeededList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findStntGuideNeededList */
+        SELECT sri.user_id
+             , sri.flnm
+             , trd.task_iem_id
+             , ROUND(sum(case aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) when 1 then 1 when 3 then 0.5 WHEN 2 THEN 0 END) / count(trd.id) * 100, 2) AS correctRate
+        FROM aidt_lms.task_result_info tri
+        LEFT JOIN aidt_lms.task_result_detail trd ON trd.task_result_id = tri.id
+        LEFT JOIN aidt_lms.stdt_reg_info sri ON sri.user_id = tri.mamoym_id
+        WHERE tri.task_id = #{taskId}
+        AND tri.subm_at = 'Y'
+        AND (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) != 20
+        AND NOT (
+               (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) = 22
+               AND trd.eak_stts_cd != 5
+           )
+        GROUP BY sri.user_id
+        HAVING IFNULL(ROUND(sum(case aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) when 1 then 1 when 3 then 0.5 WHEN 2 THEN 0 END) / count(trd.id) * 100, 2),0)  !=  100
+        ORDER BY CASE
+                      WHEN correctRate IS NULL THEN 0
+                      ELSE 1
+                  END
+               , correctRate
+               , sri.flnm
+    </select>
+
+    <select id="findAvgCorrectRateInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportHomewkMapper.findAvgCorrectRateInfo */
+        SELECT COUNT(DISTINCT trd.task_iem_id, trd.sub_id) as eamExmNum
+             , COUNT(DISTINCT trd.task_iem_id, trd.sub_id)
+               * ROUND(sum(case aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) when 1 then 1 when 3 then 0.5 end) / count(trd.id) * 100, 2)
+               /100 as avgCorrectAnwNum
+             , ROUND(sum(case aidt_lms.F_GET_TCH_TASK_ERRATA(trd.id) when 1 then 1 when 3 then 0.5 end) / count(trd.id) * 100, 2) AS avgCorrectRate
+        FROM aidt_lms.task_result_info tri
+        INNER JOIN aidt_lms.task_result_detail trd ON trd.task_result_id = tri.id AND trd.task_result_id
+        WHERE tri.task_id = #{taskId}
+          AND tri.subm_at = 'Y'
+          AND (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) != 20
+          AND NOT (
+               (SELECT articleType FROM aidt_lcms.article a WHERE a.id = trd.task_iem_id) = 22
+               AND trd.eak_stts_cd != 5
+           )
+    </select>
+
+    <update id="modifyTchReportHomewkResultErrataMod_1_rpt_y" parameterType="map" >
+        /* TchReportHomewkMapper.modifyTchReportHomewkResultErrataMod_1_rpt_y */
+        update aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        set trd.mdfy_dt = now()
+        , trd.eak_stts_cd = 5
+        , trd.mrk_cp_at = 'Y'
+        where tri.task_id =  #{taskId}
+          and tri.mamoym_id =  #{stntId}
+          and trd.task_iem_id = #{taskIemId}
+          and trd.sub_id = #{subId}
+    </update>
+
+  <select id="findEamMthInTaskInfo" resultType="java.lang.Integer">
+    SELECT ti.eam_mth
+    FROM task_info ti
+    WHERE ti.id = #{taskId}
+  </select>
+
+</mapper>

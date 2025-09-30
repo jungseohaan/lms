@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.media.mapper.StntMediaMapper">
+    <insert id="saveStudentMediaLearningLogResults" parameterType="com.visang.aidt.lms.api.media.dto.MediaLogRequestDTO">
+        /*saveStudentMediaLearningLogResults*/
+        INSERT INTO aidt_lms.med_std_log_result
+        (textbk_id, cla_id, stdt_id, menu_se_cd, trgt_id,
+         std_cd, article_id, med_ty, med_id, med_lt,
+         ai_tut_recmd_at, med_ply_time, med_std_cp_at, med_ply_cnt, med_ply_mute_cnt,
+         med_ply_jump_cnt, med_ply_stop_cnt, crcul_id)
+        VALUES (#{textbkId}, #{claId}, #{userId}, #{menuSeCd}, #{trgtId}, #{stdCd}, #{articleId}, #{medTy}, #{medId},
+                #{medLt}, #{aiTutRecmdAt}, #{medPlyTime}, #{medStdCpAt}, #{medPlyCnt}, #{medPlyMuteCnt},
+                #{medPlyJumpCnt}, #{medPlyStopCnt} ,#{crculId})
+    </insert>
+</mapper>

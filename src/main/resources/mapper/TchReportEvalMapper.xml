@@ -1,0 +1,1475 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.assessment.mapper.TchReportEvalMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <select id="findReportEvalList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalList */
+        select (count(*) over () + 1) - (row_number() over (order by t.evl_cp_dt desc)) as no
+        , t.id
+        , t.eam_mth
+        , aidt_lms.F_CODE_NM('eam_mth', t.eam_mth) as  eam_mth_nm
+        , t.evl_nm
+        , t.evl_stts_cd
+        , aidt_lms.F_CODE_NM('evl_stts_cd', t.evl_stts_cd) as  evl_stts_nm
+        , date_format(t.evl_prg_dt,'%Y-%m-%d %H:%i:%s') as evl_prg_dt
+        , date_format(t.evl_cp_dt,'%Y-%m-%d %H:%i:%s') as evl_cp_dt
+        , t.rpt_othbc_at
+        , date_format(t.rpt_othbc_dt,'%Y-%m-%d %H:%i:%s') as rpt_othbc_dt
+        , t.gradeSttsNm
+        , count(*) over () as full_count
+        , (select count(c.id) as cnt
+        from aidt_lms.evl_info a
+        left outer join aidt_lcms.setsummary b
+        on a.sets_id = b.set_id
+        left outer join aidt_lcms.meta c
+        on b.gradingMethod = c.id
+        and c.name = 'gradingMethod'
+        and c.code = 'manual'
+        where a.id = t.id) as manualCnt  /* 수동채점 갯수 */
+        , ( select json_object(
+                'targetCnt',count(*),
+                'submitCnt',count(case when subm_at = 'Y' then 1 end))
+            from aidt_lms.evl_result_info
+            where evl_id = t.id ) as extra_info
+        , ( select case when count(if(c.md_rflt_at = 'N',1,null)) <![CDATA[>]]> 0 then 'Y' else 'N' end
+            from aidt_lms.evl_result_info a
+            join aidt_lms.evl_result_detail b on b.evl_result_id = a.id
+            left join aidt_lms.evl_scr_md_info c on c.evl_result_detail_id = b.id
+            where a.evl_id = t.id ) as applScrAt
+        , ( select IF (count(1) > 0 , 'Y', 'N' )
+            from aidt_lms.evl_result_info a
+            join aidt_lms.evl_result_detail b on b.evl_result_id = a.id
+            join aidt_lms.evl_scr_md_info c on c.evl_result_detail_id = b.id
+            where a.evl_id = t.id ) as modifyHistAt  /* 수정 이력 존재 여부 */
+        from (
+            select ei.id
+            , ei.eam_mth
+            , ei.evl_nm
+            , ei.evl_stts_cd
+            , ei.evl_prg_dt
+            , ei.evl_cp_dt
+            , ei.rpt_othbc_at
+            , ei.rpt_othbc_dt
+            , (select case when count(case when eak_stts_cd != 5 then 1 end) <![CDATA[>]]> 0
+                    then '채점필요' else '채점완료' end
+                from aidt_lms.evl_result_info
+                where evl_id = ei.id) as gradeSttsNm
+            from aidt_lms.evl_info ei
+            where 1=1
+            and ei.cla_id = #{param.claId}
+            and ei.textbook_id = #{param.textbookId}
+            and ei.evl_stts_cd >= 3
+            and     not exists (select 1
+                        from aidt_lms.evl_result_info eri
+                        where 	eri.evl_id = ei.id
+                        and 	eri.eak_stts_cd <![CDATA[ < ]]> 3
+                        ) /* 모든 학생이 완료된 건만 조회 */
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test="param.condition == 'name' ">
+                and ei.evl_nm like concat('%',#{param.keyword},'%')
+            </if>
+            <if test="param.condition == 'gubun' ">
+                and ei.eam_mth = #{param.keyword}
+            </if>
+            <if test="param.condition == 'date' ">
+                and (
+                    (ei.evl_prg_dt <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ei.evl_prg_dt <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                    or (ei.evl_cp_dt  <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ei.evl_cp_dt  <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                    or (ei.evl_prg_dt <![CDATA[<]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ei.evl_cp_dt  <![CDATA[>=]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                )
+            </if>
+        </if>
+        ) t
+        where 1=1
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test='param.condition == "status" and (param.keyword == "1" or param.keyword == "2") '>
+                and t.gradeSttsNm = case when #{param.keyword} = '1' then '채점필요' else '채점완료' end
+            </if>
+        </if>
+        <if test="param.reqGradeEvalAt != null and param.reqGradeEvalAt != '' ">
+            <if test=' param.reqGradeEvalAt == "Y" or param.reqGradeEvalAt == "N" '>
+                and t.gradeSttsNm = case when #{param.reqGradeEvalAt} = 'Y' then '채점필요' else '채점완료' end
+            </if>
+        </if>
+
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+
+    <select id="findReportEvalResultDetailList_result" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailList_result */
+        select erd.evl_result_id
+             , erd.evl_iem_id
+             , erd.sub_id
+             , erd.eak_at
+             , erd.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd',erd.eak_stts_cd) as eak_stts_nm
+             , erd.mrk_ty
+             <choose>
+                 <when test="tchId != null and tchId !=''">
+                     , aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) as errata
+                 </when>
+                 <otherwise>
+                     , erd.errata
+                 </otherwise>
+             </choose>
+             , eri.subm_at
+             , if(erd.sub_mit_anw is not null, "Y", "N") AS iemSubmAt
+            <choose>
+                <when test="tchId != null and tchId !=''">
+                    , aidt_lms.F_GET_TCH_EVL_SCR(erd.id) as evl_iem_scr_result
+                </when>
+                <otherwise>
+                    , erd.evl_iem_scr_result
+                </otherwise>
+            </choose>
+             , eri.mamoym_id
+             , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+             /* , ifnull(esmi.md_rflt_at,'N') as mdRfltAt */
+             , ( select IF (count(1) > 0 , 'Y', 'N' )
+                from aidt_lms.evl_scr_md_info esmi
+                where esmi.evl_result_detail_id = erd.id and md_rflt_at='N') as mdScrAt  /* 점수수정여부 */
+        from aidt_lms.evl_result_info eri
+        left join aidt_lms.evl_result_detail erd on erd.evl_result_id  = eri.id
+        left join aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+        left join aidt_lcms.article a on a.id = erd.evl_iem_id
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = eri.mamoym_id
+        /* LEFT join aidt_lms.evl_scr_md_info esmi on esmi.evl_result_detail_id = erd.id */
+        where eri.evl_id = #{evlId}
+        <if test="submAt != null and submAt != '' ">
+            and eri.subm_at= #{submAt}
+        </if>
+        order by sri.flnm, erd.id
+      /*  order by erd.id, erd.evl_iem_id, erd.sub_id */
+    </select>
+
+    <select id="findReportEvalResultDetailList_mdul" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailList_mdul */
+        select erd.evl_iem_id
+             , erd.sub_id
+             , min(eii.evl_iem_scr) as evl_iem_scr
+             , min(eii.mrk_ty) as mrk_ty
+             , min(ifnull(s.thumbnail,a.thumbnail)) as thumbnail
+             , min(a.description) as description
+             , ROUND(sum(case when eri.subm_at = 'Y' and aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 1 then 1
+                when eri.subm_at = 'Y' and aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 3 then 0.5
+                else 0 end) /
+                count(case when eri.subm_at = 'Y' then erd.id else null end) * 100, 2) as avg_correct_rate
+             , m.id as articleType  /* articleType = 20 -> 개념 */
+             , m.val as articleTypeNm
+             , max(eri.subm_at) as submAt /*  제출여부 값 추가 */
+             , count(if(eri.subm_at = 'Y',1,null)) as submCnt
+             , count(if(aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 4, null, 1)) as errataNotFourCnt /* errata != 4 인 학생수 */
+        from aidt_lms.evl_iem_info eii
+        inner join aidt_lcms.article a on a.id = eii.evl_iem_id
+        inner join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+        inner join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id
+        inner join aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+        inner join aidt_lcms.article_meta_map amm on amm.article_id = erd.evl_iem_id and amm.sub_id = erd.sub_id and amm.meta_name = 'articleType'
+        inner join aidt_lcms.meta m on m.id = amm.meta_id
+        where eii.evl_id = #{evlId}
+        <if test="submAt != null and submAt != '' ">
+            and eri.subm_at= #{submAt}
+        </if>
+        group by erd.evl_iem_id, erd.sub_id
+        order by eii.id, erd.id, erd.sub_id
+    </select>
+
+    <select id="findReportEvalResultDetailList_stnt" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailList_stnt */
+        select eri.id
+             , eri.mamoym_id
+             , eri.sets_id
+            /* , eri.evl_result_scr as evlResultScr */
+             , sri.flnm
+             , sri.user_id
+             , ei.evl_stdr_set_at AS evlStdrSetAt /* 평가기준 설정여부 */
+             , case when ei.evl_stdr_set_at = 'N' then 4 else ei.evl_stdr_set end AS evlStdrSet /* 평가기준값 */
+             , IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id ), 0) as evlIemScrTotal
+             , (
+	             	select
+                        round(sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)),2)
+	             	from aidt_lms.evl_result_detail erd
+	             	where erd.evl_result_id = eri.id
+             	) AS evlResultScr  /* 총점수 */
+             , ei.evl_gd_stdr_scr AS evlGdStdrScr /* 상기준 점수 */
+             , ei.evl_av_stdr_scr AS evlAvStdrScr  /* 중기준 점수 */
+             , ei.evl_ps_stdr_scr AS evlPsStdrScr /* 통과기준 점수 */
+             , eri.subm_at AS submAt /* 학생제출여부 */
+             , (select case count(*)
+                    when count(if(erd.mrk_ty = 2, 1, null)) then 1 /* 모두수동채점 */
+                    when count(if(erd.mrk_ty = 3, 1, null)) then 2 /* 모두개념 */
+                    else 3 /* 일반 */
+                end
+                from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id) as allQstnMrkTyCd
+             , (
+             	select
+						if(count(*) = count(if(erd.mrk_ty = 2, 1, null)) and count(*) = count(if(aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 4,1,null)), 'Y','N')
+                from aidt_lms.evl_result_detail erd
+                where erd.evl_result_id = eri.id
+                ) as allManualMrkAt
+                , tcmi.actvtn_at
+        from aidt_lms.evl_info ei
+        join aidt_lms.evl_result_info eri on eri.evl_id = ei.id
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = eri.mamoym_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ei.cla_id = tcmi.cla_id and eri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        where ei.id = #{evlId}
+        <if test="submAt != null and submAt != '' ">
+            and eri.subm_at= #{submAt}
+        </if>
+        order by sri.num
+    </select>
+
+    <select id="findReportEvalResultDetailList_eval" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailList_eval */
+        select ei.id
+             , ei.sets_id
+             , min(ei.evl_nm) as evlNm
+             , if(min(ei.evl_stdr_set_at) = 'N', 4, min(ei.evl_stdr_set)) as evlStdrSet
+             , sum(eii.evl_iem_scr) as mdul_tot_scr
+             , ei.rpt_othbc_at
+             , ei.rpt_auto_othbc_at
+             , date_format(ei.rpt_othbc_dt,'%Y-%m-%d %H:%i:%s') as rpt_othbc_dt
+             , ( select case when count(if(c.md_rflt_at = 'N',1,null)) <![CDATA[>]]> 0 then 'Y' else 'N' end
+                from aidt_lms.evl_result_info a
+                join aidt_lms.evl_result_detail b on b.evl_result_id = a.id
+                left join aidt_lms.evl_scr_md_info c on c.evl_result_detail_id = b.id
+                where a.evl_id = #{evlId} ) as applScrAt
+            , ( select IF (count(1) > 0 , 'Y', 'N' )
+                from aidt_lms.evl_result_info a
+                join aidt_lms.evl_result_detail b on b.evl_result_id = a.id
+                join aidt_lms.evl_scr_md_info c on c.evl_result_detail_id = b.id
+                where a.evl_id = #{evlId} ) as modifyHistAt
+             , (select count(id) from aidt_lms.evl_result_info a where a.evl_id = #{evlId} and a.subm_at = 'Y') as submStntCnt /* 제출자 수 */
+             , (select count(id) from aidt_lms.evl_result_info a where a.evl_id = #{evlId} and a.subm_at = 'N') as notSubmStntCnt /* 미제출자 수 */
+        from aidt_lms.evl_info ei
+        left join aidt_lms.evl_iem_info eii on eii.evl_id = ei.id
+        where ei.id = #{evlId}
+        group by ei.id, ei.sets_id
+    </select>
+
+    <select id="findReportEvalResultDetailMdul_info" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailMdul_info */
+        select eii.evl_iem_id
+             , eii.sub_id
+             , if (erd.mrk_ty = 3, null,  min(eii.evl_iem_scr)) as evl_iem_scr
+             , if (erd.mrk_ty = 3, null, aidt_lms.F_GET_TCH_EVL_SCR(erd.id) )as erd_iem_scr_result
+             , min(ifnull(s.thumbnail,a.thumbnail)) as thumbnail
+             , min(a.description) as description
+             , count(eri.id) as target_cnt
+             , if (erd.mrk_ty = 3, null,  count(case when eri.subm_at = 'Y' then 1 end)) as submit_cnt
+             , ROUND(sum(case aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) when 1 then 1 when 3 then 0.5 end) / count(erd.id) * 100, 2) as avg_correct_rate
+        from aidt_lms.evl_iem_info eii
+                 left join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+                 left join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id and erd.sub_id = eii.sub_id
+                 left join aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+                 left join aidt_lcms.article a on a.id = erd.evl_iem_id
+        where eii.evl_id = #{evlId}
+          and eii.evl_iem_id = #{evlIemId}
+          and eii.sub_id = #{subId}
+        group by eii.evl_iem_id, eii.sub_id
+    </select>
+
+    <select id="findReportEvalResultDetailMdul_mdul" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailMdul_mdul */
+        select F_META_VAL(a.curriYear, a.curriYear) as curriYear
+             , F_META_VAL(a.curriSchool, a.curriSchool) as curriSchool
+             , F_META_VAL(a.curriBook, a.curriBook) as curriBook
+             , F_META_VAL(a.curriSubject, a.curriSubject) as curriSubject
+             , F_META_VAL(a.curriGrade, a.curriGrade) as curriGrade
+             , F_META_VAL(a.curriSemester, a.curriSemester) as curriSemester
+             , F_META_VAL(a.articleType, a.articleType) as articleType
+             , m.val as setsType
+             , m2.val as textbookType
+        from aidt_lms.evl_iem_info eii
+        left join aidt_lcms.article a on a.id = eii.evl_iem_id
+        left join aidt_lms.evl_info ei on ei.id = eii.evl_id
+        left join aidt_lcms.`sets` s on s.id = ei.sets_id
+        left join aidt_lcms.textbook t on t.id = ei.textbook_id
+        left join aidt_lcms.meta m on m.id = s.setCategory
+        left join aidt_lcms.meta m2 on m2.id = t.textbookCategory
+        where eii.evl_id = #{evlId}
+          and eii.evl_iem_id = #{evlIemId}
+          and eii.sub_id = #{subId}
+    </select>
+
+    <select id="findReportErrataInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchReportEvalMapper.findReportErrataInfoList */
+        select erd.evl_iem_id
+             , erd.sub_id
+             , aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) as errata
+             , erd.mrk_ty
+             , erd.eak_stts_cd
+             , erd.eak_at
+             , eri.subm_at
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+        where eri.evl_id =  #{evlId}
+          and eri.mamoym_id = #{userId}
+        order by erd.id
+    </select>
+
+    <select id="findReportEvalResultDetailMdul_image" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailMdul_image */
+        select a.url
+        , a.image
+        from aidt_lms.evl_iem_info eii
+        join aidt_lcms.article a on a.id = eii.evl_iem_id
+        where eii.evl_id = #{evlId}
+          and eii.evl_iem_id = #{evlIemId}
+          and eii.sub_id = #{subId}
+    </select>
+
+    <select id="findReportEvalResultDetailMdul_class" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailMdul_class */
+        select
+            ROUND(sum(case aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) when 1 then 1 when 3 then 0.5 end) / count(erd.id) * 100, 2) as correctRate
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, erd.eak_st_dt, erd.eak_ed_dt)/1000000), 0)),'%H:%i:%s') AS solvSecAvr
+             , ROUND(avg(if(eri.subm_at = 'Y', IFNULL(erd.re_idf_cnt, 0), null)),0) as reIdfCntAvg
+             , AVG(IFNULL(erd.anw_chg_cnt, 0)) as anwChgCntAvg
+        from aidt_lms.evl_iem_info eii
+        join aidt_lcms.article a on eii.evl_iem_id = a.id
+        join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id and erd.sub_id = eii.sub_id
+        where eii.evl_id = #{evlId}
+          and eii.evl_iem_id = #{evlIemId}
+          and eii.sub_id = #{subId}
+          and eri.eak_at = 'Y'
+          and eri.subm_at = 'Y'
+    </select>
+    <select id="findReportEvalResultDetailMdul_class_answers" parameterType="map" resultType="string" >
+        /* TchReportEvalMapper.findReportEvalResultDetailMdul_class_answers */
+        select erd.sub_mit_anw
+        from aidt_lms.evl_iem_info eii
+        join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id
+        join aidt_lcms.article_meta_map amm on amm.article_id = eii.evl_iem_id and amm.meta_name = 'questionType'
+        join aidt_lcms.meta m on m.id = amm.meta_id and m.code in ('scqz','mcqz','oxqz', 'tfqz')
+        where eii.evl_id = #{evlId}
+          and erd.evl_iem_id = #{evlIemId}
+        <if test="subId == null or subId == '' or subId == 0">
+            AND erd.sub_id = 0
+        </if>
+        <if test="subId != null and subId != '' and subId != 0">
+            AND erd.sub_id = #{subId}
+        </if>
+          and TRIM(erd.sub_mit_anw) != ''
+        order by erd.id, erd.evl_iem_id, erd.sub_id
+    </select>
+
+    <select id="findReportEvalResultDetailMdul_coment" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailMdul_coment */
+        select group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+             , group_concat(case when la.part = 'model-answer' then la.data end order by la.sub_id separator '\n') as model_answer
+             , group_concat(case when la.part = 'explanation'  then la.data end order by la.sub_id separator '\n') as explanation
+        from aidt_lcms.log_articlepart la
+        where la.article_id = #{evlIemId}
+          and la.part in ( 'hint','model-answer','explanation')
+    </select>
+
+    <select id="findReportEvalResultDetailStnt_result" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailStnt_result */
+        select erd.id
+             , erd.evl_result_id
+             , erd.evl_iem_id
+             , erd.sub_id
+             , min(erd.eak_at) as eak_at
+             , min(erd.eak_stts_cd) as eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd',min(erd.eak_stts_cd)) as eak_stts_nm
+             , min(ifnull(s.thumbnail,a.thumbnail)) as thumbnail
+             , min(round(aidt_lms.F_GET_TCH_EVL_SCR(erd.id),2)) as evl_iem_scr_result
+             , min(erd.sub_mit_anw) as sub_mit_anw
+             , min(erd.sub_mit_anw_url) as sub_mit_anw_url
+             , min(erd.fdb_dc) as fdb_dc
+             , min(erd.mrk_ty) as mrk_ty
+             , if(eri.subm_at = 'N', null, TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, erd.eak_st_dt, erd.eak_ed_dt)/1000000), 0)),'%H:%i:%s') )AS solv_sec_avr
+             , min(aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id))as errata
+             , (select json_extract(questionStr, '$."rubrics"') from aidt_lcms.article where id = erd.evl_iem_id)  as rubric
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+        join aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+        join aidt_lcms.article a on a.id = erd.evl_iem_id
+        where eri.evl_id = #{evlId}
+          and eri.mamoym_id = #{userId}
+          and erd.evl_iem_id = #{evlIemId}
+          <if test="subId != null and subId != '' ">
+            and erd.sub_id = #{subId}
+          </if>
+        group by erd.id
+               , erd.evl_iem_id
+               , erd.sub_id
+               , erd.evl_result_id
+    </select>
+
+    <select id="findReportEvalResultDetailStnt_stnt" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultDetailStnt_stnt */
+        select eri.*
+             , sri.flnm
+             , sri.user_id
+        from aidt_lms.evl_result_info eri
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = eri.mamoym_id
+        where eri.evl_id = #{evlId}
+          and eri.mamoym_id = #{userId}
+    </select>
+
+    <update id="modifyReportEvalResultDetailStntFdbMod" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultDetailStntFdbMod */
+        update aidt_lms.evl_result_info eri
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+        set erd.fdb_dc = #{fdbDc}
+        where 1=1
+          and eri.evl_id = #{evlId}
+          and eri.mamoym_id = #{userId}
+          and erd.evl_iem_id = #{evlIemId}
+          and erd.sub_id = #{subId}
+    </update>
+
+    <select id="findStntSrchReportFindStnt" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportFindStnt */
+        select tcmi.stdt_id as stnt_id
+        , u.flnm as stnt_nm
+        , aidt_lms.F_CODE_NM('grade_cd', sri.grade_cd) as grade_nm
+        , sri.cla_cd
+        , sri.num
+        , aidt_lms.F_CODE_NM('sex', u.sex) as gender_nm
+        , tcmi.actvtn_at
+        from aidt_lms.tc_cla_mb_info tcmi
+        <if test="reportType != null and reportType != '' ">
+            <if test="reportType == 'task' and reportTargetId != null and reportTargetId != '' ">
+                inner join aidt_lms.task_result_info tri on tcmi.stdt_id = tri.mamoym_id
+            </if>
+        </if>
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = tcmi.stdt_id
+        left join aidt_lms.`user` u on u.user_id = tcmi.stdt_id
+        where 1=1
+          and tcmi.cla_id = #{claId}
+          and tcmi.actvtn_at = 'Y'
+        <if test="reportType != null and reportType != '' ">
+            <if test="reportType == 'task' and reportTargetId != null and reportTargetId != '' ">
+                and tri.task_id = #{reportTargetId}
+            </if>
+        </if>
+        <if test="stntKeyword != null and stntKeyword != '' ">
+            <if test="stntCondition == 'name' ">
+                and sri.flnm like concat('%',#{stntKeyword},'%')
+            </if>
+            <if test="stntCondition == 'id' ">
+                and sri.user_id like concat('%',#{stntKeyword},'%')
+            </if>
+        </if>
+        order by sri.num
+    </select>
+
+    <select id="findStntSrchReportEvalList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalList */
+        select (count(*) over () + 1) - (row_number() over (order by t.evl_cp_dt desc)) as no
+        , t.id
+        , t.eam_mth
+        , aidt_lms.F_CODE_NM('eam_mth', t.eam_mth) as eam_mth_nm
+        , t.evl_nm
+        , t.evl_stts_cd
+        , aidt_lms.F_CODE_NM('evl_stts_cd', t.evl_stts_cd) as evl_stts_nm
+        , t.evl_prg_dt
+        , t.evl_cp_dt
+        , t.evl_stdr_set_at
+        , t.evl_stdr_set
+        , t.evl_gd_stdr_scr
+        , t.evl_av_stdr_scr
+        , t.evl_ps_stdr_scr
+        , t.evl_result_scr
+        , t.subm_at
+        , t.gradeSttsNm
+        , t.evlIemScrTotal
+        , count(*) over () as full_count
+        from (
+            select ei.id
+            , ei.eam_mth
+            , ei.evl_nm
+            , ei.evl_stts_cd
+            , ei.evl_prg_dt
+            , ei.evl_cp_dt
+            , ei.evl_stdr_set_at
+            , ei.evl_stdr_set
+            , ei.evl_gd_stdr_scr
+            , ei.evl_av_stdr_scr
+            , ei.evl_ps_stdr_scr
+            , (
+            	select
+            			sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id))
+            	from aidt_lms.evl_result_detail erd
+            	where erd.evl_result_id = eri.id
+              ) as evl_result_scr
+            , eri.subm_at
+            , case when eri.eak_stts_cd != 5 then '채점필요' else '채점완료' end as gradeSttsNm
+            , IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id ), 0) as evlIemScrTotal
+            from aidt_lms.evl_info ei
+            join aidt_lms.evl_result_info eri on eri.evl_id = ei.id
+            where 1=1
+            and ei.cla_id = #{param.claId}
+            and ei.textbook_id = #{param.textbookId}
+            and eri.mamoym_id = #{param.stntId}
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test="param.condition == 'name' ">
+                and ei.evl_nm like concat('%',#{param.keyword},'%')
+            </if>
+            <if test="param.condition == 'gubun' ">
+                and ei.eam_mth = #{param.keyword}
+            </if>
+            <if test="param.condition == 'date' ">
+                and (
+                   (ei.evl_prg_dt <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ei.evl_prg_dt <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                or (ei.evl_cp_dt  <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ei.evl_cp_dt  <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                or (ei.evl_prg_dt <![CDATA[<]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                    ei.evl_cp_dt  <![CDATA[>=]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                )
+            </if>
+        </if>
+        ) t
+        where 1=1
+            and t.evl_stts_cd >= 3
+            and not exists (select 1
+                from aidt_lms.evl_result_info eri
+                where eri.evl_id = t.id
+                and eri.eak_stts_cd <![CDATA[ < ]]> 3
+            ) /* 모든 학생이 완료된 건만 조회 */
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test='param.condition == "status" and (param.keyword == "1" or param.keyword == "2") '>
+                and t.gradeSttsNm = case when #{param.keyword} = '1' then '채점필요' else '채점완료' end
+            </if>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetail_errata" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetail_errata */
+        select
+		          count(
+                          if (aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 1, 1, null)
+		          ) as anw_num
+				  , count(
+		             	  if (aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 2, 1, null)
+				  ) as wrng_num
+				  , count(
+                          if (aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 3, 1, null)
+				  ) as tri_num
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+        where eri.evl_id = #{evlId}
+          and eri.mamoym_id = #{stntId}
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetail_image" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetail_image */
+        select eii.evl_iem_id
+                , eii.sub_id
+                , a.url
+                , a.image
+        from aidt_lms.evl_iem_info eii
+        join aidt_lcms.article a on a.id = eii.evl_iem_id
+        where eii.evl_id = #{evlId}
+        order by eii.id, eii.sub_id
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetail_mdul" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetail_mdul */
+        select eii.evl_iem_id
+                , eii.sub_id
+                , F_META_VAL(`curriYear`, a.curriYear) as curri_year
+                , F_META_VAL(`curriSchool`, a.curriSchool) as curri_school
+                , F_META_VAL(`curriBook`, a.curriBook) as curri_book
+                , F_META_VAL(`curriSubject`, a.curriSubject) as curri_subject
+                , F_META_VAL(`curriGrade`, a.curriGrade) as curri_grade
+        from aidt_lms.evl_iem_info eii
+        left join aidt_lcms.article a on a.id = eii.evl_iem_id
+        where eii.evl_id = #{evlId}
+        order by eii.id, eii.sub_id
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetail_analysis" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetail_analysis */
+        select eii.evl_iem_id
+             , eii.sub_id
+             , IFNULL(erd.re_idf_cnt, 0) as reIdfCntAvg
+             , IFNULL(erd.anw_chg_cnt, 0) as anwChgCntAvg
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, erd.eak_st_dt, erd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solvSecAvr
+             , erd.sub_mit_anw
+        from aidt_lms.evl_iem_info eii
+        join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id
+        where eii.evl_id = #{evlId}
+          and eri.mamoym_id = #{stntId}
+        order by eii.id, erd.id, erd.sub_id
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetail_coment" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetail_coment */
+        select eii.evl_iem_id
+                , eii.sub_id
+                , group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+                , group_concat(case when la.part = 'model-answer' then la.data end order by la.sub_id separator '\n') as model_answer
+                , group_concat(case when la.part = 'explanation'  then la.data end order by la.sub_id separator '\n') as explanation
+        from aidt_lms.evl_iem_info eii
+        join aidt_lcms.log_articlepart la on la.article_id = eii.evl_iem_id
+        where eii.evl_id = #{evlId}
+          and la.part in ( 'hint','model-answer','explanation')
+        group by eii.evl_iem_id
+        order by eii.id, eii.sub_id
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetailMdul_info" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetailMdul_info */
+        select eii.evl_iem_id
+             , eii.sub_id
+             , min(eii.evl_iem_scr) as evlIemScr
+             , min(ifnull(s.thumbnail,a.thumbnail)) as thumbnail
+             , min(a.description) as description
+             , count(eri.id) as targetCnt
+             , count(case when eri.subm_at = 'Y' then 1 end) as submitCnt
+             , ROUND(sum(case aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) when 1 then 1 when 3 then 0.5 end) / count(erd.id) * 100, 2) AS avgCorrectRate
+        from aidt_lms.evl_iem_info eii
+                 left join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+                 left join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id
+                 left join aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+                 left join aidt_lcms.article a on a.id = erd.evl_iem_id
+        where eii.evl_id = #{evlId}
+        group by eii.evl_iem_id, eii.sub_id
+        order by eii.id
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetailMdul_eval" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetailMdul_eval */
+        select erd.id
+             , erd.evl_result_id
+             , erd.evl_iem_id
+             , erd.sub_id
+             , aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) as errata
+             , aidt_lms.F_GET_TCH_EVL_SCR(erd.id) as evl_iem_scr_result
+             , erd.sub_mit_anw
+             , erd.sub_mit_anw_url
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, erd.eak_st_dt, erd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solv_sec_avr
+             , erd.fdb_dc
+             , erd.mrk_ty
+             , erd.eak_at
+             , eri.subm_at
+             , a.articleType
+             , (select json_extract(questionStr, '$."rubrics"') from aidt_lcms.article where id = erd.evl_iem_id) as rubric
+        from aidt_lms.evl_result_info eri
+                 join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                 inner join aidt_lcms.article a on a.id = erd.evl_iem_id
+        where eri.evl_id = #{evlId}
+          and eri.mamoym_id = #{stntId}
+        order by a.id, erd.id, erd.sub_id
+    </select>
+
+    <select id="findStntSrchReportEvalResultDetail" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultDetail */
+        select ei.id
+             , ei.evl_nm
+             , ei.sets_id
+             , ( select sum(eii.evl_iem_scr)
+                 from aidt_lms.evl_iem_info eii
+                 where eii.evl_id = ei.id ) as mdulTotScr
+             , ( select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id))
+                 from aidt_lms.evl_result_info eri
+                          join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                 where eri.evl_id = ei.id
+                   and eri.mamoym_id = #{stntId} ) as stntTotScr
+             , ( select max(eri.subm_at)
+                 from aidt_lms.evl_result_info eri
+                 where eri.evl_id = ei.id
+                   and eri.mamoym_id = #{stntId} ) as submAt
+             , ( select count(*)
+                 from aidt_lcms.sets_article_map sam
+                          join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+                 where sam.sets_id = ei.sets_id) as modNum
+             , ei.evl_stdr_set_at
+             , ei.evl_stdr_set
+             , ei.evl_gd_stdr_scr
+             , ei.evl_av_stdr_scr
+             , ei.evl_ps_stdr_scr
+             , IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id ), 0) as evlIemScrTotal
+             , (select case count(*)
+                           when count(if(erd.mrk_ty = 2, 1, null)) then 1 /* 모두수동채점 */
+                           when count(if(erd.mrk_ty = 3, 1, null)) then 2 /* 모두개념 */
+                           else 3 /* 일반 */
+                           end
+                from aidt_lms.evl_result_info eri
+                         join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                where eri.evl_id = ei.id
+                  and eri.mamoym_id = #{stntId} ) as allQstnMrkTyCd
+             , (select if(count(*) = count(if(erd.mrk_ty = 2, 1, null)) and count(*) = count(if(aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 4,1,null)), 'Y','N')
+                from aidt_lms.evl_result_info eri
+                         join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                where eri.evl_id = ei.id
+                  and eri.mamoym_id = #{stntId} ) as allManualMrkAt
+        from aidt_lms.evl_info ei
+        where ei.id = #{evlId}
+    </select>
+
+    <select id="findReportEvalResultForStudent" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultForStudent */
+        select erd.id evlDetailId /* 평가결과 상세정보 아이디 */
+             , erd.evl_iem_scr_result evlIemScrResult /* 최종 배점결과 */
+             , (select evl_iem_scr from aidt_lms.evl_iem_info eii where eii.evl_id = eri.evl_id and eii.evl_iem_id = erd.evl_iem_id and eii.sub_id = erd.sub_id ) evlIemScr /* 문항배점 */
+             , eri.id evlResultId /* 평가결과정보 아이디 */
+             , ei.rpt_othbc_at /* 리포트공개여부 */
+             , ei.evl_stts_cd
+        from aidt_lms.evl_info ei
+        join aidt_lms.evl_result_info eri on ei.id = eri.evl_id
+        join aidt_lms.evl_result_detail erd on eri.id = erd.evl_result_id
+        where  	1=1
+          AND 	eri.evl_id = #{evlId} /* 평가 id */
+          and 	erd.evl_iem_id = #{evlIemId} /* 선택된 모듈(항목) id */
+          and   erd.sub_id = #{subId}
+          and 	eri.mamoym_id = #{userId} /* 학생id */
+    </select>
+
+    <update id="modifyReportEvalResultScore" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScore */
+        update 	aidt_lms.evl_result_detail
+        set 	evl_iem_scr_result = #{modifiedScore}
+                , errata = #{errata}
+                , eak_stts_cd = 5
+                , mrk_cp_at = 'Y'
+                , mdfy_dt = now()
+                , mdfr = '/result/modi/score'
+        where 	id = #{evlDetailId}
+    </update>
+
+    <select id="findReportEvalResultScoreSum" parameterType="int" resultType="map" >
+        /* TchReportEvalMapper.findReportEvalResultScoreSum */
+        select	sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) as totalScore
+             ,  count(case when erd.eak_stts_cd <![CDATA[ < ]]> 5 then 1 end) inCompleteCnt
+        from    aidt_lms.evl_result_detail erd
+        where 	erd.evl_result_id = #{evlResultId}
+    </select>
+
+    <update id="modifyReportEvalResultScoreSum_resultInfo" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScoreSum_resultInfo */
+        update 	aidt_lms.evl_result_info
+        set 	evl_result_scr = #{totalScore}
+                , eak_stts_cd = #{eakSttsCd}
+                , mrk_cp_at = if(#{eakSttsCd} = 5, 'Y', 'N')
+        where 	id = #{evlResultId}
+    </update>
+
+    <update id="modifyReportEvalResultScoreSum_info_bak" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScoreSum_info_bak */
+        UPDATE evl_info AS ei
+        JOIN (
+            SELECT evl_id, COUNT(*) AS count_less_than_5
+            FROM aidt_lms.evl_result_info
+            WHERE eak_stts_cd <![CDATA[ < ]]> 5
+            and 	evl_id = #{evlId}
+            GROUP BY evl_id
+        ) AS eri ON eri.evl_id = ei.id
+        SET ei.evl_stts_cd = CASE WHEN eri.count_less_than_5 = 0 THEN 5 ELSE 4 END
+            , ei.mdfy_dt = now()
+        WHERE ei.id = #{evlId}
+    </update>
+
+    <update id="modifyReportEvalResultScoreSum_info" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScoreSum_info */
+        UPDATE aidt_lms.evl_info AS ei
+        SET ei.evl_stts_cd =
+            CASE
+                WHEN (SELECT COUNT(*)
+                      FROM aidt_lms.evl_result_info
+                      WHERE evl_id = #{evlId} AND eak_stts_cd <![CDATA[<]]> 5
+                      ) = 0
+                    THEN 5 ELSE 4 END
+          , ei.mdfy_dt = now()
+        WHERE ei.id = #{evlId}
+    </update>
+
+
+    <select id="findReportEvalResultHeader" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultHeader */
+        select 	ei.id
+             , ei.eam_exm_num
+             , DATE_FORMAT(ei.evl_prg_dt, '%Y-%m-%d %H:%i:%s') as evl_prg_dt
+             , DATE_FORMAT(ei.evl_cp_dt, '%Y-%m-%d %H:%i:%s') as evl_cp_dt
+             , (select sum(evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id) eviIemScrSum /* 총 배점합계 */
+             , (select count(1) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id ) targetCnt /* 대상자수 */
+             , (select count(1) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id and eri.subm_at ='Y') submitCnt /* 제출자수 */
+             , (select DISTINCT CONCAT(grade_cd, '학년 ', cla_cd, '반') from aidt_lms.tc_cla_info tci where tci.cla_id = ei.cla_id) classNm /* 학년반정보 */
+             , ei.evl_stdr_set_at AS evlStdrSetAt /* 평가기준 설정여부 */
+             , case when ei.evl_stdr_set_at = 'N' then 4 else ei.evl_stdr_set end AS evlStdrSet /* 평가기준값 */
+             , ei.evl_gd_stdr_scr AS evlGdStdrScr /* 상기준 점수 */
+             , ei.evl_av_stdr_scr AS evlAvStdrScr  /* 중기준 점수 */
+             , ei.evl_ps_stdr_scr AS evlPsStdrScr /* 통과기준 점수 */
+             , IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id ), 0) as evlIemScrTotal /* 만점 배점 */
+        from 	aidt_lms.evl_info ei
+        where 	id = #{evlId}
+    </select>
+
+    <select id="findReportEvalResultInsiteCalculate" parameterType="map" resultType="map" >
+        /* TchReportEvalMapper.findReportEvalResultInsiteCalculate */
+        SELECT 	eri.evl_id
+             , ROUND(AVG((select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id)), 1) scoreAvr /* 평가결과 평균점수 */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(SECOND, eri.eak_st_dt, eri.eak_ed_dt)))), '%H:%i:%s') AS solvDurationAvr /* 평가결과 평균 소요시간 String */
+             , ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, eri.eak_st_dt, eri.eak_ed_dt)/1000), 0) AS solvDurationAvrMilsec /* 평균소요시간 밀리Sec */
+        from 	aidt_lms.evl_result_info eri
+        where 	eri.evl_id = #{evlId}
+          and 	eri.subm_at = 'Y' /* 제출여부 */
+#           and 	eri.mrk_cp_at = 'Y' /* 채점여부 */
+        group by eri.evl_id
+    </select>
+
+    <select id="findReportEvalResultInsite" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultInsite */
+        select eri.evl_id
+		        , eri.sets_id
+		        , erd.evl_iem_id /* 평가항목(모듈) ID */
+		        , erd.sub_id
+		        , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+		        , a.url
+		        , a.image
+		        , F_META_VAL(`curriYear`, a.curriYear) as curriYear
+		        , F_META_VAL(`curriSchool`, a.curriSchool) as curriSchool
+		        , F_META_VAL(`curriBook`, a.curriBook) as curriBook
+		        , F_META_VAL(`curriSubject`, a.curriSubject) as curriSubject
+		        , F_META_VAL(`curriGrade`, a.curriGrade) as curriGrade
+		        , avg(IFNULL(erd.re_idf_cnt, 0)) re_idf_cntAvg /* 재확인 횟수 평균 */
+		        /* 		, round(avg(IFNULL(erd.evl_iem_scr_result, 0) / eii.evl_iem_scr) * 100, 2) AS correctRate_old  정답율: 점수 기준(데이터 쌓이고 검증필요) */
+		        , ROUND(count(case when aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 1 then 1 end) / count(erd.id) * 100, 2) AS correct_rate /* 정답율: errata 기준(데이터 쌓이고 검증필요) */
+		        , avg(IFNULL(erd.anw_chg_cnt, 0)) anw_chg_cnt_avg /* 답안변경 횟수 평균 */
+		        /* , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, erd.eak_st_dt, erd.eak_ed_dt)/1000000), 0)),'%H:%i:%s') AS solv_sec_avr */
+		        , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(SECOND, erd.eak_st_dt, erd.eak_ed_dt)), 0)),'%H:%i:%s') AS solv_sec_avr
+		        , 'java로직으로 처리' AS answerRateStr /* 지문별 응답율 */
+		        , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'hint' ) as hint
+		        , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'model-answer' ) as modelAnswer
+		        , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'explanation' ) as explanation
+		        , count(*) over () as full_count
+        from 	aidt_lms.evl_iem_info eii
+        join    aidt_lcms.article a on eii.evl_iem_id = a.id
+        join    aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+        join    aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id and erd.sub_id = eii.sub_id
+        join    aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+        where 	  eii.evl_id = #{param.evlId}
+        group by  eri.evl_id
+                , eri.sets_id
+                , erd.evl_iem_id
+                , erd.sub_id
+                , a.url
+                , a.image
+                , curriYear
+                , curriSchool
+                , curriBook
+                , curriSubject
+                , curriGrade
+        <if test="param.condition == 1 ">
+            order by correct_rate, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 2 ">
+            order by solv_sec_avr DESC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 3 ">
+            order by re_idf_cntAvg DESC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 4 ">
+            order by anw_chg_cnt_avg DESC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 5 ">
+            order by solv_sec_avr ASC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 0 ">
+            order by eii.id, erd.id, erd.sub_id
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findReportEvalResultSummary" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultSummary */
+        select  @ROWNUM := @ROWNUM + 1 as num,
+		X.*
+        from 	(
+                select 	eii.evl_id
+                     , sri.flnm
+                     , eri.subm_at AS submAt /* 학생제출여부 */
+                     , IFNULL(ei.tim_time, '00:00:00') AS timTime /* 제한시간 12:12(추가시간을 계산공식 필요) */
+                     , TIME_FORMAT(COALESCE(SEC_TO_TIME(SUM(ROUND(TIMESTAMPDIFF(SECOND, erd.eak_st_dt, erd.eak_ed_dt)))),'00:00:00'),'%H:%i:%s') AS solvDuration /* 소요시간 12:12 */
+        /*              , '00:00' AS solvDuration  소요시간(계산방법 필요) */
+                     , IFNULL(eri.evl_adi_sec , 0) evlAdiSec /* 추가시간 */
+                     , count(case when a.articleType = 21 then 1 end) questionCntTotal /* 문항개수 */
+                     , count(case when a.articleType = 21 and erd.mrk_cp_at  = 'Y' then 1 end) questionCompleteCnt /* 문항 채점완료개수 */
+                     , count(case when a.articleType = 21 and aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 1 then 1 end) as questionCorrentCnt /* 문항 정답개수 */
+                     , count(case when a.articleType = 22 then 1 end) movementCntTotal /* 활동개수 */
+                     , count(case when a.articleType = 22 and erd.mrk_cp_at  = 'Y' then 1 end) movementCompleteCnt /* 활동 채점완료개수 */
+                     , count(case when a.articleType = 22 and aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 1 then 1 end) as movementCorrentCnt /* 활동 정답개수 */
+                     , 0 AS selfJudgeCnt /* 자기평가 개수 */
+                     , 0 AS otherJudgeCnt /* 동료평가 개수 */
+                     , ROUND(sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)), 2) as evlResultScrTotal /* 총점 */
+                     , ei.evl_stdr_set_at AS evlStdrSetAt /* 평가기준 설정여부 */
+                     , case when ei.evl_stdr_set_at = 'N' then 4 else ei.evl_stdr_set end AS evlStdrSet /* 평가기준값 */
+                     , ifnull(ei.evl_gd_stdr_scr, 0) AS evlGdStdrScr /* 상기준 점수 */
+                     , ifnull(ei.evl_av_stdr_scr, 0) AS evlAvStdrScr  /* 중기준 점수 */
+                     , ifnull(ei.evl_ps_stdr_scr, 0) AS evlPsStdrScr /* 통과기준 점수 */
+                     , eri.mamoym_id AS stntId /* 학생 ID */
+                     , MIN(case when a.articleType = 21 then eii.evl_iem_id end) AS questionFirstId /* 문항 첫번째 iem_id */
+                     , MIN(case when a.articleType = 22 then eii.evl_iem_id end) AS movementFirstId /* 활동 첫번째 iem_id */
+        /*              , count(*) over () as fullCount */
+                from 	aidt_lms.evl_info ei
+                   , aidt_lms.evl_result_info eri
+                   , aidt_lms.stdt_reg_info sri
+                   , aidt_lms.evl_iem_info eii
+                   , aidt_lcms.article a
+                   , aidt_lms.evl_result_detail erd
+                WHERE 	1=1
+                  and 	ei.id = #{evlId}
+                  and 	ei.id = eri.evl_id
+                  and 	eri.mamoym_id = sri.user_id
+                  and 	eii.evl_id = ei.id
+                  and 	eii.evl_iem_id = a.id
+                  and 	erd.evl_result_id = eri.id
+                  and 	erd.evl_iem_id = eii.evl_iem_id
+                group by num
+                       , sri.flnm
+                       , eri.subm_at
+                       , ei.tim_time
+                       , eri.evl_adi_sec
+                       , ei.evl_stdr_set_at
+                       , ei.evl_stdr_set
+                       , ei.evl_gd_stdr_scr
+                       , ei.evl_av_stdr_scr
+                       , eri.mamoym_id
+                order by sri.flnm
+            ) X
+                , (select @ROWNUM:=0) as r
+    </select>
+
+
+    <select id="findReportMdulTotScr" parameterType="map" resultType="float" >
+        /* TchReportEvalMapper.findReportMdulTotScr */
+        select 	sum(eii.evl_iem_scr) mdulTotScr
+        from 	aidt_lms.evl_iem_info eii
+        where 	eii.evl_id = #{evlId}
+    </select>
+
+    <select id="findStntSrchReportEvalResultHeader" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultHeader */
+        select 	ei.id
+             , ei.evl_nm
+             , (select DISTINCT CONCAT(grade_cd, '학년 ', cla_cd, '반') from aidt_lms.tc_cla_info tci where tci.cla_id = ei.cla_id) classNm /* 학년정보 */
+             , '평가'  resultTypeNm
+             , aidt_lms.F_CODE_NM('eam_mth', ei.eam_mth)  eam_mth /* 출제구분 */
+             , DATE_FORMAT(eri.eak_st_dt, '%Y-%m-%d %H:%i:%s') evlPrgDt /* 평가시작날짜 */
+             , DATE_FORMAT(eri.eak_ed_dt, '%Y-%m-%d %H:%i:%s') evlCpDt /* 평가종료날짜 */
+             , DATE_FORMAT(eri.eak_ed_dt, '%Y-%m-%d %H:%i:%s') subm_dt /* 제출날짜 */
+             , ei.tim_time /* 제한시간 (분:초) */
+             , CONCAT(MINUTE(SEC_TO_TIME(eri.evl_adi_sec)), ':', SECOND(SEC_TO_TIME(eri.evl_adi_sec)))  addTime /* 추가시간 (분:초) */
+             , (select count(1) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id) eamExmNum /* 총 문제수 */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(SECOND, eri.eak_st_dt, eri.eak_ed_dt))), '%H:%i:%s') AS durationAvr /* 소요시간 String */
+             , (select sum(erd.evl_iem_scr_result) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id) AS evlResultScr /* 총점수 */
+             , ei.evl_stdr_set_at AS evlStdrSetAt /* 평가기준 설정여부 */
+             , case when ei.evl_stdr_set_at = 'N' then 4 else ei.evl_stdr_set end AS evlStdrSet /* 평가기준값 */
+             , ei.evl_gd_stdr_scr AS evlGdStdrScr /* 상기준 점수 */
+             , ei.evl_av_stdr_scr AS evlAvStdrScr  /* 중기준 점수 */
+             , ei.evl_ps_stdr_scr AS evlPsStdrScr /* 통과기준 점수 */
+             , eri.subm_at AS submAt /* 학생제출여부 */
+             , IFNULL((select sum(evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id ), 0) as evlIemScrTotal
+        from 	aidt_lms.evl_info ei
+           , aidt_lms.evl_result_info eri
+        where 	ei.id = #{evlId}
+          and 	eri.mamoym_id = #{stntId}
+          and 	eri.evl_id = ei.id
+    </select>
+
+    <select id="findStntSrchReportEvalResultSummary" parameterType="pagingParam" resultType="camelHashMap" >
+            /* TchReportEvalMapper.findStntSrchReportEvalResultSummary */
+            select 	eii.id num
+                 , eii.evl_iem_id /* 콘텐츠 ID */
+                 , eii.sub_id
+                 , erd.evl_result_id /* 평가결과 ID */
+                 , F_META_VAL(`questionType`, va.questionType) as questionType /* 콘텐츠유형 */
+                 , eri.eak_at /* 응시여부 */
+                 , eri.eak_stts_cd /* 응시상태코드 */
+                 , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd)as eakSttsNm /* 응시상태명 */
+                 , eri.subm_at /* 제출여부 */
+                 , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(SECOND, eri.eak_st_dt, eri.eak_ed_dt))), '%H:%i:%s') AS solvDuration /* 소요시간 */
+                 , erd.sub_mit_anw
+                 , aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) as errata
+                 , erd.sub_mit_anw_url /* 답안URL */
+                 , count(*) over () as full_count
+            from 	aidt_lms.evl_result_info eri
+               , aidt_lms.evl_result_detail erd
+               , aidt_lms.evl_iem_info eii
+               , aidt_lcms.article va
+        where 	eri.evl_id = #{param.evlId}
+          and 	eri.mamoym_id = #{param.stntId}
+          and 	erd.evl_result_id = eri.id
+          and 	erd.evl_iem_id = eii.evl_iem_id
+          and   erd.sub_id = eii.sub_id
+          and 	eii.evl_iem_id = va.id
+          and 	eii.evl_id = eri.evl_id
+        order by eii.id, erd.id, erd.sub_id
+                limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+
+    <select id="findStntSrchReportEvalResultInsite" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntSrchReportEvalResultInsite */
+        select 	eii.evl_id
+		        , eri.sets_id
+		        , eii.evl_iem_id
+		        , eii.sub_id
+		        , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+		        , a.url
+		        , a.image
+		        , a.description
+		        , F_META_VAL(`curriYear`, a.curriYear) as curriYear
+		        , F_META_VAL(`curriSchool`, a.curriSchool) as curriSchool
+		        , F_META_VAL(`curriSubject`, a.curriSubject) as curriSubject
+		        , F_META_VAL(`curriGrade`, a.curriGrade) as curriGrade
+		        , IFNULL(erd.re_idf_cnt, 0) as reIdfCntAvg
+		        , IFNULL(erd.anw_chg_cnt, 0) as anwChgCntAvg
+		        , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(MICROSECOND, erd.eak_st_dt, erd.eak_ed_dt)/1000000, 0)),'%H:%i:%s') AS solvSecAvr
+		        , erd.sub_mit_anw  /* 지문선택 */
+		        , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'hint' ) as hint
+		        , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'model-answer' ) as modelAnswer
+		        , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'explanation' ) as explanation
+		        , count(*) over () as full_count
+                , ROUND(count(case when aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) = 1 then 1 end) / count(erd.id) * 100, 2) AS correct_rate
+                , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(TIMESTAMPDIFF(SECOND, erd.eak_st_dt, erd.eak_ed_dt)), 0)),'%H:%i:%s') AS solv_sec_avr
+        , ROUND(avg(if(eri.subm_at = 'Y', IFNULL(erd.re_idf_cnt, 0), null)),0) as re_idf_cnt_avg
+        , avg(IFNULL(erd.anw_chg_cnt, 0)) anw_chg_cnt_avg /* 답안변경 횟수 평균 */
+        from 	aidt_lms.evl_iem_info eii
+		        join aidt_lcms.article a on eii.evl_iem_id = a.id
+		        join aidt_lms.evl_result_info eri on eri.evl_id = eii.evl_id
+		        join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id and erd.evl_iem_id = eii.evl_iem_id and erd.sub_id = eii.sub_id
+		        join aidt_lcms.setsummary s on s.set_id = eri.sets_id and s.article_id = erd.evl_iem_id and s.sub_id = erd.sub_id
+        where 	eii.evl_id = #{param.evlId}
+        and 	 eri.mamoym_id = #{param.stntId}
+        group by  evl_id
+                , eri.sets_id
+                , eii.evl_iem_id
+                , eii.sub_id
+                , erd.id
+        <if test="param.condition == 1 ">
+            order by correct_rate, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 2 ">
+            order by solv_sec_avr DESC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 3 ">
+            order by re_idf_cnt_avg DESC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 4 ">
+            order by anw_chg_cnt_avg DESC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 5 ">
+            order by solv_sec_avr ASC, eii.id, erd.id, erd.sub_id
+        </if>
+        <if test="param.condition == 0 ">
+            order by eii.id, erd.id, erd.sub_id
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+
+    <update id="modifyReportEvalOpen" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalOpen */
+        update  evl_info
+        set rpt_othbc_at ='Y'
+          , rpt_othbc_dt = now()
+          , mdfy_dt = now()
+        where id = #{evlId}
+    </update>
+
+    <select id="findReportEvalOpenData" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalOpenData */
+        select
+            id as evlId
+            , rpt_othbc_at
+            , DATE_FORMAT(rpt_othbc_dt, "%Y-%m-%d %H:%i:%s") AS rpt_othbc_dt
+        from
+            evl_info
+        where
+            id = #{evlId}
+    </select>
+
+    <update id="modifyReportEvalSubmAt" parameterType="int">
+        /* TchReportEvalMapper.modifyReportEvalSubmAt */
+        update 	aidt_lms.evl_result_info
+        set 	subm_at = 'Y'
+                , subm_dt = COALESCE(subm_dt, NOW())
+        where 	id = #{evlResultId}
+          and   done_yn = 'Y'
+    </update>
+
+    <select id="findEvlScrMdInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findEvlScrMdInfo */
+        select  *
+        from 	aidt_lms.evl_scr_md_info esmi
+        where 	esmi.evl_result_detail_id = #{evlDetailId}
+          and 	esmi.md_rflt_at = 'N'
+    </select>
+
+
+
+    <update id="updateEvlScrMdInfo" parameterType="map" >
+        /* TchReportEvalMapper.updateEvlScrMdInfo */
+        update 	aidt_lms.evl_scr_md_info esmi
+        set 	esmi.errata = #{errata}
+                , esmi.evl_iem_scr = #{modifiedScore}
+                , esmi.mdfy_dt = now()
+        where 	esmi.id = #{mdId}
+    </update>
+
+    <insert id="insertEvlScrMdInfo" parameterType="map" >
+        /* TchReportEvalMapper.insertEvlScrMdInfo */
+        INSERT INTO aidt_lms.evl_scr_md_info
+            (evl_result_detail_id, errata, evl_iem_scr, rgtr, mdfr )
+        VALUES (#{evlDetailId}, #{errata}, #{modifiedScore}, #{tchId}, #{tchId})
+    </insert>
+
+    <select id="findEvlResultIdForApplScore" parameterType="map" resultType="map" >
+        /* TchReportEvalMapper.findEvlResultIdForApplScore */
+        select 	group_concat(DISTINCT eri.id order by eri.id ) as evl_result_id_list /* evl_result_info id 의 리스트 string */
+             , group_concat(esmi.id order by esmi.id )  as evl_md_id_list /* evl_scr_md_info id 의 리스트 string */
+        from 	aidt_lms.evl_result_info eri
+                    join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                    join aidt_lms.evl_scr_md_info esmi on esmi.evl_result_detail_id = erd.id and esmi.md_rflt_at = 'N'
+        where 	eri.evl_id = #{evlId}
+    </select>
+
+    <update id="modifyReportEvalResultApplScore" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultApplScore */
+        update aidt_lms.evl_result_detail erd
+            join aidt_lms.evl_scr_md_info esmi on esmi.evl_result_detail_id = erd.id
+            set 	erd.errata = esmi.errata
+                    , erd.evl_iem_scr_result = esmi.evl_iem_scr
+                    , erd.eak_stts_cd = 5  /* 채점완료 */
+                    , erd.mrk_cp_at = 'Y'  /* 채점완료여부 */
+                    , erd.mdfy_dt = now()
+                    , esmi.md_rflt_at = 'Y'
+                    , esmi.mdfy_dt = now()
+        where 	esmi.id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <update id="modifyReportEvalResultScoreSumByResultIds" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScoreSumByResultIds */
+        update aidt_lms.evl_result_info eri
+        set eri.evl_result_scr = (select sum(evl_iem_scr_result) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id )
+          , eri.eak_stts_cd = (select if(count(*) = 0, 5, eri.eak_stts_cd) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id and erd.eak_stts_cd <![CDATA[<]]> 5 )
+          , eri.mrk_cp_at = (select if(count(*) = 0, 'Y', eri.mrk_cp_at) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id and erd.eak_stts_cd <![CDATA[<]]> 5 )
+          , eri.mdfy_dt = now()
+        where 	eri.id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <update id="modifyReportEvalApplScore" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalApplScore */
+        update aidt_lms.evl_info ei
+        set ei.evl_stts_cd = (select if(count(*) = 0, 5, ei.evl_stts_cd) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id and eri.eak_stts_cd <![CDATA[<]]> 5 )
+          , ei.mrk_cp_dt = (select if(count(*) = 0, now(), ei.mrk_cp_dt) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id and eri.eak_stts_cd <![CDATA[<]]> 5 )
+          , ei.mdfy_dt = now()
+        where 	ei.id = #{evlId}
+    </update>
+
+    <update id="updateTchReportEvlReviewSave" parameterType="map">
+        UPDATE aidt_lms.evl_result_info
+        SET stdt_prnt_rls_at = #{stdtPrntRlsAt}
+          ,genrvw = #{genrvw}
+          ,mdfr = #{userId}
+          ,mdfy_dt = NOW()
+        WHERE evl_id = #{evlId}
+          AND mamoym_id = #{userId}
+    </update>
+
+    <select id="findSendNtcnEvlList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findSendNtcnEvlList */
+        select
+            tc.stdt_id  as rcve_id
+             , textbook_id as textbk_id
+             , "S" as trget_cd
+             , "5" as ntcn_ty_cd
+             , "99" as trget_ty_cd
+             , CONCAT('{"type":"report-evl-created","data":{},"shortcut":{"evlId":', #{evlId}, '}}') AS ntcn_cn
+             , '' as link_url
+             , ei.id as trget_id
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , ei.sets_id
+             , tc.cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left join aidt_lms.evl_info ei on ei.id = #{evlId}
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where 1=1
+          and ei.cla_id =tc.cla_id
+          and (ei.rpt_auto_othbc_at = 'Y' or ei.rpt_othbc_at = 'Y')
+          and tc.actvtn_at = 'Y'
+
+    </select>
+
+    <select id="findSendNtcnEvlListAuto" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findSendNtcnEvlListAuto */
+        select
+            tc.stdt_id  as rcve_id
+             , textbook_id as textbk_id
+             , "S" as trget_cd
+             , "5" as ntcn_ty_cd
+             , "99" as trget_ty_cd
+             , CONCAT('{"type":"report-evl-created","data":{},"shortcut":{"evlId":', #{evlId}, '}}') AS ntcn_cn
+             , '' as link_url
+             , ei.id as trget_id
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , ei.sets_id
+             , tc.cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left join aidt_lms.evl_info ei on ei.id = #{evlId}
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where 1=1
+          and ei.cla_id =tc.cla_id
+          and ei.rpt_auto_othbc_at = 'Y'
+          and tc.actvtn_at = 'Y'
+
+    </select>
+
+    <select id="findSendNtcnEvlListPassivity" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findSendNtcnEvlListAuto */
+        select
+            tc.stdt_id  as rcve_id
+             , textbook_id as textbk_id
+             , "S" as trget_cd
+             , "5" as ntcn_ty_cd
+             , "99" as trget_ty_cd
+             , CONCAT('{"type":"report-evl-created","data":{},"shortcut":{"evlId":', #{evlId}, '}}') AS ntcn_cn
+             , '' as link_url
+             , ei.id as trget_id
+             , flnm as stnt_nm
+             , wrter_id as user_id
+             , ei.sets_id
+             , tc.cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left join aidt_lms.evl_info ei on ei.id = #{evlId}
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where 1=1
+          and ei.cla_id =tc.cla_id
+          and ei.rpt_othbc_at = 'Y'
+          and tc.actvtn_at = 'Y'
+
+    </select>
+
+    <select id="findReportEvalResultIndList_eval" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultIndList_eval */
+        select ei.id
+             , ei.evl_nm
+             , ei.evl_stdr_set_at
+             , ei.evl_stdr_set
+             , ei.evl_gd_stdr_scr
+             , ei.evl_av_stdr_scr
+             , ei.evl_ps_stdr_scr
+             , IFNULL((select sum(eii.evl_iem_scr) from aidt_lms.evl_iem_info eii where eii.evl_id = ei.id ), 0) as evlIemScrTotal
+             , ( select max(t.cnt)
+                 from (
+                    select COUNT(*) as cnt
+                    from aidt_lms.evl_result_info eri
+                    left join aidt_lcms.sets_article_map sam on sam.sets_id = eri.sets_id
+                    left join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+                    where eri.evl_id = ei.id
+                    group by eri.mamoym_id
+                  ) t ) as maxCnt
+        from aidt_lms.evl_info ei
+        where ei.id = #{evlId}
+    </select>
+
+    <select id="findReportEvalResultIndList_stnt" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findReportEvalResultIndList_stnt */
+        select eri.id
+             , eri.mamoym_id
+             , eri.sets_id
+             , eri.subm_at
+             , sri.flnm
+             , sri.user_id
+             , (select sum(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id) as evlResultScr
+        from aidt_lms.evl_result_info eri
+        left join aidt_lms.stdt_reg_info sri on sri.user_id = eri.mamoym_id
+        where eri.evl_id = #{evlId}
+        order by sri.flnm
+    </select>
+
+    <select id="findStntList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntList */
+        select sri.user_id
+             , sri.flnm
+        from aidt_lms.tc_cla_mb_info tcmi
+        join aidt_lms.stdt_reg_info sri on sri.user_id = tcmi.stdt_id
+        where 1=1
+          and tcmi.cla_id = #{claId}
+          and tcmi.actvtn_at = 'Y'
+        order by sri.flnm
+    </select>
+
+    <select id="findTchReportEvalGeneralReviewInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findTchReportEvalGeneralReviewInfo */
+        select
+                eri.genrvw
+                , eri.stdt_prnt_rls_at
+        from 	aidt_lms.evl_result_info eri
+        where 	eri.evl_id = #{evlId}
+          and 	eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findTchReportEvalGeneralReviewAiEvlWord" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findTchReportEvalGeneralReviewAiEvlWord */
+        select distinct
+            c.meta_id
+        from aidt_lms.evl_info ei
+                 inner join aidt_lms.evl_result_info eri
+                            on ei.id = eri.evl_id and eri.mamoym_id = #{userId}
+                 inner join aidt_lcms.setsummary s on s.set_id = eri.sets_id
+                 inner join aidt_lcms.article_meta_map c
+                            on s.article_id = c.article_id and s.sub_id = c.sub_id and c.meta_name = 'studyMap1'
+        where ei.id = #{evlId}
+
+    </select>
+
+    <select id="findTchReportEvalResultDetail" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findTchReportEvalResultDetail */
+        select
+            case when t.correct_rate <![CDATA[>=]]> 80 then 1
+                 when t.correct_rate <![CDATA[>=]]> 50 then 2
+                 when t.correct_rate <![CDATA[>=]]>  0 then 3
+            end as level
+        from (
+             select
+                 ROUND(sum(case aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) when 1 then 1 when 3 then 0.5 end) / count(erd.id) * 100, 2) AS correct_rate /* 정답율 */
+             from aidt_lms.evl_result_info eri
+                      join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+            where eri.evl_id = #{evlId}
+              and eri.mamoym_id = #{userId}
+        ) t
+    </select>
+
+    <select id="findStntTopFiveList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntTopFiveList */
+        SELECT numTable.num
+             , erd.evl_iem_id
+             , erd.sub_id
+             , ROUND(SUM(CASE aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 WHEN 2 THEN 0 END) / COUNT(erd.id) * 100, 2) AS correctRate
+             , (SELECT articleType FROM aidt_lcms.article a WHERE a.id = erd.evl_iem_id) AS articleType
+             , (SELECT val FROM aidt_lcms.meta a WHERE a.id = articleType) AS articleTypeNm
+             , CASE WHEN COUNT(CASE WHEN erd.eak_stts_cd != 5 THEN 1 END) > 0
+                    THEN 'Y'
+                    ELSE 'N'
+                END AS isGradingRequired
+        FROM aidt_lms.evl_iem_info eii
+        INNER JOIN aidt_lms.evl_result_info eri ON eri.evl_id = eii.evl_id
+        INNER JOIN aidt_lms.evl_result_detail erd
+            ON erd.evl_result_id = eri.id
+                   AND erd.evl_iem_id = eii.evl_iem_id
+                   AND erd.sub_id = eii.sub_id
+        LEFT JOIN (
+                   SELECT eii.id
+                        , ROW_NUMBER() OVER(ORDER BY eii.id) AS num
+                   FROM aidt_lms.evl_iem_info eii
+                   WHERE eii.evl_id = #{evlId}
+                   ORDER BY eii.id
+               ) numTable ON eii.id = numTable.id
+        WHERE eii.evl_id = #{evlId}
+          AND eri.subm_at = 'Y'
+          AND (SELECT articleType FROM aidt_lcms.article a WHERE a.id = erd.evl_iem_id) != 20       /* 개념 제외 */
+          AND NOT (
+               (SELECT articleType FROM aidt_lcms.article a WHERE a.id = erd.evl_iem_id) = 22
+               AND erd.eak_stts_cd != 5
+           )
+        GROUP BY erd.evl_iem_id
+             , erd.sub_id
+        HAVING IFNULL(ROUND(SUM(CASE aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 WHEN 2 THEN 0 END) / COUNT(erd.id) * 100, 2), 0) != 100
+        ORDER BY correctRate
+             , eii.id
+             , erd.id
+             , erd.sub_id
+        LIMIT 5
+    </select>
+
+    <select id="findStntGuideNeededList" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findStntGuideNeededList */
+        SELECT eri.mamoym_id AS userId
+             , sri.flnm AS flnm
+             , sri.user_id
+             , (
+                   SELECT ROUND(SUM(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)), 2)
+                     FROM aidt_lms.evl_result_detail erd
+                    WHERE erd.evl_result_id = eri.id
+               ) AS mdulTotScr  /* 총점수 */
+          FROM aidt_lms.evl_result_info eri
+          LEFT JOIN aidt_lms.stdt_reg_info sri ON sri.user_id = eri.mamoym_id
+         WHERE eri.evl_id = #{evlId}
+           AND eri.subm_at = 'Y'
+           AND (
+                   SELECT ROUND(SUM(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)), 2)
+                     FROM aidt_lms.evl_result_detail erd
+                    WHERE erd.evl_result_id = eri.id
+               ) <![CDATA[<>]]> 100 /* 총점수 100 제외 */
+         ORDER BY CASE
+                      WHEN mdulTotScr IS NULL THEN 0
+                      ELSE 1
+                  END
+                , mdulTotScr
+                , sri.flnm
+    </select>
+
+    <select id="findAvgCorrectRateInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchReportEvalMapper.findAvgCorrectRateInfo */
+        SELECT COUNT(DISTINCT erd.evl_iem_id, erd.sub_id) as eamExmNum
+             , COUNT(DISTINCT erd.evl_iem_id, erd.sub_id) *
+               ROUND(SUM(CASE aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 END) / COUNT(erd.id) * 100, 2)
+               / 100 as avgCorrectAnwNum
+             , ROUND(SUM(CASE aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) WHEN 1 THEN 1 WHEN 3 THEN 0.5 END) / COUNT(erd.id) * 100, 2) AS avgCorrectRate
+        FROM aidt_lms.evl_result_info eri
+        INNER JOIN aidt_lms.evl_result_detail erd ON erd.evl_result_id = eri.id AND erd.evl_result_id
+        WHERE eri.evl_id = #{evlId}
+          AND eri.subm_at = 'Y'
+        AND (SELECT articleType FROM aidt_lcms.article a WHERE a.id = erd.evl_iem_id) != 20
+          AND NOT (
+               (SELECT articleType FROM aidt_lcms.article a WHERE a.id = erd.evl_iem_id) = 22
+               AND erd.eak_stts_cd != 5
+           )
+    </select>
+
+    <update id="modifyReportEvalResultScore_rpt_y" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScore_rpt_y */
+        update 	aidt_lms.evl_result_detail
+        set 	  eak_stts_cd = 5
+                , mrk_cp_at = 'Y'
+                , mdfy_dt = now()
+                , mdfr = '/result/modi/score'
+        where 	id = #{evlDetailId}
+    </update>
+
+    <update id="modifyReportEvalResultScoreSum_resultInfo_rpt_y" parameterType="map" >
+        /* TchReportEvalMapper.modifyReportEvalResultScoreSum_resultInfo_rpt_y */
+        update 	aidt_lms.evl_result_info
+        set 	  eak_stts_cd = #{eakSttsCd}
+                , mrk_cp_at = if(#{eakSttsCd} = 5, 'Y', 'N')
+        where 	id = #{evlResultId}
+    </update>
+
+    <select id="findClaIdInEvalInfo" resultType="java.lang.String">
+        SELECT ei.cla_id
+          FROM evl_info ei
+          WHERE ei.id = #{evlId}
+    </select>
+
+
+</mapper>
+

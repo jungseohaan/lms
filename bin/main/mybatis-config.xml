@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <settings>
+        <!-- 쿼리에 보내는 파라미터가 null인 경우, 오류가 발생하는 것 방지 -->
+        <setting name="jdbcTypeForNull" value="NULL"/>
+        <!-- 쿼리 결과 필드가 null인 경우, 누락이 되서 나오지 않게 설정-->
+        <setting name="callSettersOnNulls" value="true"/>
+        <!--<setting name="mapUnderscoreToCamelCase" value="true"/>-->
+        <!-- 각 Mapper에 설정한 cache 기능을 일괄적으로 disable 하고 싶을때 (디폴트: true) -->
+        <setting name="cacheEnabled" value="false"/>
+    </settings>
+    <typeAliases>
+        <typeAlias type="com.visang.aidt.lms.api.utility.utils.CamelHashMap" alias="camelHashMap"/>
+        <typeAlias type="com.visang.aidt.lms.api.utility.utils.PagingParam" alias="pagingParam"/>
+        <typeAlias type="com.visang.aidt.lms.api.mq.dto.real.RealMqReqDto" alias="RealMqReqDto"/>
+        <typeAlias type="com.visang.aidt.lms.api.repository.dto.EvlInfoResultSummaryDTO" alias="evlInfoResultSummaryDto"/>
+        <typeAlias type="com.visang.aidt.lms.api.learning.vo.TaskInfoVO" alias="TaskInfoVO"/>
+<!--        <package name="com.visang.aidt.lms.api.repository.entity"/>-->
+    </typeAliases>
+</configuration>

@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.bookmark.mapper.TchBmkMapper">
+    <select id="findBkmkList" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findBkmkList  */
+        select
+        bi.id as bkmkId
+        ,bi.cla_id
+        ,bi.textbk_id
+        ,bi.ebk_id
+        ,bi.tab_id
+        ,(select tab_nm from tab_info where id =bi.tab_id) as tab_nm
+        ,bi.module_id
+        ,bi.sub_id
+        ,a.name as moduleNm
+        ,a.articleCategory
+        ,a.articleType
+        ,bi.crcul_id
+        ,bi.cocnr_at
+        /* ,(select tc.text from aidt_lms.tc_curriculum tc where tc.key = bi.crcul_id limit 1) as text */
+        ,(select name from aidt_lcms.article where id =bi.module_id) as text
+        ,(select val from aidt_lcms.meta where id = (select meta_id
+                                                     from aidt_lcms.article_meta_map
+                                                     where article_id = bi.module_id and meta_name = 'curriUnit1' and sub_id = bi.sub_id)) as unitNm
+        ,'N' as shared
+        , (SELECT max(clor_num)
+        	  FROM aidt_lms.bkmk_tag_mapng btm
+        	  INNER JOIN aidt_lms.tag_info ti on btm.tag_id = ti.id
+        	  where btm.bkmk_id = bi.id
+            ) as currClorNum
+        ,bi.pdf_url
+        ,bi.page
+        ,bi.unit_num as unitNum
+        ,bi.reg_dt
+        from aidt_lms.bkmk_info bi
+        left join aidt_lcms.article a on a.id = bi.module_id
+        where bi.trget_id = #{userId}
+        and bi.cla_id = #{claId}
+        <if test='scrnSeCd eq "2"'>
+            <choose>
+                <when test='scrnSeCd eq "2" and eBookCallType eq "ALL" '>
+                    and bi.textbk_id = #{textbkId}
+                </when>
+                <when test='scrnSeCd eq "2" and eBookCallType eq "TAB" '>
+                    and bi.textbk_id = #{textbkId}
+                    and bi.tab_id = #{tabId}
+                </when>
+                <when test='scrnSeCd eq "2" and eBookCallType eq "TEXT" '>
+                    and bi.textbk_id = #{textbkId}
+                    and bi.tab_id is null
+                </when>
+                <otherwise>
+                    and bi.textbk_id = #{textbkId}
+                </otherwise>
+            </choose>
+        </if>
+
+        <if test='scrnSeCd eq "1" or scrnSeCd == null'>
+            /*교사 탭 아이디*/
+            <if test='tabId != null '>
+                and bi.tab_id = #{tabId}
+            </if>
+        </if>
+
+        /*화면구분코드 조회*/
+        <if test='scrnSeCd != null '>
+            and bi.scrn_se_cd = #{scrnSeCd}
+        </if>
+        /*이북 ID 조회*/
+        <if test='scrnSeCd eq "2" and ebkId != null '>
+            and bi.ebk_id = #{ebkId}
+        </if>
+        /*차시 조회*/
+        <if test='scrnSeCd eq "2" and unitNum != null '>
+            and bi.unit_num = #{unitNum}
+        </if>
+
+        union all
+
+        select
+        bi.id as bkmkId
+        ,bi.cla_id
+        ,bi.textbk_id
+        ,bi.ebk_id
+        ,bi.tab_id
+        ,(select tab_nm from tab_info where id =bi.tab_id) as tab_nm
+        ,bi.module_id
+        ,bi.sub_id
+        ,a.name as moduleNm
+        ,a.articleCategory
+        ,a.articleType
+        ,bi.crcul_id
+        ,bi.cocnr_at
+        /* ,(select tc.text from aidt_lms.tc_curriculum tc where tc.key = bi.crcul_id limit 1) as text */
+        ,(select name from aidt_lcms.article where id =bi.module_id) as text
+        ,(select val from aidt_lcms.meta where id = (select meta_id
+                                                     from aidt_lcms.article_meta_map
+                                                     where article_id = bi.module_id and meta_name = 'curriUnit1' and sub_id = bi.sub_id)) as unitNm
+        ,'Y' as shared
+        , (SELECT max(clor_num)
+        	  FROM aidt_lms.bkmk_tag_mapng btm
+        	  INNER JOIN aidt_lms.tag_info ti on btm.tag_id = ti.id
+        	  where btm.bkmk_id = bi.id
+            ) as currClorNum
+        ,bi.pdf_url
+        ,bi.page
+        ,bi.unit_num as unitNum
+        ,bi.reg_dt
+        from aidt_lms.bkmk_info bi
+        left join aidt_lcms.article a on a.id = bi.module_id
+        where bi.trget_id <![CDATA[<>]]> #{userId}
+        and bi.cla_id = #{claId}
+        and bi.cocnr_at = 'Y'
+
+        <if test='scrnSeCd eq "2"'>
+            <choose>
+                <when test='scrnSeCd eq "2" and eBookCallType eq "ALL" '>
+                    and bi.textbk_id = #{textbkId}
+                </when>
+                <when test='scrnSeCd eq "2" and eBookCallType eq "TAB" '>
+                    and bi.textbk_id = #{textbkId}
+                    and bi.tab_id = #{tabId}
+                </when>
+                <when test='scrnSeCd eq "2" and eBookCallType eq "TEXT" '>
+                    and bi.textbk_id = #{textbkId}
+                    and bi.tab_id is null
+                </when>
+                <otherwise>
+                    and bi.textbk_id = #{textbkId}
+                </otherwise>
+            </choose>
+        </if>
+
+        <if test='scrnSeCd eq "1" or scrnSeCd == null'>
+            /*교사 탭 아이디*/
+            <if test='tabId != null '>
+                and bi.tab_id = #{tabId}
+            </if>
+        </if>
+
+        /*화면구분코드 조회*/
+        <if test='scrnSeCd != null '>
+            and bi.scrn_se_cd = #{scrnSeCd}
+        </if>
+
+        /*이북 ID 조회*/
+        <if test='scrnSeCd eq "2" and ebkId != null '>
+            and bi.ebk_id = #{ebkId}
+        </if>
+        /*차시 조회*/
+        <if test='scrnSeCd eq "2" and unitNum != null '>
+            and bi.unit_num = #{unitNum}
+        </if>
+    order by reg_dt
+    </select>
+
+    <select id="findKbmkTagList" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findKbmkTagList */
+        SELECT
+            a.id 	as bkmk_tag_mapng_id /* 북마크태그매핑ID */
+            ,b.textbk_id as textbk_id /* 교과서ID */
+            ,a.tag_id  as tag_id /* 태그ID */
+            ,b.tag_nm as tag_nm /* 태그명 */
+            ,b.bass_tag_at
+            ,a.bkmk_id as bkmkId
+            ,b.clor_num
+        FROM aidt_lms.bkmk_tag_mapng a
+        INNER JOIN aidt_lms.tag_info b
+            on a.tag_id = b.id
+        where a.bkmk_id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.bkmkId}
+        </foreach>
+        AND CASE WHEN (select user_se_cd from aidt_lms.user where user_id = #{paramData.userId}) = 'T' THEN b.tag_nm <![CDATA[<>]]> '선생님 공유'
+        ELSE b.tag_nm <![CDATA[<>]]> '학생 공유' END
+    </select>
+
+    <update id="modifyBkmkCocnrAt" parameterType="map" >
+        /* TchBmkMapper.modifyBkmkCocnrAt */
+        UPDATE aidt_lms.bkmk_info
+        SET	cocnr_at = 'Y'
+            ,mdfr = 'system'
+            ,mdfy_dt = now()
+        WHERE id = #{bkmkId}
+    </update>
+
+    <update id="modifyBkmkClearCocnrAt" parameterType="map" >
+        /* TchBmkMapper.modifyBkmkCocnrAt */
+        UPDATE aidt_lms.bkmk_info
+        SET	cocnr_at = 'N'
+          ,mdfr = 'system'
+          ,mdfy_dt = now()
+        WHERE id = #{bkmkId}
+    </update>
+
+    <insert id="insertTagInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchBmkMapper.insertTagInfo */
+        INSERT INTO aidt_lms.tag_info
+        (
+            textbk_id
+            ,user_id
+            ,tag_nm
+            ,bass_tag_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+            ,clor_num
+            ,cla_id
+        )
+        VALUES
+        (
+            (select textbk_id from aidt_lms.bkmk_info
+                                            where id = #{bkmkId}
+            )
+            ,#{userId}
+            /*,'학생 공유'*/
+            ,#{cmnTagName} /*22*/
+            ,'Y'
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+            ,(
+                select ifnull(
+                  (SELECT case clor_num
+                          when 20 then 1
+                          else (clor_num + 1)%20 end
+                  FROM aidt_lms.bkmk_tag_mapng btm
+                  INNER JOIN aidt_lms.tag_info ti on btm.tag_id = ti.id
+                  where btm.bkmk_id = #{bkmkId}
+                  order by ti.reg_dt desc
+                  limit 1
+              ) ,1)
+            )
+            ,(select cla_id
+                from aidt_lms.bkmk_info
+                where id = #{bkmkId})
+        )
+    </insert>
+
+    <select id="findBmkShare" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findBmkShare */
+        SELECT id as tab_info_id
+            , textbk_id
+        FROM aidt_lms.bkmk_info
+        WHERE id = #{bkmkId}
+    </select>
+
+    <insert id="insertBkmkTagMapng" parameterType="map" >
+        /* TchBmkMapper.insertBkmkTagMapng */
+        INSERT INTO aidt_lms.bkmk_tag_mapng
+        (
+            bkmk_id
+            ,tag_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+            ,wrter_id
+            ,cla_id
+        )
+        VALUES
+        (
+            #{bkmkId}
+            ,#{tagId}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+        ,(select cla_id
+          from aidt_lms.bkmk_info
+          where id = #{bkmkId})
+        )
+    </insert>
+
+    <insert id="insertBkmkInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchBmkMapper.insertBkmkInfo */
+        INSERT INTO aidt_lms.bkmk_info
+        (
+            trget_id
+            ,scrn_se_cd
+            ,cla_id
+            ,textbk_id
+            ,crcul_id
+            ,cocnr_at
+            ,tab_id
+            ,module_id
+            ,sub_id
+            ,pdf_url
+            ,page
+            ,unit_num
+            ,ebk_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            #{userId}
+            ,#{scrnSeCd}
+            ,#{claId}
+            ,#{textbkId}
+            ,#{crculId}
+            ,#{cocnrAt}
+            ,#{tabId}
+            ,#{moduleId}
+            ,#{subId}
+            ,#{pdfUrl}
+            ,#{page}
+            ,#{unitNum}
+            ,#{ebkId}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <delete id="deleteTagInfo" parameterType="map">
+        /* TchBmkMapper.deleteTagInfo */
+        delete from aidt_lms.tag_info
+         where id in (select tag_id
+                        from aidt_lms.bkmk_tag_mapng
+                       where bkmk_id in
+                        <foreach collection="bkmkId" item="arr" open="(" close=")" separator=",">
+                            #{arr}
+                        </foreach>
+                     )
+    </delete>
+
+    <delete id="deleteBkmkTagMapng" parameterType="map">
+        /* TchBmkMapper.deleteBkmkTagMapng */
+        DELETE FROM aidt_lms.bkmk_tag_mapng
+        WHERE bkmk_id in
+        <foreach collection="bkmkId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </delete>
+
+    <delete id="deleteBkmkTagMapng2" parameterType="map">
+        /* TchBmkMapper.deleteBkmkTagMapng2 */
+        DELETE FROM aidt_lms.bkmk_tag_mapng
+        WHERE tag_id = #{tagId}
+    </delete>
+
+    <delete id="deleteBkmkInfo" parameterType="map">
+        /* TchBmkMapper.deleteBkmkInfo */
+        DELETE FROM aidt_lms.bkmk_info
+        WHERE id in
+            <foreach collection="bkmkId" item="arr" open="(" close=")" separator=",">
+             #{arr}
+            </foreach>
+    </delete>
+
+    <delete id="deleteTagInfo2" parameterType="map">
+        /* TchBmkMapper.deleteTagInfo2 */
+        DELETE FROM aidt_lms.tag_info
+        WHERE id = #{tagId}
+    </delete>
+
+    <select id="findTagInfo" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findTagInfo */
+        SELECT id as tag_info_id
+        FROM aidt_lms.tag_info
+        WHERE textbk_id = #{textbkId}
+    </select>
+
+    <insert id="insertBmkTagSave" parameterType="map">
+        /* TchBmkMapper.insertBmkTagSave */
+        INSERT INTO aidt_lms.tag_info
+        (
+             textbk_id
+            ,user_id
+            ,tag_nm
+            ,bass_tag_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            #{textbkId}
+            ,#{userId}
+            ,#{tagNm}
+            ,#{bassTagAt}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <select id="findTagInfoById" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findTagInfoById */
+        SELECT id as tag_id
+            , tag_nm
+            , bass_tag_at
+        FROM aidt_lms.tag_info
+        WHERE id = #{tagId}
+    </select>
+
+    <update id="updateTagInfo" parameterType="map">
+        /* TchBmkMapper.updateTagInfo */
+        UPDATE aidt_lms.tag_info
+        SET tag_nm = #{tagNm}
+            , mdfr = #{userId}
+            , mdfy_dt = NOW()
+            , clor_num = #{clorNum}
+        <if test=' bassTagAt != null and !("").equals(bassTagAt) '>
+            , bass_tag_at = #{bassTagAt}
+        </if>
+        WHERE id = #{tagId}
+    </update>
+
+    <delete id="deleteTagInfoByTagId" parameterType="map">
+        /* TchBmkMapper.deleteTagInfoByTagId */
+        DELETE FROM aidt_lms.tag_info
+        WHERE id = #{tagId}
+    </delete>
+
+    <delete id="deleteBkmkTagMapngBybkmkIdByTagId" parameterType="map">
+        /* TchBmkMapper.deleteBkmkTagMapngBybkmkIdByTagId */
+        DELETE FROM aidt_lms.bkmk_tag_mapng
+        WHERE 1=1
+          AND tag_id = #{tagId}
+          AND bkmk_id = #{bkmkId}
+    </delete>
+
+    <delete id="deleteBkmkTagMapngByTagId" parameterType="map">
+        /* TchBmkMapper.deleteBkmkTagMapngByTagId */
+        DELETE FROM aidt_lms.bkmk_tag_mapng
+        WHERE 1=1
+          AND tag_id in (select id from aidt_lms.tag_info where tag_nm in ('학생 공유', '선생님 공유'))
+          AND bkmk_id = #{bkmkId}
+
+    </delete>
+
+    <insert id="createTchMdulBmkTagSave" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchBmkMapper.createTchMdulBmkTagSave */
+        INSERT INTO aidt_lms.tag_info
+        (
+            cla_id
+            ,textbk_id
+            ,user_id
+            ,tag_nm
+            ,bass_tag_at
+            ,clor_num
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            #{claId}
+            ,(select textbk_id from aidt_lms.bkmk_info where id = #{bkmkId})
+            ,#{userId}
+            ,#{tagNm}
+            ,'N'
+            ,#{clorNum}
+            ,'system'
+            ,NOW()
+            ,'system'
+            ,NOW()
+        )
+    </insert>
+
+    <insert id="createTchMdulBmkTagTagsave" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+            /* TchBmkMapper.createTchMdulBmkTagTagsave */
+            INSERT INTO aidt_lms.tag_info
+            (
+                id
+                ,cla_id
+                ,textbk_id
+                ,user_id
+                ,tag_nm
+                ,bass_tag_at
+                ,clor_num
+                ,rgtr
+                ,reg_dt
+                ,mdfr
+                ,mdfy_dt
+            ) VALUES (
+                null
+                ,#{claId}
+                ,#{textbkId}
+                ,#{userId}
+                ,#{tagNm}
+                ,'N'
+                ,#{clorNum}
+                ,#{userId}
+                ,NOW()
+                ,#{userId}
+                ,NOW()
+            )
+        </insert>
+
+    <insert id="createTchMdulBmkTagMappingSave" parameterType="map" >
+        /* TchBmkMapper.createTchMdulBmkTagMappingSave */
+        INSERT INTO aidt_lms.bkmk_tag_mapng
+        (
+            bkmk_id
+            ,tag_id
+            ,wrter_id
+            ,cla_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            #{bkmkId}
+            ,#{id}
+            ,#{userId}
+            ,#{claId}
+            ,'system'
+            ,NOW()
+            ,'system'
+            ,NOW()
+        )
+    </insert>
+
+    <select id="findTagSaveTagInfo" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findTagSaveTagInfo */
+        select
+            id as tag_id
+            ,textbk_id
+            ,tag_nm
+            ,clor_num
+            ,bass_tag_at
+        from aidt_lms.tag_info
+        where id = #{id}
+    </select>
+
+    <select id="findTchMdulBmkInfo" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findTchMdulBmkInfo */
+        select *
+        from aidt_lms.bkmk_info
+        where tab_id = #{tabId}
+          and module_id = #{moduleId}
+          and sub_id = #{subId}
+          and crcul_id = #{crculId}
+          and trget_id = #{userId}
+          and scrn_se_cd = #{scrnSeCd}
+        limit 1
+    </select>
+
+    <select id="findStntMdulBmkInfo" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findStntMdulBmkInfo */
+        select *
+        from aidt_lms.bkmk_info
+        where tab_id = #{tabId}
+          and module_id = #{moduleId}
+          AND sub_id = #{subId}
+          and crcul_id = #{crculId}
+          and cocnr_at = 'Y'
+          and trget_id = #{userId}
+          and scrn_se_cd = #{scrnSeCd}
+        limit 1
+    </select>
+
+    <select id="findTchMdulBmkTagList_currClorNum" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findTchMdulBmkTagList_currClorNum */
+        select max(clor_num) as clorNum
+          from aidt_lms.tag_info
+         where textbk_id = #{textbkId}
+           and cla_id = #{claId}
+           and user_id = #{userId}
+    </select>
+
+    <select id="findTchMdulBmkTagList_tagList" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.findTchMdulBmkTagList_tagList */
+        select id as tagId
+            ,textbk_id
+            ,tag_nm
+            ,clor_num
+            ,bass_tag_at
+        from aidt_lms.tag_info
+        where textbk_id = #{textbkId}
+        and cla_id = #{claId}
+        and user_id = #{userId}
+    </select>
+
+    <select id="createShareBmk_TagCount" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.createShareBmk_TagCount */
+        select count(1) cnt From
+        aidt_lms.bkmk_tag_mapng btm
+        join aidt_lms.tag_info ti on btm.tag_id = ti.id
+        where bkmk_id = #{bkmkId}
+          /*and ti.tag_nm = '학생 공유'*/
+          and ti.tag_nm = #{cmnTagName} /*22*/
+          and ti.bass_tag_at = 'Y'
+    </select>
+
+    <select id="createShareBmk_BassTagId" parameterType="map" resultType="camelHashMap">
+        /* TchBmkMapper.createShareBmk_BassTagId */
+        select id from
+        aidt_lms.tag_info
+        where textbk_id in (
+            select textbk_id
+            from aidt_lms.tab_info
+            where id in(
+                select tab_id from
+                aidt_lms.bkmk_info
+                where id = #{bkmkId}
+            )
+        /*) and tag_nm = '학생 공유'*/
+        )  and tag_nm = #{cmnTagName} /* 22 */
+
+          and bass_tag_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findUserInfo" parameterType="map" resultType="camelHashMap">
+        select
+               a.*
+          From
+               aidt_lms.user a
+         where
+               a.user_id = #{userId}
+    </select>
+
+</mapper>

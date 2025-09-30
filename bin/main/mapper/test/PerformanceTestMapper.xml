@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.test.mapper.PerformanceTestMapper">
+
+    <!-- 빠른 쿼리 (1초 지연) -->
+    <select id="selectFastQuery" resultType="String">
+        SELECT CONCAT('Fast Query Result - ', NOW()) as result
+        FROM DUAL
+        WHERE SLEEP(1) = 0
+    </select>
+
+    <!-- 느린 쿼리 (4초 지연) -->
+    <select id="selectSlowQuery" resultType="String">
+        SELECT CONCAT('Slow Query Result - ', NOW()) as result
+        FROM DUAL
+        WHERE SLEEP(4) = 0
+    </select>
+
+</mapper>

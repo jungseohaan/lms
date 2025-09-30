@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.PortalMapper">
+
+    <select id="findSchoolList" parameterType="map" resultType="camelHashMap">
+        SELECT tci.schl_nm
+          FROM tc_cla_info tci
+         WHERE tci.user_id = #{userId}
+         GROUP BY tci.schl_nm
+    </select>
+
+    <select id="findGradeList" parameterType="map" resultType="camelHashMap">
+        SELECT tci.grade_cd
+        FROM tc_cla_info tci
+        WHERE tci.user_id = #{userId}
+          AND tci.schl_nm = #{schlNm}
+        GROUP BY tci.grade_cd
+    </select>
+
+    <select id="findClassList" parameterType="map" resultType="camelHashMap">
+        SELECT tci.cla_id, tci.cla_nm, tci.id AS cla_idx
+        FROM tc_cla_info tci
+        WHERE tci.user_id = #{userId}
+          AND tci.schl_nm = #{schlNm}
+          AND tci.grade_cd = #{gradeCd}
+        GROUP BY tci.cla_id
+    </select>
+
+    <select id="getTcTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ut.textbk_id AS textbk_id
+                , ut.textbk_idx_id AS textbk_idx_id
+                , tb.name AS textbk_nm
+          FROM tc_textbook ut
+          LEFT JOIN aidt_lcms.textbook tb ON ut.textbk_id  = tb.id
+         WHERE 1=1
+           AND ut.cla_id = #{claId}
+           <if test="smteCd != null and smteCd != ''">
+               AND ut.smte_cd = #{smteCd}
+           </if>
+           LIMIT 1
+    </select>
+
+    <select id="getTcClaInfo" parameterType="map" resultType="camelHashMap">
+        SELECT tci.schl_nm
+                , tci.grade_cd
+                , CASE WHEN INSTR(tci.schl_nm, '초등') > 0 then 'elementary'
+                       WHEN INSTR(tci.schl_nm, '고등') > 0 then 'high'
+                       ELSE 'middle' END curriSchool
+                , CONCAT('grade',LPAD(tci.grade_cd, '2' , '0')) as curriGrade
+                , smt
+          FROM tc_cla_info tci
+         WHERE tci.cla_id = #{claId}
+    </select>
+
+    <insert id="insertTcTextbook" parameterType="map">
+        INSERT INTO tc_textbook (
+            wrter_id, cla_id, smte_cd, textbk_id, textbk_idx_id, rgtr
+        ) VALUES (
+            #{wrterId}, #{claId}, #{smteCd}, #{textbkId}, #{textbkIdxId}, #{wrterId}
+        )
+    </insert>
+
+    <select id="findLcmsTextbookList" parameterType="map" resultType="camelHashMap">
+        SELECT tb.id AS textbk_id
+             , tb.textbookIndex_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+             , m1.code AS curriYear
+             , m2.code AS curriSchool
+             , m3.code AS curriSubject
+             , m4.code AS curriGrade
+             , m5.code AS curriSemester
+             , temp.version AS version
+             , temp.id AS textbk_crltn_id
+             , temp.data
+        FROM aidt_lcms.textbook tb
+        -- 배포이력 (배포중인 데이터 조회)
+        INNER JOIN (
+            SELECT ROW_NUMBER() OVER (PARTITION BY td.textbook_id ORDER BY td.version ASC) AS rowNum
+                 , td.textbook_id
+                 , td.deployStatus
+                 , td.version
+                 , td.data
+                 , td.id
+            FROM aidt_lcms.textbookDeploy td
+           WHERE 1=1
+             AND td.deployStatus = 1
+         ) temp ON tb.id = temp.textbook_id AND temp.rowNum = 1
+        LEFT JOIN (
+            SELECT t.id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+            FROM aidt_lcms.textbook t
+            LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on tb.id = t2.id
+        LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+        LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+        LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+        LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+        LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        WHERE 1=1
+          AND m2.code = #{curriSchool}
+          AND m3.code = #{curriSubject}
+          AND m4.code = #{curriGrade}
+          AND (m5.code = #{curriSemester} OR m5.code = 'nosemester')
+    </select>
+
+    <insert id="insertTcCurriculum" parameterType="map">
+        INSERT INTO tc_curriculum (
+              wrter_id, cla_id, smte_cd, textbk_id, textbk_idx_id,  brand_id, `key`, `order`, parent
+            , droppable, child_depth, tabIndex, `depth`, `text`, startPage, endPage, use_at
+            , del_at, addcon_at, curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5
+            , rgtr, reg_dt
+        ) VALUES (
+            #{wrterId}, #{claId}, #{smteCd}, #{textbkId}, #{textbkIdxId}, #{brandId}, #{key}, #{order}, #{parent}
+            , #{droppable}, #{child_depth}, #{tabIndex}, #{depth}, #{text}, #{startPage}, #{endPage}, IF(#{is_active}=1, 'Y','N')
+            , IF(#{is_delete}=1, 'Y','N'), IF(#{is_addContents}=1, 'Y','N'), #{curriUnit1}, #{curriUnit2}, #{curriUnit3}, #{curriUnit4}, #{curriUnit5}
+            , #{wrterId}, NOW()
+        )
+    </insert>
+
+    <insert id="insertTabInfo" parameterType="map">
+        insert into tab_info (
+            wrter_id, cla_id, smte_cd, textbk_id, crcul_id, tab_nm, tab_seq
+            , sets_id, use_at, expos_at, setCategory, rgtr, reg_dt
+
+            , ebk_id, ebk_use_at, startPage, endPage
+        ) values (
+            #{wrterId}, #{claId}, #{smteCd}, #{textbkId}, #{textbookCurriculum_key}, #{name}, #{tabSeq}
+            , #{set_id}, IF(#{is_active}=1, 'Y','N'), #{expos_at}, #{setCategory}, #{wrterId}, NOW()
+
+            , #{ebook_id}, IF(#{is_ebook_active}=1, 'Y','N'), #{startPage}, #{endPage}
+        )
+    </insert>
+
+    <select id="getStdtRegInfo" parameterType="map" resultType="camelHashMap">
+        SELECT sri.user_id AS stdt_id
+                , tcmi.cla_id AS cla_id
+                , tcmi.user_id AS tc_id
+          FROM stdt_reg_info sri
+         LEFT JOIN tc_cla_mb_info tcmi ON sri.user_id = tcmi.stdt_id
+         WHERE sri.user_id = #{userId}
+         LIMIT 1
+    </select>
+
+    <select id="getStTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ut.textbk_id AS textbk_id
+             , ut.textbk_idx_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+        FROM tc_textbook ut
+        LEFT JOIN aidt_lcms.textbook tb ON ut.textbk_id = tb.id
+        WHERE  1=1
+          AND ut.cla_id = #{claId}
+          AND ut.smte_cd = F_GET_SMTE(NOW())
+    </select>
+
+    <select id="getLcmsTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT tb.id AS textbk_id
+             , tb.textbookIndex_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+             , m1.code AS curriYear
+             , m2.code AS curriSchool
+             , m3.code AS curriSubject
+             , m4.code AS curriGrade
+             , m5.code AS curriSemester
+             , temp.version AS version
+             , temp.id AS textbk_crltn_id
+             , temp.data
+        FROM aidt_lcms.textbook tb
+        -- 배포이력 (배포중인 데이터 조회)
+        INNER JOIN (
+            SELECT ROW_NUMBER() OVER (PARTITION BY td.textbook_id ORDER BY td.version ASC) AS rowNum
+                 , td.textbook_id
+                 , td.deployStatus
+                 , td.version
+                 , td.data
+                 , td.id
+            FROM aidt_lcms.textbookDeploy td
+            WHERE 1=1
+              AND td.deployStatus = 1
+        ) temp ON tb.id = temp.textbook_id AND temp.rowNum = 1
+         LEFT JOIN (
+            SELECT t.id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+            FROM aidt_lcms.textbook t
+            LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                 FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on tb.id = t2.id
+         LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+         LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+         LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+         LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+         LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        WHERE 1=1
+          AND temp.id = #{textbkCrltnId}
+    </select>
+
+    <select id="getTcClaUserInfo" parameterType="map" resultType="camelHashMap">
+        SELECT
+            id
+            ,user_id
+            ,cla_id
+            ,activeyn
+            ,ref_tc_type
+            ,main_sub_flag
+        FROM tc_cla_user_info
+        WHERE ref_tc_type = 'Y'
+        AND cla_id = #{claId}
+    </select>
+
+
+</mapper>

@@ -1,0 +1,1959 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.wrongnote.mapper.StntWrongnoteMapper">
+
+
+    <select id="selectWonAswNoteList" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectWonAswNoteList */
+        SELECT
+        t.noteId
+        ,t.wrt_ymd
+        ,CONCAT(substring(t.wrt_ymd, 1, 4),'-',substring(t.wrt_ymd,5,2),'-',substring(t.wrt_ymd,7,2)) as disp_wrt_ymd
+        ,t.won_anw_clsf_cd
+        ,aidt_lms.F_CODE_NM('won_anw_clsf_cd', t.won_anw_clsf_cd)     as won_anw_clsf_nm
+        ,t.won_anw_nm
+        ,t.tab_id
+        ,t.trgt_id
+        ,t.won_anw_cnt
+        ,t.wrter_id
+        ,t.reg_dt
+        , count(*) over () as full_count
+        <choose>
+            <when test="param.keyword != null and param.keyword != '' ">
+                <if test="param.condition == 'name' ">
+                    , ROW_NUMBER() OVER (ORDER BY t.wrt_ymd) AS row_no
+                </if>
+                <if test="param.condition == 'curri' ">
+                    , ROW_NUMBER() OVER (ORDER BY t.wrt_ymd) AS row_no
+                </if>
+                <if test="param.condition == 'date' ">
+                    , ROW_NUMBER() OVER (ORDER BY t.wrt_ymd) AS row_no
+                </if>
+            </when>
+            <otherwise>
+                , ROW_NUMBER() OVER (ORDER BY t.wrt_ymd) AS row_no
+            </otherwise>
+        </choose>
+        , (IF(EXISTS (select 1
+        from aidt_lms.won_asw_note x
+        where 1 = 1
+        and x.won_anw_clsf_cd = t.won_anw_clsf_cd
+        and (x.won_tag is null or x.won_tag = '')
+        and x.trgt_id = t.trgt_id
+        and x.wrt_ymd = t.wrt_ymd
+        and x.wrter_id = t.wrter_id), 'N', 'Y')) as note_cmplte_yn
+        , t.subm_again_yn
+        FROM (
+        SELECT
+        a.id as noteId
+        ,a.wrt_ymd
+        ,a.won_anw_clsf_cd
+        ,a.won_anw_nm
+        ,a.tab_id
+        ,a.trgt_id
+        ,a.won_tag
+        ,a.wrter_id
+        ,a.reg_dt
+        ,count(a.module_id) as won_anw_cnt
+        , (IF(EXISTS (select 1
+        from aidt_lms.std_won_asw_info swai
+        join aidt_lms.std_won_asw_detail swad
+        on swai.id = CAST(swad.std_won_anw_id AS UNSIGNED)
+        where swai.subm_at = 'Y'
+        and swad.src_textbk_id = a.textbk_id
+        and swad.src_trgt_id = a.trgt_id
+        and swad.src_wrt_ymd = a.wrt_ymd
+        and swad.wrter_id = a.wrter_id), 'Y', 'N'))
+        as subm_again_yn
+        FROM aidt_lms.won_asw_note a
+        WHERE 1=1
+        AND a.textbk_id = #{param.textbkId}
+        AND a.wrter_id = #{param.userId}
+        and a.won_anw_clsf_cd != 5
+        <if test="param.dateType != null and param.dateType != '' ">
+            <if test='param.dateType eq "d" '>
+                and a.wrt_ymd = #{param.dayDate}
+            </if>
+            <if test='param.dateType eq "w" '>
+                and a.wrt_ymd between #{param.startDate} and #{param.endDate}
+            </if>
+            <if test='param.dateType eq "m" '>
+                and left(a.wrt_ymd,6) =#{param.monthDate}
+            </if>
+        </if>
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test="param.condition == 'name' ">
+                and a.won_anw_nm like concat('%',#{param.keyword},'%')
+            </if>
+            <if test="param.condition == 'curri' ">
+                and a.module_id in (
+                select b.article_id
+                from aidt_lcms.article_meta_map b
+                where b.meta_name like 'studyMap%'
+                and b.meta_id in
+                <foreach collection="param.keyword2" item="arr" open="(" close=")" separator=",">
+                    #{arr}
+                </foreach>
+                and b.sub_id = 0
+                )
+            </if>
+            <if test="param.condition == 'date' ">
+                and (
+                (a.wrt_ymd <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                a.wrt_ymd <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                )
+            </if>
+        </if>
+        <if test="param.clsfCdgubun != null and param.clsfCdgubun != ''">
+            and a.won_anw_clsf_cd = #{param.clsfCdgubun}
+        </if>
+        <if test="param.tab != null and param.tab != '' ">
+            <if test="param.tab == 3 or param.tab == '3' ">
+                AND NOT EXISTS (select 1
+                from aidt_lms.std_won_asw_info swai
+                join aidt_lms.std_won_asw_detail swad
+                on swai.id = CAST(swad.std_won_anw_id AS UNSIGNED)
+                where swai.subm_at = 'Y'
+                and swad.src_textbk_id = a.textbk_id
+                and swad.src_trgt_id = a.trgt_id
+                and swad.src_wrt_ymd = a.wrt_ymd
+                and swad.wrter_id = a.wrter_id)
+            </if>
+            <if test="param.tab == 4 or param.tab == '4' ">
+                AND EXISTS (select 1
+                from aidt_lms.std_won_asw_info swai
+                join aidt_lms.std_won_asw_detail swad
+                on swai.id = CAST(swad.std_won_anw_id AS UNSIGNED)
+                where swai.subm_at = 'Y'
+                and swad.src_textbk_id = a.textbk_id
+                and swad.src_trgt_id = a.trgt_id
+                and swad.src_wrt_ymd = a.wrt_ymd
+                and swad.wrter_id = a.wrter_id)
+            </if>
+        </if>
+        GROUP BY
+        a.wrt_ymd
+        ,a.won_anw_clsf_cd
+        ,a.won_anw_nm
+        ,a.tab_id
+        ,a.trgt_id
+        ,a.wrter_id
+
+        union all
+
+        SELECT
+        a.id as noteId
+        ,a.wrt_ymd
+        ,a.won_anw_clsf_cd
+        ,a.won_anw_nm
+        ,a.tab_id
+        ,a.trgt_id
+        ,a.won_tag
+        ,a.wrter_id
+        ,a.reg_dt
+        ,count(a.module_id) as won_anw_cnt
+        , (IF(EXISTS (select 1
+        from aidt_lms.std_won_asw_info swai
+        join aidt_lms.std_won_asw_detail swad
+        on swai.id = CAST(swad.std_won_anw_id AS UNSIGNED)
+        where swai.subm_at = 'Y'
+        and swad.src_textbk_id = a.textbk_id
+        and swad.src_trgt_id = a.trgt_id
+        and swad.src_wrt_ymd = a.wrt_ymd
+        and swad.wrter_id = a.wrter_id), 'Y', 'N'))
+        as subm_again_yn
+        FROM aidt_lms.won_asw_note a
+        WHERE 1=1
+        AND a.textbk_id = #{param.textbkId}
+        AND a.wrter_id = #{param.userId}
+        and a.won_anw_clsf_cd =5
+        <if test="param.dateType != null and param.dateType != '' ">
+            <if test='param.dateType eq "d" '>
+                and a.wrt_ymd = #{param.dayDate}
+            </if>
+            <if test='param.dateType eq "w" '>
+                and a.wrt_ymd between #{param.startDate} and #{param.endDate}
+            </if>
+            <if test='param.dateType eq "m" '>
+                and left(a.wrt_ymd,6) =#{param.monthDate}
+            </if>
+        </if>
+        <if test="param.keyword != null and param.keyword != '' ">
+            <if test="param.condition == 'name' ">
+                and a.won_anw_nm like concat('%',#{param.keyword},'%')
+            </if>
+            <if test="param.condition == 'curri' ">
+                and a.module_id in (
+                select b.article_id
+                from aidt_lcms.article_meta_map b
+                where b.meta_name like 'studyMap%'
+                and b.meta_id in
+                <foreach collection="param.keyword2" item="arr" open="(" close=")" separator=",">
+                    #{arr}
+                </foreach>
+                and b.sub_id = 0
+                )
+            </if>
+            <if test="param.condition == 'date' ">
+                and (
+                (a.wrt_ymd <![CDATA[>=]]> str_to_date(#{param.st_dt},'%Y%m%d') and
+                a.wrt_ymd <![CDATA[<]]> adddate(str_to_date(#{param.ed_dt},'%Y%m%d'),1))
+                )
+            </if>
+        </if>
+        <if test="param.clsfCdgubun != null and param.clsfCdgubun != ''">
+            and a.won_anw_clsf_cd = #{param.clsfCdgubun}
+        </if>
+        <if test="param.tab != null and param.tab != '' ">
+            <if test="param.tab == 3 or param.tab == '3' ">
+                AND NOT EXISTS (select 1
+                from aidt_lms.std_won_asw_info swai
+                join aidt_lms.std_won_asw_detail swad
+                on swai.id = CAST(swad.std_won_anw_id AS UNSIGNED)
+                where swai.subm_at = 'Y'
+                and swad.src_textbk_id = a.textbk_id
+                and swad.src_trgt_id = a.trgt_id
+                and swad.src_wrt_ymd = a.wrt_ymd
+                and swad.wrter_id = a.wrter_id)
+            </if>
+            <if test="param.tab == 4 or param.tab == '4' ">
+                AND EXISTS (select 1
+                from aidt_lms.std_won_asw_info swai
+                join aidt_lms.std_won_asw_detail swad
+                on swai.id = CAST(swad.std_won_anw_id AS UNSIGNED)
+                where swai.subm_at = 'Y'
+                and swad.src_textbk_id = a.textbk_id
+                and swad.src_trgt_id = a.trgt_id
+                and swad.src_wrt_ymd = a.wrt_ymd
+                and swad.wrter_id = a.wrter_id)
+            </if>
+        </if>
+        GROUP BY
+        a.wrt_ymd
+        ,a.won_anw_clsf_cd
+        ,a.won_anw_nm
+        ,a.tab_id
+        ,a.trgt_id
+        ,a.wrter_id
+        ) t
+        WHERE 1=1
+
+        <if test="param.tab != null and param.tab != '' ">
+            <if test="param.tab == 1 or param.tab == '1' ">
+                AND EXISTS (
+                select 1
+                from aidt_lms.won_asw_note
+                where 1=1
+                and won_anw_clsf_cd = t.won_anw_clsf_cd
+                and trgt_id =t.trgt_id
+                and (won_tag is null or won_tag = '')
+                and wrt_ymd = t.wrt_ymd
+                and wrter_id = t.wrter_id
+                limit 1
+                )
+            </if>
+            <if test="param.tab == 2 or param.tab == '2' ">
+                AND NOT EXISTS (
+                select 1
+                from aidt_lms.won_asw_note
+                where 1=1
+                and won_anw_clsf_cd = t.won_anw_clsf_cd
+                and trgt_id =t.trgt_id
+                and (won_tag is null or won_tag = '')
+                and wrt_ymd = t.wrt_ymd
+                and wrter_id = t.wrter_id
+                limit 1
+                )
+            </if>
+        </if>
+        order by t.wrt_ymd desc,t.reg_dt DESC
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="selectWonAnwClsfCdNm" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectWonAnwClsfCdNm */
+        SELECT
+            won_anw_nm,
+            won_anw_clsf_cd,
+            aidt_lms.F_CODE_NM('won_anw_clsf_cd', won_anw_clsf_cd) as won_anw_clsf_nm
+        FROM aidt_lms.won_asw_note
+        WHERE
+            1=1
+            AND textbk_id = #{textbkId}
+            AND wrter_id = #{userId}
+            AND wrt_ymd = #{wrtYmd}
+            AND trgt_id = #{trgtId}
+        limit 1
+    </select>
+
+    <select id="selectWonTagInfo" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectWonTagInfo */
+        select
+            code_cd as won_tag
+            ,code_nm as won_tag_nm
+        from aidt_lms.se_code a
+        where 1=1
+        <choose>
+            <when test="brandId == 3"> /* 영어 */
+                and a.code_gb_cd = 'won_tag_eng'
+            </when>
+            <otherwise>
+                and a.code_gb_cd = 'won_tag'
+            </otherwise>
+        </choose>
+
+        order by a.code_seq
+    </select>
+
+    <select id="selectStntResultInfo" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectStntResultInfo */
+        SELECT A.*
+        FROM
+        (
+            SELECT
+                wan.id
+                , wan.tab_id
+                , wan.module_id /* article.id */
+                , wan.sub_id
+                , ifnull(
+                        (select thumbnail from aidt_lcms.setsummary where article_id = wan.module_id and sub_id = wan.sub_id limit 1),
+                        (select a.thumbnail from aidt_lcms.article a where a.id = wan.module_id)
+                  ) as thumbnail
+                , wan.trgt_id AS target_id
+                , wan.won_anw_tg_id
+                , ifnull(
+                    CASE
+                        WHEN wan.won_anw_clsf_cd = 2 /* 자기주도학습 */
+                            THEN
+                                CASE
+                                    WHEN t.brand_id = 1 /* 수학 */
+                                        THEN (
+                                            SELECT src_result_info_id FROM aidt_lms.slf_std_result_info WHERE std_id = wan.trgt_id and id = wan.won_anw_tg_id
+                                            UNION ALL
+                                            SELECT src_result_info_id FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = wan.trgt_id and id = wan.won_anw_tg_id
+                                        )
+                                    ELSE (SELECT src_result_info_id FROM aidt_lms.slf_std_result_info WHERE std_id = wan.trgt_id and id = wan.won_anw_tg_id)
+                                END
+                        ELSE wan.won_anw_tg_id
+                    END,wan.won_anw_tg_id
+                ) AS src_tg_id
+                ,wan.sub_mit_anw AS sub_mit_anw
+                ,(
+                    CASE
+                        WHEN wan.won_anw_clsf_cd = 1 /* 수업 */
+                            THEN (SELECT sub_mit_anw_url FROM aidt_lms.std_dta_result_detail WHERE id = wan.won_anw_tg_id)
+                        WHEN wan.won_anw_clsf_cd = 2 /* 자기주도학습 */
+                        THEN
+                            CASE
+                                WHEN t.brand_id = 1 /* 수학 */
+                                    THEN (
+                                        SELECT sub_mit_anw_url FROM aidt_lms.slf_std_result_info WHERE std_id = wan.trgt_id and id = wan.won_anw_tg_id
+                                        UNION ALL
+                                        SELECT sub_mit_anw_url FROM aidt_lms.slf_ai_std_result_info WHERE std_ai_id = wan.trgt_id and id = wan.won_anw_tg_id
+                                    )
+                                ELSE (SELECT sub_mit_anw_url FROM aidt_lms.slf_std_result_info WHERE std_id = wan.trgt_id and id = wan.won_anw_tg_id)
+                            END
+                        WHEN wan.won_anw_clsf_cd = 3 /* 과제 */
+                            THEN (SELECT sub_mit_anw_url FROM aidt_lms.task_result_detail WHERE id = wan.won_anw_tg_id)
+                        WHEN wan.won_anw_clsf_cd = 4 /* 평가 */
+                            THEN (SELECT sub_mit_anw_url FROM aidt_lms.evl_result_detail  WHERE id = wan.won_anw_tg_id)
+                        ELSE NULL
+                    END
+                ) AS sub_mit_anw_url
+                /* 2depth까지 학습맵명 처리 */
+                <choose>
+                    <when test="brandId == 3">
+                        , (with recursive meta_path as (select m.id
+                                                     , m.parent_id
+                                                     , m.val
+                                                     , 0 as lvl
+                                                  from aidt_lcms.meta m
+                                                 where m.id = (select parent_id
+                                                                 from aidt_lcms.meta
+                                                                where id = (select meta_id
+                                                                              from aidt_lcms.article_meta_map
+                                                                             where article_id = wan.module_id
+                                                                               and sub_id = wan.sub_id
+                                                                               and meta_name = 'studyMap_1'))
+                                                 union all
+                                                select m2.id
+                                                     , m2.parent_id
+                                                     , m2.val
+                                                     , mp.lvl + 1
+                                                  from aidt_lcms.meta m2
+                                                           join meta_path mp on m2.id = mp.parent_id
+                                                 where m2.parent_id != 0)
+                         select group_concat(val order by lvl desc separator ' > ') as val_path_to_parent
+                           from meta_path
+                         ) as study_map
+                    </when>
+                    <otherwise>
+                        , (with recursive meta_path as (select m.id
+                                                     , m.parent_id
+                                                     , m.val
+                                                     , 0 as lvl
+                                                  from aidt_lcms.meta m
+                                                 where m.id =  (select meta_id
+                                                                              from aidt_lcms.article_meta_map
+                                                                             where article_id = wan.module_id
+                                                                               and sub_id = wan.sub_id
+                                                                               and meta_name = 'studyMap_1')
+                                                 union all
+                                                select m2.id
+                                                     , m2.parent_id
+                                                     , m2.val
+                                                     , mp.lvl + 1
+                                                  from aidt_lcms.meta m2
+                                                           join meta_path mp on m2.id = mp.parent_id
+                                                 where m2.parent_id != 0)
+                         select group_concat(val order by lvl desc separator ' > ') as val_path_to_parent
+                           from meta_path
+                         ) as study_map
+                    </otherwise>
+                </choose>
+                , wan.won_tag
+            FROM aidt_lms.won_asw_note wan
+            INNER JOIN aidt_lcms.textbook t
+            ON wan.textbk_id = t.id
+            WHERE
+                1=1
+                AND wan.textbk_id = #{textbkId}
+                AND wan.wrter_id = #{userId}
+                AND wan.wrt_ymd = #{wrtYmd}
+                AND wan.trgt_id = #{trgtId}
+        ) A
+        ORDER BY src_tg_id
+    </select>
+
+    <select id="selectWonAwsChk" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectWonAwsChk */
+        SELECT
+            id
+            ,textbk_id
+            ,wrter_id
+            ,(SELECT cla_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = wan.wrter_id AND actvtn_at = 'Y') as cla_id
+            ,wrt_ymd
+            ,won_anw_clsf_cd
+            ,won_anw_nm
+            ,tab_id
+            ,module_id
+            ,sub_id
+            ,trgt_id
+            ,errata
+            ,sub_mit_anw
+            ,sub_mit_anw_url
+            ,won_anw_tg_id
+            ,won_tag
+            ,tch_rpt_chk_at
+        FROM aidt_lms.won_asw_note wan
+        WHERE wan.id = #{wonAswId}
+        <if test='gubun == "2" and chk == "OK" '>
+            AND wan.won_tag like CONCAT('%',#{wonTag},'%')
+            AND wan.won_tag is not NULL
+        </if>
+    </select>
+
+    <insert id="insertWonAwsNote_old" parameterType="map">
+        /* StntWrongnoteMapper.insertWonAwsNote old*/
+        INSERT INTO aidt_lms.won_asw_note
+        VALUES (
+        null
+        ,(<choose>
+            <when test="wonAnwClsfCd eq 1">
+                select
+                    z.textbk_id
+                from aidt_lms.std_dta_result_info x
+                inner join aidt_lms.std_dta_result_detail y on x.id = y.dta_result_id
+                left join aidt_lms.std_dta_info z on x.dta_id = z.id
+                where y.id = #{wonAnwTgId}
+            </when>
+            <when test="wonAnwClsfCd eq 2">
+                select
+                    y.textbk_id
+                from aidt_lms.slf_std_result_info x
+                inner join aidt_lms.slf_std_info y on x.std_id = y.id
+                where x.id = #{wonAnwTgId}
+                union all
+                select
+                    y.textbk_id
+                from aidt_lms.slf_ai_std_result_info x
+                inner join aidt_lms.slf_ai_std_info y on x.std_ai_id = y.id
+                where x.id = #{wonAnwTgId}
+            </when>
+            <when test="wonAnwClsfCd eq 3">
+                select
+                    z.textbk_id
+                from aidt_lms.task_info z
+                inner join aidt_lms.task_result_info x on z.id = x.task_id
+                inner join aidt_lms.task_result_detail y
+                where x.id = y.task_result_id and y.id = #{wonAnwTgId}
+            </when>
+            <when test="wonAnwClsfCd eq 4">
+                select
+                    z.textbook_id
+                from aidt_lms.evl_info z
+                inner join aidt_lms.evl_result_info x on z.id = x.evl_id
+                inner join aidt_lms.evl_result_detail y
+                where x.id = y.evl_result_id and y.id = #{wonAnwTgId}
+            </when>
+            <otherwise>
+                null
+            </otherwise>
+          </choose>)
+        ,#{wrterId}
+        ,DATE_FORMAT(now(),'%Y%m%d')
+        ,#{wonAnwClsfCd}
+        ,#{wonAnwNm}
+        ,#{tabId}
+        ,#{moduleId}
+        ,#{subId}
+        ,(<choose>
+            <when test="wonAnwClsfCd eq 1">
+                /* 수업 */
+                select x.textbk_tab_id
+                from aidt_lms.std_dta_result_info x
+                inner join aidt_lms.std_dta_result_detail y
+                where x.id = y.dta_result_id and y.id = #{wonAnwTgId}
+            </when>
+            <when test="wonAnwClsfCd eq 2">
+                /* 자기주도학습 */
+                select std_id from aidt_lms.slf_std_result_info where id = #{wonAnwTgId}
+                union all
+                select std_ai_id as std_id from aidt_lms.slf_ai_std_result_info where id = #{wonAnwTgId}
+            </when>
+            <when test="wonAnwClsfCd eq 3">
+                /* 과제 */
+                select x.task_id
+                from aidt_lms.task_result_info x
+                inner join aidt_lms.task_result_detail y
+                where x.id = y.task_result_id and y.id = #{wonAnwTgId}
+            </when>
+            <when test="wonAnwClsfCd eq 4">
+                /* 평가 */
+                select x.evl_id
+                from aidt_lms.evl_result_info x
+                inner join aidt_lms.evl_result_detail y
+                where x.id = y.evl_result_id and y.id = #{wonAnwTgId}
+            </when>
+            <otherwise>
+                null
+            </otherwise>
+          </choose>)
+        ,#{wonAnwTgId}
+        ,NULL
+        ,#{wrterId}
+        ,NOW()
+        ,#{wrterId}
+        ,NOW()
+        )
+    </insert>
+
+    <insert id="insertWonAwsNote" parameterType="map">
+        /* StntWrongnoteMapper.insertWonAwsNote */
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+             values (
+                        (<choose>
+                            <when test="wonAnwClsfCd eq 1">
+                                select
+                                    z.textbk_id
+                                from aidt_lms.std_dta_result_info x
+                                inner join aidt_lms.std_dta_result_detail y on x.id = y.dta_result_id
+                                left join aidt_lms.std_dta_info z on x.dta_id = z.id
+                                where y.id = #{wonAnwTgId}
+                            </when>
+                            <when test="wonAnwClsfCd eq 2">
+                                select
+                                    y.textbk_id
+                                from aidt_lms.slf_std_result_info x
+                                inner join aidt_lms.slf_std_info y on x.std_id = y.id
+                                where x.id = #{wonAnwTgId}
+                                union all
+                                select
+                                    y.textbk_id
+                                from aidt_lms.slf_ai_std_result_info x
+                                inner join aidt_lms.slf_ai_std_info y on x.std_ai_id = y.id
+                                where x.id = #{wonAnwTgId}
+                            </when>
+                            <when test="wonAnwClsfCd eq 3">
+                                select
+                                    z.textbk_id
+                                from aidt_lms.task_info z
+                                inner join aidt_lms.task_result_info x on z.id = x.task_id
+                                inner join aidt_lms.task_result_detail y
+                                where x.id = y.task_result_id and y.id = #{wonAnwTgId}
+                            </when>
+                            <when test="wonAnwClsfCd eq 4">
+                                select
+                                    z.textbook_id
+                                from aidt_lms.evl_info z
+                                inner join aidt_lms.evl_result_info x on z.id = x.evl_id
+                                inner join aidt_lms.evl_result_detail y
+                                where x.id = y.evl_result_id and y.id = #{wonAnwTgId}
+                            </when>
+                            <otherwise>
+                                null
+                            </otherwise>
+                          </choose>)
+                        ,#{wrterId}
+                        ,DATE_FORMAT(now(),'%Y%m%d')
+                        ,#{wonAnwClsfCd}
+                        ,#{wonAnwNm}
+                        ,#{tabId}
+                        ,#{moduleId}
+                        ,#{subId}
+                        ,(<choose>
+                            <when test="wonAnwClsfCd eq 1">
+                                /* 수업 */
+                                select x.textbk_tab_id
+                                from aidt_lms.std_dta_result_info x
+                                inner join aidt_lms.std_dta_result_detail y
+                                where x.id = y.dta_result_id and y.id = #{wonAnwTgId}
+                            </when>
+                            <when test="wonAnwClsfCd eq 2">
+                                /* 자기주도학습 */
+                                select std_id from aidt_lms.slf_std_result_info where id = #{wonAnwTgId}
+                                union all
+                                select std_ai_id as std_id from aidt_lms.slf_ai_std_result_info where id = #{wonAnwTgId}
+                            </when>
+                            <when test="wonAnwClsfCd eq 3">
+                                /* 과제 */
+                                select x.task_id
+                                from aidt_lms.task_result_info x
+                                inner join aidt_lms.task_result_detail y
+                                where x.id = y.task_result_id and y.id = #{wonAnwTgId}
+                            </when>
+                            <when test="wonAnwClsfCd eq 4">
+                                /* 평가 */
+                                select x.evl_id
+                                from aidt_lms.evl_result_info x
+                                inner join aidt_lms.evl_result_detail y
+                                where x.id = y.evl_result_id and y.id = #{wonAnwTgId}
+                            </when>
+                            <otherwise>
+                                null
+                            </otherwise>
+                          </choose>)
+                        ,#{wonAnwTgId}
+                        ,null
+
+                        ,#{errata}
+                        ,#{subMitAnw}
+                        ,#{subMitAnwUrl}
+
+                        ,#{wrterId}
+                        ,NOW()
+                        ,#{wrterId}
+                        ,NOW()
+                        )
+    </insert>
+
+    <update id="updateWonAwsNote" parameterType="map">
+        /* StntWrongnoteMapper.updateWonAwsNote */
+        UPDATE aidt_lms.won_asw_note
+        SET won_tag = #{wonTagAdd}
+        ,mdfr = 'SYSTEM'
+        ,mdfy_dt = NOW()
+        WHERE id = #{wonAswId}
+    </update>
+
+    <delete id="deleteWonAwsNote"  parameterType="map">
+        /* StntWrongnoteMapper.deleteWonAwsNote */
+        DELETE FROM aidt_lms.won_asw_note
+        WHERE wrter_id = #{wrterId}
+        AND won_anw_clsf_cd = #{wonAnwClsfCd}
+        AND tab_id = #{tabId}
+        AND won_anw_tg_id = #{wonAnwTgId}
+        <if test='moduleId != null and !("").equals(moduleId) '>
+            AND module_id = #{moduleId}
+            AND sub_id = #{subId}
+        </if>
+    </delete>
+
+    <select id="selectWonAswTagInfo" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectWonAswTagInfo */
+        SELECT aidt_lms.F_CODE_NM('won_anw_clsf_cd', #{wonAnwClsfCd}) as won_anw_clsf_nm
+    </select>
+
+    <insert id="insertStntWrongnoteTaskId_old" parameterType="map">
+        /* StntWrongnoteMapper.insertStntWrongnoteTaskId old*/
+        INSERT INTO aidt_lms.won_asw_note
+        SELECT
+            null
+            ,(SELECT textbk_id FROM aidt_lms.task_info WHERE id=(SELECT task_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id)) as textbk_id
+            ,(SELECT mamoym_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id) as wrter_id
+            ,DATE_FORMAT(now(),'%Y%m%d')
+            ,3
+            ,(SELECT task_nm FROM aidt_lms.task_info WHERE id=(SELECT task_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id))
+            ,0
+            ,c.task_iem_id    as module_id
+            ,c.sub_id
+            ,(SELECT task_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id)
+            ,c.id              as won_anw_tg_id
+            ,null
+            ,(SELECT mamoym_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id) as wrter_id
+            ,now()
+            ,(SELECT mamoym_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id) as wrter_id
+            ,now()
+        FROM aidt_lms.task_result_detail c
+            WHERE c.task_result_id IN
+                (SELECT b.id
+                FROM aidt_lms.task_result_info b
+                WHERE b.task_id = #{taskId})
+            AND c.mrk_ty = 1
+            AND c.errata = 2
+    </insert>
+
+    <insert id="insertStntWrongnoteTaskId" parameterType="map">
+        /* StntWrongnoteMapper.insertStntWrongnoteTaskId new*/
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt,tch_rpt_chk_at)
+                select
+                    (select textbk_id from aidt_lms.task_info where id=(select task_id from aidt_lms.task_result_info where id=c.task_result_id)) as textbk_id
+                    ,(select mamoym_id from aidt_lms.task_result_info where id=c.task_result_id) as wrter_id
+                    ,date_format(now(),'%Y%m%d')
+                    ,3
+                    ,(select task_nm from aidt_lms.task_info where id=(select task_id from aidt_lms.task_result_info where id=c.task_result_id))
+                    ,0
+                    ,c.task_iem_id    as module_id
+                    ,c.sub_id
+                    ,(select task_id from aidt_lms.task_result_info where id=c.task_result_id)
+                    ,c.id              as won_anw_tg_id
+                    ,null
+                    ,c.errata
+                    ,c.sub_mit_anw
+                    ,c.sub_mit_anw_url
+                    ,(select mamoym_id from aidt_lms.task_result_info where id=c.task_result_id) as wrter_id
+                    ,now()
+                    ,(select mamoym_id from aidt_lms.task_result_info where id=c.task_result_id) as wrter_id
+                    ,now()
+                    ,'Y'              -- tch_rpt_chk_at 추가 비바샘 운영 아르고CD 오류 발견 20250805
+                from aidt_lms.task_result_detail c
+               where c.task_result_id in
+                        (select b.id
+                        from aidt_lms.task_result_info b
+                        where b.task_id = #{taskId})
+                 and c.mrk_ty = 1
+                 and c.errata = 2
+    </insert>
+
+    <delete id="deleteStntWrongnoteEvlId" parameterType="map">
+        /* StntWrongnoteMapper.deleteStntWrongnoteEvlId */
+        delete
+          from aidt_lms.won_asw_note
+         where trgt_id = #{evlId}
+    </delete>
+
+    <insert id="insertStntWrongnoteEvlId_temp_back" parameterType="map">
+        /* StntWrongnoteMapper.insertStntWrongnoteEvlId old*/
+        INSERT INTO aidt_lms.won_asw_note
+        (
+            id, textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd,
+            won_anw_nm, tab_id, module_id, sub_id, trgt_id,
+            /* 테이블에서 추가된 컬럼 때문에 insert 할 컬럼을 명시적으로 작성함. 필요 시 주석 해제 요망
+            errata,
+            sub_mit_anw,
+            sub_mit_anw_url, */
+            won_anw_tg_id,
+            won_tag,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        SELECT
+        null
+        ,(SELECT textbook_id FROM aidt_lms.evl_info WHERE id=(SELECT evl_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id)) as textbk_id
+        ,(SELECT mamoym_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id) as wrter_id
+        ,DATE_FORMAT(now(),'%Y%m%d')
+        ,4
+        ,(SELECT evl_nm FROM aidt_lms.evl_info WHERE id=(SELECT evl_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id))
+        ,0
+        ,b.evl_iem_id   as module_id
+        ,b.sub_id
+        ,(SELECT evl_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id)
+        ,b.id            as won_anw_tg_id
+        ,null
+        ,(SELECT mamoym_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id) as wrter_id
+        ,now()
+        ,(SELECT mamoym_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id) as wrter_id
+        ,now()
+        FROM aidt_lms.evl_result_detail b
+        WHERE b.evl_result_id IN
+            (
+                SELECT id
+                FROM aidt_lms.evl_result_info a
+                WHERE evl_id = #{evlId}
+            )
+            AND b.mrk_ty = 1
+            AND b.errata = 2
+            and b.id not in (select won_anw_tg_id
+                                from aidt_lms.won_asw_note where trgt_id =#{evlId})
+    </insert>
+
+
+    <insert id="insertStntWrongnoteEvlId" parameterType="map">
+        /* StntWrongnoteMapper.insertStntWrongnoteEvlId  new */
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+             select
+                     (select textbook_id from aidt_lms.evl_info where id=(select evl_id from aidt_lms.evl_result_info where id=b.evl_result_id)) as textbk_id
+                    ,(select mamoym_id from aidt_lms.evl_result_info where id=b.evl_result_id) as wrter_id
+                    ,date_format(now(),'%Y%m%d')
+                    ,4
+                    ,(select evl_nm from aidt_lms.evl_info where id=(select evl_id from aidt_lms.evl_result_info where id=b.evl_result_id))
+                    ,0
+                    ,b.evl_iem_id   as module_id
+                    ,b.sub_id
+                    ,(select evl_id from aidt_lms.evl_result_info where id=b.evl_result_id)
+                    ,b.id            as won_anw_tg_id
+                    ,null
+                    ,b.errata
+                    ,b.sub_mit_anw
+                    ,b.sub_mit_anw_url
+                    ,(select mamoym_id from aidt_lms.evl_result_info where id=b.evl_result_id) as wrter_id
+                    ,now()
+                    ,(select mamoym_id from aidt_lms.evl_result_info where id=b.evl_result_id) as wrter_id
+                    ,now()
+               from aidt_lms.evl_result_detail b
+              where b.evl_result_id in
+                                        (
+                                            select id
+                                            from aidt_lms.evl_result_info a
+                                            where evl_id = #{evlId}
+                                        )
+                and b.mrk_ty = 1
+                and b.errata = 2
+                and b.id not in (select won_anw_tg_id
+                                  from aidt_lms.won_asw_note where trgt_id =#{evlId})
+    </insert>
+
+
+
+
+    <!--
+    <select id="selectStntWrongnoteEvlId" parameterType="map" resultType="camelHashMap">
+        SELECT
+    ( CASE WHEN wan.won_anw_clsf_cd = 1 THEN (SELECT dta_id FROM aidt_lms.std_dta_result_info WHERE id = (SELECT dta_result_id FROM aidt_lms.std_dta_result_detail WHERE id = wan.won_anw_tg_id))
+    </select>
+    -->
+
+    <select id="findWrongnoteTaskInfo" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.findWrongnoteTaskInfo */
+        SELECT
+            DISTINCT (SELECT mamoym_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id) as stnt_id
+             , (SELECT um.flnm FROM aidt_lms.user um WHERE um.user_id = (SELECT mamoym_id FROM aidt_lms.task_result_info WHERE id=c.task_result_id)) as flnm
+             , (SELECT wrter_id FROM aidt_lms.task_info ti WHERE ti.id = #{taskId}) as wrter_id
+             , (SELECT textbk_id FROM aidt_lms.task_info ti WHERE ti.id = #{taskId}) as textbk_id
+             , (SELECT cla_id FROM aidt_lms.task_info ti WHERE ti.id = #{taskId}) as cla_id
+        FROM aidt_lms.task_result_detail c
+        WHERE c.task_result_id IN
+              (SELECT b.id
+               FROM aidt_lms.task_result_info b
+               WHERE b.task_id = #{taskId})
+          AND c.mrk_ty = 1
+          AND c.errata = 2
+    </select>
+
+    <select id="findWrongnoteEvlInfo" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.findWrongnoteEvlInfo */
+        SELECT
+            DISTINCT (SELECT mamoym_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id) as stnt_id
+            , (SELECT um.flnm FROM aidt_lms.user um WHERE um.user_id = (SELECT mamoym_id FROM aidt_lms.evl_result_info WHERE id=b.evl_result_id)) as flnm
+            , (SELECT wrter_id FROM aidt_lms.evl_info ei WHERE ei.id = #{evlId}) wrter_id
+            , (SELECT textbook_id FROM aidt_lms.evl_info ei WHERE ei.id = #{evlId}) textbk_id
+            , (SELECT cla_id FROM aidt_lms.evl_info ei WHERE ei.id = #{evlId}) cla_id
+        FROM aidt_lms.evl_result_detail b
+        WHERE b.evl_result_id IN
+              (
+                  SELECT id
+                  FROM aidt_lms.evl_result_info a
+                  WHERE evl_id = #{evlId}
+              )
+          AND b.mrk_ty = 1
+          AND b.errata = 2
+    </select>
+
+    <delete id="deleteReportEvalWrongnote"  parameterType="map">
+        /* StntWrongnoteMapper.deleteReportEvalWrongnote */
+        delete
+        from 	aidt_lms.won_asw_note wan
+        where 	1=1
+          and 	wan.won_anw_clsf_cd = 4 /* 평가 */
+          and 	won_anw_tg_id in (select erd.id from 	aidt_lms.evl_result_detail erd
+                                                             join aidt_lms.evl_result_info eri on eri.id = erd.evl_result_id
+                                   where 	eri.evl_id = #{evlId}
+        )
+    </delete>
+
+    <insert id="insertReportEvalWrongnote_old" parameterType="map" >
+        /* StntWrongnoteMapper.insertReportEvalWrongnote old*/
+        INSERT INTO aidt_lms.won_asw_note
+        (textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, won_anw_nm, tab_id, module_id, sub_id, trgt_id, won_anw_tg_id, rgtr, mdfr)
+        select ei.textbook_id
+             , eri.mamoym_id as wrter_id
+             , DATE_FORMAT(NOW(), '%Y%m%d') as wrt_ymd
+             , 4 as won_anw_clsf_cd
+             , ei.evl_nm as won_anw_nm
+             , 0 as tab_id
+             , erd.evl_iem_id as module_id
+             , erd.sub_id
+             , eri.evl_id
+             , erd.id as won_anw_tg_id
+             , eri.mamoym_id as rgtr
+             , eri.mamoym_id as mdfr
+        from 	aidt_lms.evl_result_info eri
+                    join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                    join aidt_lms.evl_info ei on eri.evl_id = ei.id
+        where 	1=1
+          and 	eri.evl_id = #{evlId}
+          and   erd.mrk_ty = 1 /*  자동채점 */
+          and 	erd.errata = 2 /*  오답 */
+    </insert>
+
+
+    <insert id="insertReportEvalWrongnote" parameterType="map" >
+        /* StntWrongnoteMapper.insertReportEvalWrongnote new*/
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+             select ei.textbook_id
+                     , eri.mamoym_id as wrter_id
+                     , date_format(now(), '%Y%m%d') as wrt_ymd
+                     , 4 as won_anw_clsf_cd
+                     , ei.evl_nm as won_anw_nm
+                     , 0 as tab_id
+                     , erd.evl_iem_id as module_id
+                     , erd.sub_id
+                     , eri.evl_id
+                     , erd.id as won_anw_tg_id
+                     , null
+                     , erd.errata
+                     , erd.sub_mit_anw
+                     , erd.sub_mit_anw_url
+                     , eri.mamoym_id as rgtr
+                     , now()
+                     , eri.mamoym_id as mdfr
+                     , now()
+               from  aidt_lms.evl_result_info eri
+                      join aidt_lms.evl_result_detail erd on erd.evl_result_id = eri.id
+                      join aidt_lms.evl_info ei on eri.evl_id = ei.id
+              where  1=1
+                and  eri.evl_id = #{evlId}
+                and  erd.mrk_ty = 1 /*  자동채점 */
+                and  erd.errata = 2 /*  오답 */
+    </insert>
+
+
+    <delete id="deleteReportHomewkWrongnote" parameterType="map">
+        /* StntWrongnoteMapper.deleteReportHomewkWrongnote */
+        delete from aidt_lms.won_asw_note wan
+        where wan.won_anw_clsf_cd = 3 /*  과제 */
+          and wan.won_anw_tg_id in (
+            select trd.id
+            from aidt_lms.task_result_info tri
+            join aidt_lms.task_result_detail trd on task_result_id = tri.id
+            where tri.task_id = #{taskId}
+        )
+    </delete>
+
+    <insert id="insertReportHomewkWrongnote_old" parameterType="map">
+        /* StntWrongnoteMapper.insertReportHomewkWrongnote old*/
+        insert into aidt_lms.won_asw_note (
+            id,textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,
+            module_id, sub_id, trgt_id, won_anw_tg_id,won_tag,rgtr,reg_dt,mdfr,mdfy_dt
+        )
+        select
+            null as id,
+            ti.textbk_id,
+            tri.mamoym_id as wrter_id,
+            DATE_FORMAT(now(),'%Y%m%d') as wrt_ymd,
+            3 as won_anw_clsf_cd,
+            ti.task_nm as won_anw_nm,
+            null as tab_id,
+            trd.task_iem_id as module_id,
+            trd.sub_id,
+            tri.task_id,
+            trd.id as won_anw_tg_id,
+            null as won_tag,
+            'system',
+            now(),
+            'system',
+            now()
+        from aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on tri.task_id = ti.id
+        join aidt_lms.task_result_detail trd on task_result_id = tri.id
+        where ti.id = #{taskId}
+          and trd.mrk_ty = 1 /* 자동채점 */
+          and trd.errata = 2 /* 오답 */
+    </insert>
+
+    <insert id="insertReportHomewkWrongnote" parameterType="map">
+        /* StntWrongnoteMapper.insertReportHomewkWrongnote new*/
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+             select
+                      ti.textbk_id
+                    , tri.mamoym_id as wrter_id
+                    , DATE_FORMAT(now(),'%Y%m%d') as wrt_ymd
+                    , 3 as won_anw_clsf_cd
+                    , ti.task_nm as won_anw_nm
+                    , null as tab_id
+                    , trd.task_iem_id as module_id
+                    , trd.sub_id
+                    , tri.task_id
+                    , trd.id as won_anw_tg_id
+                    , null as won_tag
+                    , trd.errata
+                    , trd.sub_mit_anw
+                    , trd.sub_mit_anw_url
+                    , 'system'
+                    , now()
+                    , 'system'
+                    , now()
+              from aidt_lms.task_info ti
+              join aidt_lms.task_result_info tri on tri.task_id = ti.id
+              join aidt_lms.task_result_detail trd on task_result_id = tri.id
+             where ti.id = #{taskId}
+               and trd.mrk_ty = 1 /* 자동채점 */
+               and trd.errata = 2 /* 오답 */
+    </insert>
+
+    <insert id="insertStntWrongnoteId_old" parameterType="map">
+        /* StntWrongnoteMapper.insertStntWrongnoteId old*/
+        insert into aidt_lms.won_asw_note
+        (
+            id,
+            textbk_id ,
+            wrter_id ,
+            wrt_ymd ,
+            won_anw_clsf_cd ,
+            won_anw_nm ,
+            tab_id ,
+            module_id ,
+            sub_id ,
+            trgt_id ,
+            won_anw_tg_id ,
+            won_tag ,
+            rgtr ,
+            reg_dt ,
+            mdfr ,
+            mdfy_dt
+        )
+        select null,
+            a.textbk_id ,
+            a.stdt_id ,
+            DATE_FORMAT(NOW(), '%Y%m%d') ,
+            '2', /* 자기주도학습 */
+            a.std_nm ,
+            null,
+            b.module_id ,
+            0,
+            a.id,
+            b.id,
+            null,
+            a.stdt_id,
+            NOW(),
+            a.stdt_id,
+            NOW()
+        from aidt_lms.slf_std_info a inner join aidt_lms.slf_std_result_info b
+          on a.id = b.std_id
+       where std_id = #{slfId}
+         and errata = '2'  /* 오답만 */
+    </insert>
+
+    <insert id="insertStntWrongnoteId" parameterType="map">
+        /* StntWrongnoteMapper.insertStntWrongnoteId new*/
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+                    select
+                         a.textbk_id
+                        ,a.stdt_id
+                        ,DATE_FORMAT(NOW(), '%Y%m%d')
+                        ,'2' /* 자기주도학습 */
+                        ,a.std_nm
+                        ,null
+                        ,b.module_id
+                        ,0
+                        ,a.id
+                        ,b.id
+                        ,null
+                        ,b.errata
+                        ,b.sub_mit_anw
+                        ,b.sub_mit_anw_url
+                        ,a.stdt_id
+                        ,now()
+                        ,a.stdt_id
+                        ,now()
+                    from aidt_lms.slf_std_info a inner join aidt_lms.slf_std_result_info b
+                      on a.id = b.std_id
+                        inner join aidt_lcms.article_meta_map c on b.module_id = c.article_id and b.sub_id = c.sub_id
+                        and c.meta_name ='articleType'
+                        inner join aidt_lcms.meta d on c.meta_id =d.id and d.code='question'
+                   where std_id = #{slfId}
+                     and errata = '2'  /* 오답만 */
+    </insert>
+
+    <select id="findWrongnoteSelfLrnInfo" parameterType="map" resultType="camelHashMap">
+        SELECT  /* StntWrongnoteMapper.findWrongnoteSelfLrnInfo */
+            DISTINCT a.stdt_id  as stnt_id
+            , (SELECT um.flnm FROM aidt_lms.user um WHERE um.user_id = a.stdt_id ) as flnm
+            , a.stdt_id as wrter_id
+            , a.textbk_id
+            , a.cla_id
+        from aidt_lms.slf_std_info a
+        inner join aidt_lms.slf_std_result_info b
+            on a.id = b.std_id
+                and b.errata = '2'
+                and b.std_at = 'Y'
+                and b.mrk_cp_at = 'Y'
+        where 1=1
+         and a.id = #{slfId}
+/*        UNION ALL
+        SELECT
+            DISTINCT a.stdt_id  as stnt_id
+            , (SELECT um.flnm FROM aidt_lms.user um WHERE um.user_id = a.stdt_id ) as flnm
+            , a.stdt_id as wrter_id
+            , a.textbk_id
+            , (SELECT cla_id FROM aidt_lms.tc_cla_mb_info ti WHERE ti.stdt_id = a.stdt_id ) as cla_id
+        from aidt_lms.slf_ai_std_info a inner join aidt_lms.slf_ai_std_result_info b
+          on a.id = b.std_ai_id
+         and b.std_ai_id = slfId
+         and b.errata = '2'
+         and b.std_at = 'Y'
+         and b.mrk_cp_at = 'Y' */
+    </select>
+
+    <select id="findWrongnoteWonAnsNm1" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.findWrongnoteWonAnsNm1 */
+        SELECT std_dat_nm
+        FROM aidt_lms.std_dta_info
+        WHERE id=(
+           SELECT dta_result_id FROM aidt_lms.std_dta_result_detail WHERE id=#{wonAnwTgId}
+        )
+    </select>
+    <select id="findWrongnoteWonAnsNm2" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.findWrongnoteWonAnsNm2 */
+        SELECT std_nm
+        FROM aidt_lms.slf_std_info
+        WHERE id=(
+            SELECT std_id FROM aidt_lms.slf_std_result_info WHERE id=#{wonAnwTgId}
+        )
+        UNION ALL
+        SELECT std_nm
+        FROM aidt_lms.slf_ai_std_info
+        WHERE id=(
+            SELECT std_ai_id FROM aidt_lms.slf_ai_std_result_info WHERE id=#{wonAnwTgId}
+        )
+    </select>
+    <select id="findWrongnoteWonAnsNm3" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.findWrongnoteWonAnsNm3 */
+        SELECT task_nm
+        FROM aidt_lms.task_info
+        WHERE id=(
+            SELECT task_id FROM aidt_lms.task_result_info WHERE id=(
+                SELECT task_result_id FROM aidt_lms.task_result_detail WHERE id = #{wonAnwTgId}
+            )
+        )
+    </select>
+    <select id="findWrongnoteWonAnsNm4" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.findWrongnoteWonAnsNm4 */
+        SELECT evl_nm
+        FROM aidt_lms.evl_info
+        WHERE id=(
+            SELECT evl_id FROM aidt_lms.evl_result_info WHERE id=(
+                SELECT evl_result_id FROM aidt_lms.evl_result_detail WHERE id = #{wonAnwTgId}
+            )
+        )
+    </select>
+
+    <select id="selectStntWrongnoteTaskDetail" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectStntWrongnoteTaskDetail */
+        SELECT *
+        FROM aidt_lms.task_result_detail
+        WHERE id=#{wonAnwTgId}
+    </select>
+
+    <select id="selectStntWrongnoteEvlDetail" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectStntWrongnoteEvlDetail */
+        SELECT *
+        FROM aidt_lms.evl_result_detail
+        WHERE id=#{wonAnwTgId}
+    </select>
+
+    <select id="selectWonAnwNm" parameterType="map" resultType="string">
+        /* StntWrongnoteMapper.selectWonAnwNm */
+        <include refid="com.visang.aidt.lms.api.dashboard.mapper.TchDsbdMapper.incTchDsdbSearch"></include>
+        select id_path_nm as won_anw_nm from curriculum
+        where `key` = #{crculId} /* tab_info.crcul_id 값 */
+    </select>
+
+    <select id="findWonAswNoteCount" parameterType="map" resultType="int">
+        /* StntWrongnoteMapper.findWonAswNoteCount */
+        select count(1) as cnt
+        from aidt_lms.won_asw_note
+        where won_anw_clsf_cd = #{wonAnwClsfCd}
+        and trgt_id = #{trgtId}
+        and won_anw_tg_id = #{wonAnwTgId}
+        and wrt_ymd = #{wrtYmd}
+        and wrter_id = #{wrterId}
+    </select>
+
+    <insert id="createWonAswNote_old" parameterType="map">
+        /* StntWrongnoteMapper.createWonAswNote old*/
+        insert into aidt_lms.won_asw_note
+        (
+            id
+            ,textbk_id
+            ,wrter_id
+            ,wrt_ymd
+            ,won_anw_clsf_cd
+            ,won_anw_nm
+            ,tab_id
+            ,module_id
+            ,sub_id
+            ,trgt_id
+            ,won_anw_tg_id
+            ,won_tag
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        )
+        values
+        (
+            null /* id auto_increment */
+            ,#{textbkId}
+            ,#{wrterId}
+            ,#{wrtYmd}
+            ,#{wonAnwClsfCd}
+            ,#{wonAnwNm}
+            ,#{tabId}
+            ,#{moduleId}
+            ,#{subId}
+            ,#{trgtId}
+            ,#{wonAnwTgId}
+            ,#{wonTag}
+            ,#{wrterId}
+            ,now()
+            ,#{wrterId}
+            ,now()
+        )
+    </insert>
+
+    <insert id="createWonAswNote" parameterType="map">
+        /* StntWrongnoteMapper.createWonAswNote new*/
+        insert into aidt_lms.won_asw_note
+                    (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+        values
+        (
+             #{textbkId}
+            ,#{wrterId}
+            ,#{wrtYmd}
+            ,#{wonAnwClsfCd}
+            , case when #{wonAnwClsfCd} = '1' then concat('[',(select tab_nm from aidt_lms.tab_info where id =#{trgtId}),'] ',#{wonAnwNm})
+                    else #{wonAnwNm}
+                 end
+            ,#{tabId}
+            ,#{moduleId}
+            ,#{subId}
+            ,#{trgtId}
+            ,#{wonAnwTgId}
+            ,#{wonTag}
+            ,#{errata}
+            ,#{subMitAnw}
+            ,#{subMitAnwUrl}
+            ,#{wrterId}
+            ,now()
+            ,#{wrterId}
+            ,now()
+        )
+    </insert>
+
+    <insert id="createStdWonAswInfo" parameterType="map" useGeneratedKeys="true" keyProperty="stdWonAnwId">
+        /* StntWrongnoteMapper.createStdWonAswInfo */
+        insert into aidt_lms.std_won_asw_info (mamoym_id, won_anw_nm)
+            values (
+                      #{stntId}
+                    , concat(DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s'), ' 생성됨')
+                   )
+    </insert>
+
+    <insert id="createStdWonAswDetail"  parameterType="map">
+        /* StntWrongnoteMapper.createStdWonAswDetail */
+        insert into std_won_asw_detail (
+                                        textbk_id
+                                        ,wrter_id
+                                        ,wrt_ymd
+                                        ,won_anw_clsf_cd
+                                        ,won_anw_nm
+                                        ,std_won_anw_id
+                                        ,article_id
+                                        ,sub_id
+                                        ,sub_mit_anw
+                                        ,sub_mit_anw_url
+                                        ,errata
+                                        ,eak_stts_cd
+                                        ,eak_at
+                                        ,src_textbk_id
+                                        ,src_wrter_id
+                                        ,src_wrt_ymd
+                                        ,src_trgt_id
+                                        ,eak_st_dt
+
+        )
+        <foreach collection="wonAnwInfo" item="param" separator=" union all ">
+            select textbk_id
+                 , wrter_id
+                 , DATE_FORMAT(now(),'%Y%m%d')
+                 , won_anw_clsf_cd
+                 , won_anw_nm
+                 , #{stdWonAnwId}
+                 , module_id
+                 , sub_id
+                 , null
+                 , null
+                 , null
+                 , '2'
+                 , 'N'
+                 , #{param.textbkid}
+                 , #{param.wrterid}
+                 , #{param.wrtymd}
+                 , #{param.trgtid}
+                 , now()
+              from aidt_lms.won_asw_note wan
+             where wan.textbk_id = #{param.textbkid}
+               and wan.wrter_id  = #{param.wrterid}
+               and wan.wrt_ymd   = #{param.wrtymd}
+               and wan.trgt_id   = #{param.trgtid}
+        </foreach>
+    </insert>
+
+     <select id="test__1" parameterType="map" resultType="camelHashMap">
+        <foreach collection="wonAnwInfo" item="param" separator=" union all ">
+            select textbk_id
+                 , wrter_id
+                 , DATE_FORMAT(now(),'%Y%m%d')
+                 , won_anw_clsf_cd
+                 , won_anw_nm
+                 , #{stdWonAnwId}
+                 , module_id
+                 , sub_id
+                 , null
+                 , null
+                 , null
+                 , '2'
+                 , 'N'
+                 , #{param.textbkid}
+                 , #{param.wrterid}
+                 , #{param.wrtymd}
+                 , #{param.trgtid}
+              from aidt_lms.won_asw_note wan
+             where wan.textbk_id = #{param.textbkid}
+               and wan.wrter_id  = #{param.wrterid}
+               and wan.wrt_ymd   = #{param.wrtymd}
+               and wan.trgt_id   = #{param.trgtid}
+        </foreach>
+    </select>
+
+    <select id="selectStdWonAswRetry" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.selectStdWonAswRetry */
+        select swai.mamoym_id
+             , swad.id
+             , swad.textbk_id
+             , swad.wrter_id
+             , swad.wrt_ymd
+             , swad.won_anw_clsf_cd
+             , swad.won_anw_nm
+             , swad.std_won_anw_id
+             , swad.src_textbk_id
+             , swad.src_wrter_id
+             , swad.src_wrt_ymd
+             , swad.src_trgt_id
+             , swad.article_id
+             , swad.sub_id
+             , swad.sub_mit_anw
+             , swad.sub_mit_anw_url
+             , swad.errata
+             , swad.eak_stts_cd
+             , swad.eak_at
+             , swad.eak_st_dt
+             , swad.eak_ed_dt
+          from aidt_lms.std_won_asw_info swai
+                   left join aidt_lms.std_won_asw_detail swad on swai.id = swad.std_won_anw_id
+         where swai.id = #{stdWonAnwId}
+    </select>
+
+     <select id="checkSubmitYn" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.checkSubmitYn */
+        select subm_at as submAt
+          from aidt_lms.std_won_asw_info
+         where id = #{stdWonAnwId}
+    </select>
+
+    <update id="saveWrongNoteRetry" parameterType="map">
+        /* StntWrongnoteMapper.checkSubmitYn */
+        update aidt_lms.std_won_asw_detail
+           set sub_mit_anw     = #{subMitAnw}
+             , sub_mit_anw_url = #{subMitAnwUrl}
+             , eak_stts_cd     = 5
+             , eak_at          = 'Y'
+             , eak_st_dt       = if(eak_st_dt is null, now(), eak_st_dt)
+             , eak_ed_dt       = if(eak_ed_dt is null, now(), eak_ed_dt)
+             , errata          = #{errata}
+             , mdfr            = '/stnt/wrong-note/retry/save'
+             , mdfy_dt         = now()
+         where std_won_anw_id  = #{stdWonAnwId}
+           and article_id      = #{articleId}
+           and sub_id          = #{subId}
+           and wrter_id        = #{wrterId}
+           and textbk_id       = #{textbkId}
+    </update>
+
+    <update id="saveWrongNoteRetryFinalData" parameterType="map">
+        /* StntWrongnoteMapper.saveWrongNoteRetryFinalData */
+        update aidt_lms.std_won_asw_info
+           set subm_at ='Y'
+             , subm_dt = now()
+             , mdfr    ='/stnt/wrong-note/retry/save'
+             , mdfy_dt = now()
+         where id = #{stdWonAnwId}
+           and (
+                select count(*)
+                  from aidt_lms.std_won_asw_detail
+                 where std_won_anw_id = #{stdWonAnwId}
+                   and eak_stts_cd  <![CDATA[<]]> 5
+                 ) = 0
+    </update>
+
+    <select id="getWrongNoteRetryRwd" parameterType="map" resultType="camelHashMap">
+        select count(*) AS total_wrd
+        , src_wrter_id
+        ,src_trgt_id
+        ,src_textbk_id
+        ,src_wrt_ymd
+        ,(SELECT cla_id FROM aidt_lms.tc_cla_mb_info WHERE stdt_id = src_wrter_id  AND actvtn_at = 'Y') as cla_id
+        from aidt_lms.std_won_asw_detail
+        where std_won_anw_id = #{stdWonAnwId}
+        AND errata = 1
+        group by src_wrter_id, src_textbk_id, src_trgt_id, src_wrt_ymd, cla_id
+   </select>
+
+    <update id="submitWrongNoteRetryDetail" parameterType="map">
+        /* StntWrongnoteMapper.submitWrongNoteRetryDetail */
+        update aidt_lms.std_won_asw_detail
+           set errata         = '2'
+             , eak_stts_cd    = '5'
+             , eak_at         = 'Y'
+             , eak_st_dt      = now()
+             , eak_ed_dt      = now()
+         where eak_at         = 'N'
+           and std_won_anw_id = #{stdWonAnwId}
+          <if test="excludedArticleIds != null and excludedArticleIds.size() > 0">
+            AND NOT EXISTS (
+              SELECT 1
+              FROM (
+              <foreach collection="excludedArticleIds" item="articleId" separator=" UNION ALL">
+                SELECT #{articleId} AS article_id
+              </foreach>
+              ) AS excluded_ids
+              WHERE excluded_ids.article_id = std_won_asw_detail.article_id
+              )
+          </if>
+    </update>
+
+    <update id="submitWrongNoteRetrylInfo" parameterType="map">
+        /* StntWrongnoteMapper.submitWrongNoteRetrylInfo */
+        update aidt_lms.std_won_asw_info
+           set subm_at   = 'Y'
+             , subm_dt   = now()
+         where id        = #{stdWonAnwId}
+           and mamoym_id = #{wrterId}
+    </update>
+
+
+
+    <select id="getHistErra" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.checkSubmitYn */
+        select srcData.errata
+             , srcData.stdNm
+             , srcData.stdType
+             , case
+                   when stdType = '1' then '수업'
+                   when stdType = '2' then '스스로학습'
+                   when stdType = '3' then '과제'
+                   when stdType = '4' then '평가'
+                   else ''
+               end as stdTypeNm
+             ,srcData.mdfy_dt as stdDate
+          from (select sdrd.errata
+             , sdrd.mdfy_dt
+             , (select text
+                  from aidt_lms.tc_curriculum tc
+                           join aidt_lms.tab_info ti
+                                on tc.wrter_id = ti.wrter_id
+                                    and tc.textbk_id = ti.textbk_id
+                                    and tc.`key` = ti.crcul_id
+                                    and tc.cla_id = ti.cla_id
+                                    and ti.id = tii.id)
+                   as stdNm
+             , '1' as stdType
+          from aidt_lms.std_dta_result_detail sdrd
+                   inner join aidt_lms.std_dta_result_info sdri
+                              on sdrd.dta_result_id = sdri.id and sdri.mamoym_id = #{mamoymId}
+                   inner join aidt_lms.tab_info tii
+                              on tii.id = sdri.textbk_tab_id
+                                  and sdrd.dta_iem_id = #{articleId}
+                                  and sdrd.sub_id = #{subId}
+                                  and sdrd.eak_at = 'Y'
+                                  and sdrd.mrk_ty = '1'
+                 union all
+          /* 스스로학습 2*/
+                select ssri.errata, ssri.mdfy_dt, ssi.std_nm as stdNm, '2' as stdType
+                  from aidt_lms.slf_std_result_info ssri
+                           inner join aidt_lms.slf_std_info ssi
+                                      on ssri.std_id = ssi.id and
+                                         ssi.stdt_id = #{mamoymId}
+                 where ssri.module_id = #{articleId}
+                   and ssri.sub_id = #{subId}
+                   and ssri.std_at = 'Y'
+                 union all
+             /* 과제 3*/
+                select trd.errata, trd.mdfy_dt, ti.task_nm as stdNm, '3' as stdType
+                  from aidt_lms.task_result_detail trd
+                           inner join aidt_lms.task_result_info tri
+                                      on trd.task_result_id = tri.id and tri.mamoym_id = #{mamoymId}
+                           inner join aidt_lms.task_info ti on ti.id = tri.task_id
+                 where 1 = 1
+                   and trd.task_iem_id = #{articleId}
+                   and trd.sub_id = #{subId}
+                   and trd.eak_at = 'Y'
+                   and trd.mrk_ty = '1'
+                 union all
+             /* 평가 4*/
+                select erd.errata, erd.mdfy_dt, ei.evl_nm as stdNm, '4' as stdType
+                  from aidt_lms.evl_result_detail erd
+                           inner join aidt_lms.evl_result_info eri
+                                      on erd.evl_result_id = eri.id and eri.mamoym_id = #{mamoymId}
+                           inner join aidt_lms.evl_info ei on ei.id = eri.evl_id
+                 where 1 = 1
+                   and erd.evl_iem_id = #{articleId}
+                   and erd.sub_id = #{subId}
+                   and erd.eak_at = 'Y'
+                   and erd.mrk_ty = '1') srcData
+         order by srcData.mdfy_dt
+    </select>
+
+    <insert id="createWonAswForRetry"  parameterType="map">
+        /* StntWrongnoteMapper.createWonAswForRetry */
+        insert into aidt_lms.won_asw_note
+        ( textbk_id
+        , wrter_id
+        , wrt_ymd
+        , won_anw_clsf_cd
+        , won_anw_nm
+        , tab_id
+        , module_id
+        , sub_id
+        , trgt_id
+        , errata
+        , sub_mit_anw
+        , sub_mit_anw_url
+        , won_anw_tg_id
+        , won_tag
+        , rgtr
+        , reg_dt
+        , mdfr
+        , mdfy_dt)
+        select textbk_id
+             , wrter_id
+             , DATE_FORMAT(now(), '%Y%m%d')
+             , '5'
+             , case
+                   when won_anw_clsf_cd != 5 then concat('[다시풀기(', (
+                       select
+                           count(*)
+                       from (
+                                select b.won_anw_nm, a.textbk_id, a.wrt_ymd, a.trgt_id, a.won_anw_clsf_cd
+                                from aidt_lms.won_asw_note a
+                                         join (
+                                    select src_textbk_id, src_wrt_ymd, src_trgt_id, src_wrter_id, article_id, sub_id, won_anw_nm, won_anw_clsf_cd
+                                    from aidt_lms.std_won_asw_detail
+                                    where std_won_anw_id = #{stdWonAnwId}
+                                ) b
+                                              on a.textbk_id = b.src_textbk_id
+                                                  and a.wrter_id = b.src_wrter_id
+                                                  and a.module_id = b.article_id
+                                                  and a.sub_id  = b.sub_id
+                                                  and a.trgt_id = b.src_trgt_id
+                                                  and a.won_anw_clsf_cd = b.won_anw_clsf_cd
+                                group by a.textbk_id, a.wrt_ymd, a.trgt_id
+                                union all
+                                select b.won_anw_nm, a.textbk_id, a.wrt_ymd, a.trgt_id, a.won_anw_clsf_cd
+                                from aidt_lms.won_asw_note a
+                                         join (
+                                    select src_textbk_id, src_wrt_ymd, src_trgt_id, src_wrter_id, article_id, sub_id, won_anw_nm, won_anw_clsf_cd, std_won_anw_id
+                                    from aidt_lms.std_won_asw_detail
+                                    where src_trgt_id = (
+                                        select src_trgt_id
+                                        from aidt_lms.std_won_asw_detail
+                                        where std_won_anw_id = #{stdWonAnwId}
+                                        limit 1
+                                )
+                                    and won_anw_clsf_cd in (1,2,3,4)
+                                group by std_won_anw_id
+                            ) b
+                       on a.trgt_id = b.std_won_anw_id
+                       and a.won_anw_clsf_cd = 5
+                       group by a.textbk_id, a.wrt_ymd, a.trgt_id
+                       ) x), ')] ',won_anw_nm)
+                   else COALESCE(#{hierarchicalWrongNoteName}, concat(DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s'), ' 생성됨'))
+            end
+             , null
+             , article_id
+             , sub_id
+             , #{stdWonAnwId}
+             , errata
+             , sub_mit_anw
+             , sub_mit_anw_url
+             , null
+             , null
+             , '/stnt/wrong-note/retry/submit'
+             , now()
+             , '/stnt/wrong-note/retry/submit'
+             , now()
+        from aidt_lms.std_won_asw_detail
+        where std_won_anw_id = #{stdWonAnwId}
+          and (errata is null || errata = 2)
+    </insert>
+
+    <select id="getCurrentTabId" parameterType="map" resultType="String">
+        /* StntWrongnoteMapper.getCurrentTabId */
+        SELECT CASE
+                   WHEN EXISTS(SELECT 1 FROM aidt_lms.tab_info WHERE id = (select src_trgt_id from aidt_lms.std_won_asw_detail a where a.std_won_anw_id = #{stdWonAnwId} limit 1)
+                                                                 and wrter_id = (select user_id from aidt_lms.tc_cla_mb_info where stdt_id = #{wrterId} and actvtn_at = 'Y'))
+                       THEN 'Y'  -- 같음 (최초 오답노트)
+                   ELSE 'N'  -- 다름 (다시풀기 오답노트)
+                   END AS IsCurrenttabId
+    </select>
+
+    <select id="getCurrentWonAnwClsfCdOfWrongNote" parameterType="map" resultType="int">
+        /* StntWrongnoteMapper.getCurrentWonAnwClsfCdOfWrongNote */
+        SELECT IFNULL((
+            SELECT won_anw_clsf_cd
+            FROM aidt_lms.std_won_asw_detail
+            WHERE std_won_anw_id = #{stdWonAnwId}
+            LIMIT 1
+        ), 0) AS won_anw_clsf_cd
+    </select>
+
+    <select id="getCurrentWrongNoteName" parameterType="map" resultType="string">
+        /* StntWrongnoteMapper.getCurrentWrongNoteName */
+        SELECT won_anw_nm
+        FROM aidt_lms.std_won_asw_detail
+        WHERE std_won_anw_id = #{stdWonAnwId}
+            LIMIT 1
+    </select>
+
+
+    <!-- 같은 부모 경로의 최대 번호 조회 -->
+    <select id="getMaxRetryNumber" parameterType="map" resultType="Integer">
+        SELECT COALESCE(MAX(
+                                CAST(SUBSTRING_INDEX(
+                                        SUBSTRING_INDEX(
+                                                SUBSTRING(won_anw_nm, LOCATE('[다시풀기(', won_anw_nm) + 6),
+                                                ')', 1
+                                        ), '-', -1
+                                     ) AS UNSIGNED)
+                        ), 0)
+        FROM aidt_lms.won_asw_note
+        WHERE won_anw_clsf_cd = '5'
+          AND won_anw_nm LIKE CONCAT('%[다시풀기(', #{parentPath}, '-%')
+          AND won_anw_nm LIKE CONCAT('%] ', #{originalName})
+          AND textbk_id = (
+            SELECT src_textbk_id
+            FROM aidt_lms.std_won_asw_detail
+            WHERE std_won_anw_id = #{stdWonAnwId}
+            LIMIT 1
+            )
+          AND wrter_id = (
+        SELECT src_wrter_id
+        FROM aidt_lms.std_won_asw_detail
+        WHERE std_won_anw_id = #{stdWonAnwId}
+            LIMIT 1
+            )
+    </select>
+
+    <insert id="createWonAswForRetry_bak"  parameterType="map">
+        /* StntWrongnoteMapper.createWonAswForRetry_bak */
+        insert into aidt_lms.won_asw_note
+        ( textbk_id
+        , wrter_id
+        , wrt_ymd
+        , won_anw_clsf_cd
+        , won_anw_nm
+        , tab_id
+        , module_id
+        , sub_id
+        , trgt_id
+        , errata
+        , sub_mit_anw
+        , sub_mit_anw_url
+        , won_anw_tg_id
+        , won_tag
+        , rgtr
+        , reg_dt
+        , mdfr
+        , mdfy_dt)
+        select textbk_id
+             , wrter_id
+             , DATE_FORMAT(now(), '%Y%m%d')
+             , '5'
+             , case
+                   when won_anw_clsf_cd != 5 then concat('[다시풀기(', (
+                       select
+                           count(*)
+                       from (
+                                select b.won_anw_nm, a.textbk_id, a.wrt_ymd, a.trgt_id, a.won_anw_clsf_cd
+                                from aidt_lms.won_asw_note a
+                                         join (
+                                    select src_textbk_id, src_wrt_ymd, src_trgt_id, src_wrter_id, article_id, sub_id, won_anw_nm, won_anw_clsf_cd
+                                    from aidt_lms.std_won_asw_detail
+                                    where std_won_anw_id = #{stdWonAnwId}
+                                ) b
+                                              on a.textbk_id = b.src_textbk_id
+                                                  and a.wrter_id = b.src_wrter_id
+                                                  and a.module_id = b.article_id
+                                                  and a.sub_id  = b.sub_id
+                                                  and a.trgt_id = b.src_trgt_id
+                                                  and a.won_anw_clsf_cd = b.won_anw_clsf_cd
+                                group by a.textbk_id, a.wrt_ymd, a.trgt_id
+                                union all
+                                select b.won_anw_nm, a.textbk_id, a.wrt_ymd, a.trgt_id, a.won_anw_clsf_cd
+                                from aidt_lms.won_asw_note a
+                                         join (
+                                    select src_textbk_id, src_wrt_ymd, src_trgt_id, src_wrter_id, article_id, sub_id, won_anw_nm, won_anw_clsf_cd, std_won_anw_id
+                                    from aidt_lms.std_won_asw_detail
+                                    where src_trgt_id = (
+                                        select src_trgt_id
+                                        from aidt_lms.std_won_asw_detail
+                                        where std_won_anw_id = #{stdWonAnwId}
+                                        limit 1
+                                )
+                                    and won_anw_clsf_cd in (1,2,3,4)
+                                group by std_won_anw_id
+                            ) b
+                       on a.trgt_id = b.std_won_anw_id
+                       and a.won_anw_clsf_cd = 5
+                       group by a.textbk_id, a.wrt_ymd, a.trgt_id
+                       ) x), ')] ',won_anw_nm)
+                   else concat(DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s'), ' 생성됨')
+            end
+             , null
+             , article_id
+             , sub_id
+             , #{stdWonAnwId}
+             , errata
+             , sub_mit_anw
+             , sub_mit_anw_url
+             , null
+             , null
+             , '/stnt/wrong-note/retry/submit'
+             , now()
+             , '/stnt/wrong-note/retry/submit'
+             , now()
+        from aidt_lms.std_won_asw_detail
+        where std_won_anw_id = #{stdWonAnwId}
+          and (errata is null || errata = 2)
+    </insert>
+
+    <select id="getTextbkId" parameterType="map" resultType="int">
+        /* StntWrongnoteMapper.getTextbkId */
+        select coalesce(
+                            (
+                                select textbk_id
+                                from aidt_lms.won_asw_note
+                                where wrter_id = #{userId}
+                                limit 1
+                            )
+        ,0) AS textbk_id
+    </select>
+
+    <select id="findBrandId" parameterType="map" resultType="int">
+        /* StntWrongnoteMapper.findBrandId */
+        select brand_id from aidt_lcms.textbook where id = #{textbkId}
+    </select>
+
+    <delete id="deleteWrongNoteRetryDetail" parameterType="map">
+        /* StntWrongnoteMapper.deleteWrongNoteRetryDetail */
+        delete
+          from aidt_lms.std_won_asw_detail
+         where std_won_anw_id in (select id from aidt_lms.std_won_asw_info where subm_at = 'N' AND mamoym_id = #{userId})
+    </delete>
+
+    <delete id="deleteWrongNoteRetryInfo" parameterType="map">
+        /* StntWrongnoteMapper.deleteWrongNoteRetryInfo */
+        delete from aidt_lms.std_won_asw_info where subm_at = 'N' AND mamoym_id = #{userId}
+    </delete>
+
+
+    <select id="getWrongNoteStatis" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.getWrongNoteStatis */
+        with noteCnt as (select count(*) as cnt
+                     from (select textbk_id, wrt_ymd, trgt_id
+                             from aidt_lms.won_asw_note
+                            where wrter_id = #{userId}) x)
+             , noteRetryCnt as (select count(*) as cnt
+                                  from (select src.textbk_id
+                                             , src.wrt_ymd
+                                             , src.trgt_id, src.module_id , src.sub_id
+                                          from aidt_lms.std_won_asw_info swai
+                                                   inner join aidt_lms.std_won_asw_detail swad
+                                                              on swai.id = swad.std_won_anw_id and swai.subm_at = 'Y'
+                                                   inner join (select textbk_id, wrter_id, wrt_ymd, won_anw_clsf_cd, module_id, sub_id, trgt_id
+                                                                 from aidt_lms.won_asw_note
+                                                                where wrter_id = #{userId}
+                                                                ) src
+                                                              on swad.src_textbk_id      = src.textbk_id
+                                                             and swad.src_trgt_id       = src.trgt_id
+                                                             and swad.src_wrt_ymd       = src.wrt_ymd
+                                                             and swad.src_wrter_id      = src.wrter_id
+                                                             and swad.won_anw_clsf_cd   = src.won_anw_clsf_cd
+                                                             and swad.textbk_id         = src.textbk_id
+                                                             and swad.article_id        = src.module_id
+                                                             and swad.sub_id            = src.sub_id
+                                         where swai.mamoym_id = src.wrter_id
+                                         group by src.textbk_id, src.wrter_id, src.wrt_ymd, src.won_anw_clsf_cd, src.trgt_id,src.module_id,src.sub_id) y)
+             , noteChkCnt as (select count(*) as cnt
+                                from aidt_lms.won_asw_note
+                               where 1 = 1
+                                 and wrter_id = #{userId}
+                                 and won_tag is not null
+                                 and won_tag != '')
+        select noteCnt.cnt                                      as wrongNoteAll/*전체*/
+             , noteRetryCnt.cnt                                 as wrongNoteRetryCnt /*다시풀기 완료*/
+             , noteChkCnt.cnt                                   as wrongNoteCheckCnt /*노트정리 완료*/
+             , noteCnt.cnt - noteRetryCnt.cnt                   as wrongNoteNoRetryCnt/*다시풀기 전*/
+             , noteCnt.cnt - noteChkCnt.cnt                     as wrongNoteNoCheckCnt /*노트정리 전*/
+             , round((noteRetryCnt.cnt / noteCnt.cnt) * 100, 0) as wrongNoteRetryStatis /*다시풀기 통계*/
+             , round((noteChkCnt.cnt / noteCnt.cnt) * 100, 0)   as wrongNoteCheckStatis /*노트정리 통계*/
+          from noteCnt
+                   left join noteRetryCnt on 1 = 1
+                   left join noteChkCnt on 1 = 1
+    </select>
+
+
+    <select id="frequentlyMisunderstoodTConcept" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.frequentlyMisunderstoodTConcept */
+        select (select val from aidt_lcms.meta where id = y.meta_id) as wrongConcept, cnt
+          from (select amm.meta_id, count(*) as cnt
+                  from aidt_lcms.article_meta_map amm
+                           inner join
+                       (select module_id, sub_id
+                          from aidt_lms.won_asw_note
+                         where wrter_id = #{userId}) x
+                       on amm.article_id = x.module_id and amm.sub_id = x.sub_id and meta_name = 'studyMap_1'
+                 group by amm.meta_id) y
+         order by y.cnt desc
+         limit 3
+    </select>
+
+    <select id="frequentlyMisunderstoodTConceptForEng" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.frequentlyMisunderstoodTConceptForEng */
+        select (select val from aidt_lcms.meta where id = y.meta_id) as wrongConcept, cnt
+        from (select amm.meta_id, count(*) as cnt
+              from aidt_lcms.article_meta_map amm
+                       inner join
+                   (select module_id, sub_id
+                    from aidt_lms.won_asw_note
+                    where wrter_id = #{userId}) x
+                   on amm.article_id = x.module_id and amm.sub_id = x.sub_id and meta_name in ('evaluationArea', 'contentsItem', 'evaluationArea3')
+              group by amm.meta_id) y
+        order by y.cnt desc
+            limit 3
+    </select>
+
+    <select id="frequentlyErrorCauses" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.frequentlyErrorCauses */
+        with recursive splitTags as (
+            /*숫자가 하나만 있는 경우 처리*/
+            select trim(won_tag) as tag
+                 , null          as rest
+            from aidt_lms.won_asw_note
+            where won_tag not like '%,%'
+              and won_asw_note.wrter_id = #{userId}
+              and won_tag is not null
+              and won_tag != ''
+        union all
+        /*,로 구분된 경우 처리*/
+        select trim(substring_index(won_tag, ',', 1))             as tag
+             , trim(substring(won_tag, locate(',', won_tag) + 1)) as rest
+        from aidt_lms.won_asw_note
+        where won_tag like '%,%'
+          and won_asw_note.wrter_id = #{userId}
+          and won_tag is not null
+          and won_tag != ''
+        union all
+        /*재귀적으로 나머지 데이터 처리*/
+        select trim(substring_index(rest, ',', 1))                                           as tag
+             , if(locate(',', rest) > 0, trim(substring(rest, locate(',', rest) + 1)), null) as rest
+        from splitTags
+        where rest is not null)
+        select tag, aidt_lms.F_CODE_NM('won_tag', tag) as wrongReason, count(*) as cnt
+        from splitTags
+        where tag is not null
+        group by tag
+        order by cnt desc
+            limit 3
+    </select>
+
+    <select id="frequentlyErrorCausesForEng" parameterType="map" resultType="camelHashMap">
+        /* StntWrongnoteMapper.frequentlyErrorCausesForEng */
+        with recursive splitTags as (
+            /*숫자가 하나만 있는 경우 처리*/
+            select trim(won_tag) as tag
+                 , null          as rest
+            from aidt_lms.won_asw_note
+            where won_tag not like '%,%'
+              and won_asw_note.wrter_id = #{userId}
+              and won_tag is not null
+              and won_tag != ''
+        union all
+        /*,로 구분된 경우 처리*/
+        select trim(substring_index(won_tag, ',', 1))             as tag
+             , trim(substring(won_tag, locate(',', won_tag) + 1)) as rest
+        from aidt_lms.won_asw_note
+        where won_tag like '%,%'
+          and won_asw_note.wrter_id = #{userId}
+          and won_tag is not null
+          and won_tag != ''
+        union all
+        /*재귀적으로 나머지 데이터 처리*/
+        select trim(substring_index(rest, ',', 1))                                           as tag
+             , if(locate(',', rest) > 0, trim(substring(rest, locate(',', rest) + 1)), null) as rest
+        from splitTags
+        where rest is not null)
+        select tag, aidt_lms.F_CODE_NM('won_tag_eng', tag) as wrongReason, count(*) as cnt
+        from splitTags
+        where tag is not null
+        group by tag
+        order by cnt desc
+            limit 3
+    </select>
+
+    <select id="getTextbkId2" resultType="int">
+        select coalesce(
+                       (
+                            select textbk_id
+                            from aidt_lms.tc_textbook tt
+                            where tt.wrter_id in (
+                                                    select user_id
+                                                    from aidt_lms.tc_cla_mb_info tcmi
+                                                    where tcmi.stdt_id = #{userId}
+                            )
+                            limit 1
+                       )
+        , 0) as textbk_id
+    </select>
+</mapper>

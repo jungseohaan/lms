@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.assessment.mapper.StntReportMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <select id="findStntReportLastActivity" parameterType="map" resultType="camelHashMap">
+        select
+            case
+                -- 1) 넷 다 null 이면 디폴트 'L' 처리
+                when last_lesson is null and last_task is null and last_evl is null and last_slf is null then 'L'
+
+                -- 2) 최대값 = last_lesson 이면 'L'
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01'),
+                             coalesce(last_slf, '1900-01-01')
+                     ) = coalesce(last_lesson, '1900-01-01') then 'L'
+
+                -- 3) 최대값 = last_task 이면 'H'
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01'),
+                             coalesce(last_slf, '1900-01-01')
+                     ) = coalesce(last_task, '1900-01-01') then 'H'
+
+                -- 4) 최대값 = last_evl 이면 'E'
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01'),
+                             coalesce(last_slf, '1900-01-01')
+                     ) = coalesce(last_evl, '1900-01-01') then 'E'
+
+                when greatest(
+                             coalesce(last_lesson, '1900-01-01'),
+                             coalesce(last_task, '1900-01-01'),
+                             coalesce(last_evl, '1900-01-01'),
+                             coalesce(last_slf, '1900-01-01')
+                     ) = coalesce(last_slf, '1900-01-01') then 'S'
+                else null
+                end as last_type,
+
+            -- 최대값 출력 (last_datetime)
+            greatest(
+                    coalesce(last_lesson, '1900-01-01'),
+                    coalesce(last_task, '1900-01-01'),
+                    coalesce(last_evl, '1900-01-01'),
+                    coalesce(last_slf, '1900-01-01')
+            ) as last_datetime,
+
+            -- 원본 값 출력
+            last_lesson,
+            last_task,
+            last_evl,
+            last_slf
+
+        from (
+                 select
+                     (select
+                          max(mdfy_dt)
+                      from aidt_lms.std_lastlesson
+                      where wrter_id  = #{userId}
+                        and cla_id    = #{claId}
+                        and textbk_id =  #{textbkId}) as last_lesson,
+
+                     (select  max(tri.subm_dt) last_task
+                      from  aidt_lms.task_info ti
+                                inner join aidt_lms.task_result_info tri
+                                           on ti.id = tri.task_id
+                      where tri.mamoym_id  = #{userId}
+                        and ti.cla_id    = #{claId}
+                        and ti.textbk_id =  #{textbkId}
+                        and tri.subm_at ='Y' #제출여부
+                     and eak_at = 'Y' #응시 여부
+                and eak_stts_cd >= 3 ) as last_task,
+
+             (select max(eri.subm_dt)
+              from  aidt_lms.evl_info ei
+                        inner join aidt_lms.evl_result_info eri
+                                   on ei.id = eri.evl_id
+              where eri.mamoym_id  = #{userId}
+                and ei.cla_id    = #{claId}
+                and ei.textbook_id =  #{textbkId}
+                and eri.subm_at ='Y' #제출여부
+                and eak_at = 'Y' #응시 여부
+                and eak_stts_cd >= 3 ) as last_evl,
+
+             (select  max(ssri.std_ed_dt)
+              from  aidt_lms.slf_std_info ssi
+                        inner join aidt_lms.slf_std_result_info ssri
+                                   on ssi.id = ssri.std_id
+              where ssi.stdt_id  = #{userId}
+                and ssi.cla_id    = #{claId}
+                and ssi.textbk_id =  #{textbkId}
+                and ssri.std_at = 'Y' #학습여부
+                and ssri.sub_mit_anw is not null) as last_slf
+
+
+            ) as t
+    </select>
+</mapper>

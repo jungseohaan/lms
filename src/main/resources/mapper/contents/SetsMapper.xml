@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.contents.repository.SetsRepositoryX">
+
+    <select id="getSetsById" parameterType="com.visang.aidt.lms.api.contents.dto.SetsInfoVO"
+            resultType="com.visang.aidt.lms.api.contents.dto.SetsVO">
+        SELECT *, count(*) OVER() AS full_count
+        FROM aidt_lcms.sets
+        WHERE sets.is_deleted = false
+          AND id = #{id}
+          AND (creator = #{loginUserId} OR is_publicOpen = true)
+    </select>
+    <select id="getSetsExById" parameterType="com.visang.aidt.lms.api.contents.dto.SetsInfoVO"
+            resultType="com.visang.aidt.lms.api.contents.dto.SetsExVO">
+        SELECT *, count(*) OVER() AS full_count
+        FROM aidt_lcms.sets
+        WHERE sets.is_deleted = false
+          AND id = #{id}
+          AND (creator = #{loginUserId} OR is_publicOpen = true)
+    </select>
+
+
+    <select id="addSets" parameterType="com.visang.aidt.lms.api.contents.dto.SetsVO" affectData="true"
+            resultType="com.visang.aidt.lms.api.contents.dto.SetsVO" flushCache="true">
+        INSERT INTO aidt_lcms.sets (
+            id,
+        <trim prefixOverrides=",">
+            <if test="brand_id != null ">, brand_id</if>
+            <if test="name != null and name != '' ">, name</if>
+            <if test="description != null and description != '' ">, description</if>
+            <if test="thumbnail != null and thumbnail != '' ">, thumbnail</if>
+            <if test="hashTags != null and hashTags != '' ">, hashTags</if>
+
+            <if test="points_type != null and points_type != '' ">, points_type</if>
+            <if test="points != null ">, points</if>
+            <if test="limit_time_type != null and limit_time_type != '' ">, limit_time_type</if>
+            <if test="limit_time != null ">, limit_time</if>
+
+            <if test="is_active != null ">, is_active</if>
+            <if test="is_editable != null ">, is_editable</if>
+            <if test="is_publicOpen != null ">, is_publicOpen</if>
+            <if test="version != null ">, version</if>
+            , creator_id, creator, creator_name
+
+            <if test="setCategory != null and setCategory != '' ">, setCategory</if>
+            <if test="curriBook != null and curriBook != '' ">, curriBook</if>
+            <if test="curriUnit1 != null and curriUnit1 != '' ">, curriUnit1</if>
+            <if test="curriUnit2 != null and curriUnit2 != '' ">, curriUnit2</if>
+            <if test="curriUnit3 != null and curriUnit3 != '' ">, curriUnit3</if>
+            <if test="curriUnit4 != null and curriUnit4 != '' ">, curriUnit4</if>
+            <if test="curriUnit5 != null and curriUnit5 != '' ">, curriUnit5</if>
+
+        </trim>
+        )
+        VALUES (
+            aidt_lms.F_NUMBER_CRT('ST'),
+        <trim prefixOverrides=",">
+            <if test="brand_id != null ">, #{brand_id}</if>
+            <if test="name != null and name != '' ">, #{name}</if>
+            <if test="description != null and description != '' ">, #{description}</if>
+            <if test="thumbnail != null and thumbnail != '' ">, #{thumbnail}</if>
+            <if test="hashTags != null and hashTags != '' ">, #{hashTags}</if>
+
+
+            <if test="points_type != null and points_type != '' ">, #{points_type}</if>
+            <if test="points != null ">, #{points}</if>
+            <if test="limit_time_type != null and limit_time_type != '' ">, #{limit_time_type}</if>
+            <if test="limit_time != null ">, #{limit_time}</if>
+
+            <if test="is_active != null ">, #{is_active}</if>
+            <if test="is_editable != null ">, #{is_editable}</if>
+            <if test="is_publicOpen != null ">, #{is_publicOpen}</if>
+            <if test="version != null ">, #{version}</if>
+
+            <!--  테스트 후  저작자 임의 입력 금지   -->
+            <choose>
+                <when test=" creator_id != null ">
+                    , #{creator_id}
+                    ,(select uid from aidt_lcms.user where id = #{creator_id})
+                    ,(select name from aidt_lcms.user where id = #{creator_id})
+                </when>
+                <when test=" creator != null and creator != ''  ">
+                    ,(select id from aidt_lcms.user where uid = #{creator})
+                    , #{creator}
+                    ,(select name from aidt_lcms.user where uid = #{creator})
+                </when>
+                <otherwise>
+                    ,(select id from aidt_lcms.user where uid = #{loginUserId})
+                    ,(select uid from aidt_lcms.user where uid = #{loginUserId})
+                    ,(select name from aidt_lcms.user where uid = #{loginUserId})
+                </otherwise>
+            </choose>
+
+            <if test="setCategory != null and setCategory != '' ">, #{setCategory}</if>
+            <if test="curriBook != null and curriBook != '' ">, #{curriBook}</if>
+            <if test="curriUnit1 != null and curriUnit1 != '' ">, #{curriUnit1}</if>
+            <if test="curriUnit2 != null and curriUnit2 != '' ">, #{curriUnit2}</if>
+            <if test="curriUnit3 != null and curriUnit3 != '' ">, #{curriUnit3}</if>
+            <if test="curriUnit4 != null and curriUnit4 != '' ">, #{curriUnit4}</if>
+            <if test="curriUnit5 != null and curriUnit5 != '' ">, #{curriUnit5}</if>
+        </trim>
+        )
+        returning *
+    </select>
+
+
+    <select id="getSetsMetaList" parameterType="String" resultType="com.visang.aidt.lms.api.system.dto.MetaVO">
+        SELECT meta.*, count(*) OVER() AS full_count
+        FROM aidt_lcms.sets_meta_map as map, aidt_lcms.meta
+        WHERE map.meta_id = meta.id
+          AND map.sets_id = #{sets_id}
+    </select>
+
+
+    <insert id="addSetsMetaMap" parameterType="com.visang.aidt.lms.api.contents.dto.SetsMetaMapVO">
+
+        INSERT INTO aidt_lcms.sets_meta_map (
+        <trim prefixOverrides=",">
+            <if test="sets_id != null ">, sets_id</if>
+            <if test="meta_id != null ">, meta_id</if>
+            <if test="meta_name != null and meta_name != '' ">, meta_name</if>
+        </trim>
+        )
+        VALUES (
+        <trim prefixOverrides=",">
+            <if test="sets_id != null ">, #{sets_id}</if>
+            <if test="meta_id != null ">, #{meta_id}</if>
+            <if test="meta_name != null and meta_name != '' ">, #{meta_name}</if>
+        </trim>
+        )
+    </insert>
+
+    <insert id="addSetsArticleMap" parameterType="com.visang.aidt.lms.api.contents.dto.SetsArticleMapVO">
+
+        INSERT INTO aidt_lcms.sets_article_map (
+        <trim prefixOverrides=",">
+            <if test="sets_id != null ">, sets_id</if>
+            <if test="article_id != null ">, article_id</if>
+            <if test="extraStr != null and extraStr != '' ">, extraStr</if>
+        </trim>
+        )
+        VALUES (
+        <trim prefixOverrides=",">
+            <if test="sets_id != null ">, #{sets_id}</if>
+            <if test="article_id != null ">, #{article_id}</if>
+            <if test="extraStr != null and extraStr != '' ">, #{extraStr}</if>
+        </trim>
+        )
+    </insert>
+
+
+    <update id="updateSets" parameterType="com.visang.aidt.lms.api.contents.dto.SetsVO">
+        UPDATE aidt_lcms.sets
+        <trim prefix="SET" suffixOverrides=",">
+            tempStr = null,
+            <if test="brand_id != null">brand_id=#{brand_id},</if>
+            <if test="name != null">name=#{name},</if>
+            <if test="description != null">description=#{description},</if>
+            <if test="thumbnail != null">thumbnail=#{thumbnail},</if>
+            <if test="hashTags != null">hashTags=#{hashTags},</if>
+
+            <if test="points_type != null">points_type=#{points_type},</if>
+            <if test="points != null">points=#{points},</if>
+            <if test="limit_time_type != null">limit_time_type=#{limit_time_type},</if>
+            <if test="limit_time != null">limit_time=#{limit_time},</if>
+
+            <if test="is_active != null">is_active=#{is_active},</if>
+            <if test="is_editable != null">is_editable=#{is_editable},</if>
+            <if test="is_publicOpen != null">is_publicOpen=#{is_publicOpen},</if>
+            <if test="version != null">version=#{version},</if>
+            <if test="is_deleted != null">is_deleted=#{is_deleted},</if>
+
+            <!--  테스트 후  저작자 임의 입력 금지   -->
+            <choose>
+                <when test=" updater_id != null ">
+                    updater_id=#{updater_id},
+                    updater=(select uid from aidt_lcms.user where id = #{updater_id}),
+                    updater_name=(select name from aidt_lcms.user where id = #{updater_id}),
+                </when>
+                <when test=" updater != null and updater != ''  ">
+                    updater_id=(select id from aidt_lcms.user where uid = #{updater}),
+                    updater=#{updater},
+                    updater_name=(select name from aidt_lcms.user where uid = #{updater}),
+                </when>
+                <otherwise>
+                    updater_id=(select id from aidt_lcms.user where uid = #{loginUserId}),
+                    updater=(select uid from aidt_lcms.user where uid = #{loginUserId}),
+                    updater_name=(select name from aidt_lcms.user where uid = #{loginUserId}),
+                </otherwise>
+            </choose>
+
+
+            <if test="setCategory != null">setCategory=#{setCategory},</if>
+            curriBook=#{curriBook},
+            curriUnit1=#{curriUnit1},
+            curriUnit2=#{curriUnit2},
+            curriUnit3=#{curriUnit3},
+            curriUnit4=#{curriUnit4},
+            curriUnit5=#{curriUnit5},
+
+            <!--
+
+
+           <if test="curriBook != null">curriBook=#{curriBook},</if>
+          <if test="curriUnit1 != null">curriUnit1=#{curriUnit1},</if>
+          <if test="curriUnit2 != null">curriUnit2=#{curriUnit2},</if>
+          <if test="curriUnit3 != null">curriUnit3=#{curriUnit3},</if>
+          <if test="curriUnit4 != null">curriUnit4=#{curriUnit4},</if>
+          <if test="curriUnit5 != null">curriUnit5=#{curriUnit5},</if>
+
+
+            -->
+        </trim>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateTempSets" parameterType="com.visang.aidt.lms.api.contents.dto.SetsVO">
+        UPDATE aidt_lcms.sets
+        SET tempStr = #{tempStr}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteSetsMetaMap" parameterType="String">
+        DELETE
+        FROM aidt_lcms.sets_meta_map
+        WHERE sets_id = #{targetId}
+    </delete>
+    <delete id="deleteSetsArticleMap" parameterType="String">
+        DELETE
+        FROM aidt_lcms.sets_article_map
+        WHERE sets_id = #{targetId}
+    </delete>
+
+    <select id="getSetsByArticleId" parameterType="String" resultType="com.visang.aidt.lms.api.contents.dto.SetsVO">
+        SELECT sets.*
+        FROM aidt_lcms.sets,
+			 aidt_lcms.sets_article_map as map
+        WHERE map.article_id = #{id}
+          and sets.id = map.sets_id
+    </select>
+
+    <insert id="insertSets" parameterType="com.visang.aidt.lms.api.contents.dto.SetsVO" >
+        INSERT INTO aidt_lcms.sets (
+        <trim prefixOverrides=",">
+            <if test="id != null "> , id </if>
+            <if test="brand_id != null "> , brand_id </if>
+            <if test="name != null and name != '' "> , name </if>
+            <if test="description != null and description != '' "> , description </if>
+            <if test="thumbnail != null and thumbnail != '' "> , thumbnail </if>
+            <if test="hashTags != null and hashTags != '' "> , hashTags </if>
+
+            <if test="points_type != null and points_type != '' "> , points_type </if>
+            <if test="points != null "> , points </if>
+            <if test="limit_time_type != null and limit_time_type != '' "> , limit_time_type </if>
+            <if test="limit_time != null "> , limit_time </if>
+
+            <if test="is_active != null "> , is_active </if>
+            <if test="is_editable != null "> , is_editable </if>
+            <if test="is_publicOpen != null "> , is_publicOpen </if>
+            <if test="version != null "> , version </if>
+            <if test="creator_ty != null "> , creator_ty </if>
+            , creator_id, creator, creator_name
+
+            <if test="difficulty != null and difficulty != '' "> , difficulty </if>
+            <if test="setCategory != null and setCategory != '' "> , setCategory </if>
+            <if test="curriBook != null and curriBook != '' "> , curriBook </if>
+            <if test="curriUnit1 != null and curriUnit1 != '' "> , curriUnit1 </if>
+            <if test="curriUnit2 != null and curriUnit2 != '' "> , curriUnit2 </if>
+            <if test="curriUnit3 != null and curriUnit3 != '' "> , curriUnit3 </if>
+            <if test="curriUnit4 != null and curriUnit4 != '' "> , curriUnit4 </if>
+            <if test="curriUnit5 != null and curriUnit5 != '' "> , curriUnit5 </if>
+
+        </trim>
+        )
+        VALUES (
+        <trim prefixOverrides=",">
+            <if test="id != null "> , #{id} </if>
+            <if test="brand_id != null "> , #{brand_id} </if>
+            <if test="name != null and name != '' "> , #{name} </if>
+            <if test="description != null and description != '' "> , #{description} </if>
+            <if test="thumbnail != null and thumbnail != '' "> , #{thumbnail} </if>
+            <if test="hashTags != null and hashTags != '' "> , #{hashTags} </if>
+
+
+            <if test="points_type != null and points_type != '' "> , #{points_type} </if>
+            <if test="points != null "> , #{points} </if>
+            <if test="limit_time_type != null and limit_time_type != '' "> , #{limit_time_type} </if>
+            <if test="limit_time != null "> , #{limit_time} </if>
+
+            <if test="is_active != null "> , #{is_active} </if>
+            <if test="is_editable != null "> , #{is_editable} </if>
+            <if test="is_publicOpen != null "> , #{is_publicOpen} </if>
+            <if test="version != null "> , #{version} </if>
+            <if test="creator_ty != null "> , #{creator_ty} </if>
+
+            <!--  테스트 후  저작자 임의 입력 금지   -->
+            <choose><when test=" creator_id != null ">
+                , #{creator_id}
+                ,(select uid from aidt_lcms.user where id = #{creator_id})
+                ,(select name from aidt_lcms.user where id = #{creator_id}) </when>
+                <when test=" creator != null and creator != ''  ">
+                    ,(select id from aidt_lcms.user where uid = #{creator})
+                    , #{creator}
+                    ,(select name from aidt_lcms.user where uid = #{creator}) </when>
+                <otherwise>
+                    ,(select id from aidt_lcms.user where uid = #{loginUserId})
+                    ,(select uid from aidt_lcms.user where uid = #{loginUserId})
+                    ,(select name from aidt_lcms.user where uid = #{loginUserId}) </otherwise> </choose>
+
+            <if test="difficulty != null and difficulty != '' "> , #{difficulty} </if>
+            <if test="setCategory != null and setCategory != '' "> , #{setCategory} </if>
+            <if test="curriBook != null and curriBook != '' "> , #{curriBook} </if>
+            <if test="curriUnit1 != null and curriUnit1 != '' "> , #{curriUnit1} </if>
+            <if test="curriUnit2 != null and curriUnit2 != '' "> , #{curriUnit2} </if>
+            <if test="curriUnit3 != null and curriUnit3 != '' "> , #{curriUnit3} </if>
+            <if test="curriUnit4 != null and curriUnit4 != '' "> , #{curriUnit4} </if>
+            <if test="curriUnit5 != null and curriUnit5 != '' "> , #{curriUnit5} </if>
+        </trim>
+        )
+    </insert>
+
+    <select id="getNewSetsId" resultType="String">
+        /* SetsMapper.getNewSetsId */
+        select aidt_lms.F_NUMBER_CRT('ST')
+    </select>
+    <select id="getNewSetsIdChk" resultType="java.lang.Integer">
+        select count(1)
+        from aidt_lcms.sets
+        where id = #{newSetsId}
+    </select>
+
+</mapper>

@@ -1,0 +1,977 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.assessment.mapper.TchSlfperEvalMapper">
+
+    <select id="selectSlfPerEvlTmplt" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSlfPerEvlTmplt */
+        SELECT
+            a.id as tmplt_id
+             ,a.id
+             ,b.schl_cd
+             ,b.schl_nm
+             ,a.wrter_id as user_id
+             ,a.wrter_id
+             ,a.slf_per_evl_clsf_cd
+             ,a.slf_per_evl_nm
+             ,a.st_expos_at
+             ,DATE_FORMAT(a.reg_dt, "%Y-%m-%d %H:%i:%s") as reg_dt
+             ,a.textbk_id
+             ,a.wrter_id
+        FROM aidt_lms.slf_per_evl_tmplt a
+                 INNER JOIN aidt_lms.tc_reg_info b ON a.wrter_id = b.user_id /* 학교 정보 테이블 */
+                 INNER JOIN aidt_lms.tc_reg_info c ON b.schl_cd = c.schl_cd /* 같은 학교 교사 */
+        WHERE 1=1
+          AND a.del_at = 'N'
+          AND a.textbk_id = #{textbkId} /* 동일 교과서 */
+          AND c.user_id = #{userId}
+        ORDER BY a.reg_dt DESC
+    </select>
+
+    <!-- 사용하지 않음 -->
+    <insert id="insertSlfPerEvlTmplt" parameterType="map" useGeneratedKeys="true" keyProperty="tmpltId" keyColumn="id">
+        /* TchSlfperEvalMapper.insertSlfPerEvlTmplt */
+        INSERT INTO aidt_lms.slf_per_evl_tmplt
+        (
+            id
+            ,wrter_id
+            ,textbk_id
+            ,wrt_dt
+            ,slf_per_evl_clsf_cd
+            ,slf_per_evl_nm
+            ,st_expos_at
+            ,del_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{textbkId}
+            ,now()
+            ,#{slfPerEvlClsfCd}
+            ,#{slfPerEvlNm}
+            ,#{stExposAt}
+            ,'N'
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <update id="updateSlfPerEvlTmplt" parameterType="map">
+        /* TchSlfperEvalMapper.updateSlfPerEvlTmplt */
+        UPDATE aidt_lms.slf_per_evl_tmplt
+        SET slf_per_evl_clsf_cd = #{slfPerEvlClsfCd}
+            ,slf_per_evl_nm = #{slfPerEvlNm}
+            ,st_expos_at = #{stExposAt}
+            ,mdfr = #{userId}
+            ,mdfy_dt = NOW()
+        WHERE id = #{tmpltId}
+    </update>
+
+    <insert id="insertSlfPerEvlTmpltDetail" parameterType="map">
+        /* TchSlfperEvalMapper.insertSlfPerEvlTmpltDetail */
+        INSERT INTO aidt_lms.slf_per_evl_tmplt_detail
+        (
+            id
+            ,tmplt_id
+            ,tmplt_itm_seq
+            ,evl_dmi
+            ,evl_iem
+            ,evl_stdr_cd
+            ,evl_stdr_dc
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{tmpltId}
+            ,#{tmpltItmSeq}
+            ,#{evlDmi}
+            ,#{evlIem}
+            ,#{evlStdrCd}
+            ,#{evlStdrDc}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <update id="updateSlfPerEvlTmpltDetail" parameterType="map">
+        /* TchSlfperEvalMapper.updateSlfPerEvlTmpltDetail */
+        UPDATE aidt_lms.slf_per_evl_tmplt_detail
+        SET evl_dmi = #{evlDmi}
+            ,evl_iem = #{evlIem}
+            ,evl_stdr_cd = #{evlStdrCd}
+            ,evl_stdr_dc = #{evlStdrDc}
+            ,mdfr = #{userId}
+            ,mdfy_dt = NOW()
+        WHERE tmplt_id = #{tmpltId}
+            AND tmplt_itm_seq = #{tmpltItmSeq}
+    </update>
+
+    <select id="selectSlfPerEvlTmpltMap" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSlfPerEvlTmpltMap */
+        SELECT *
+        FROM aidt_lms.slf_per_evl_tmplt
+        WHERE del_at = 'N'
+        AND id = #{tmpltId}
+        <if test="userId != null and userId != '' ">
+            AND wrter_id = #{userId}
+        </if>
+        ORDER BY reg_dt DESC
+    </select>
+
+    <select id="selectSlfPerEvlTmpltDetail" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSlfPerEvlTmpltDetail */
+        SELECT *
+        FROM aidt_lms.slf_per_evl_tmplt_detail
+        WHERE tmplt_id in (
+            SELECT id
+            FROM aidt_lms.slf_per_evl_tmplt where id = #{tmpltId}
+        )
+        ORDER BY tmplt_itm_seq
+    </select>
+
+    <insert id="insertSlfPerEvlSetInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchSlfperEvalMapper.insertSlfPerEvlSetInfo */
+        INSERT INTO aidt_lms.slf_per_evl_set_info
+        (
+            id
+            ,gb_cd
+            ,wrter_id
+            ,wrt_dt
+            ,slf_per_evl_clsf_cd
+            ,slf_per_evl_nm
+            ,st_expos_at
+            ,textbk_id
+            ,tab_id
+            ,task_id
+            ,evl_id
+            ,sets_id
+            ,result_dtl_id
+            ,tmplt_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{gbCd}
+            ,#{userId}
+            ,now()
+            ,#{slfPerEvlClsfCd}
+            ,#{slfPerEvlNm}
+            ,#{stExposAt}
+            ,#{textbkId}
+            ,#{tabId}
+            ,#{taskId}
+            ,#{evlId}
+            ,#{setsId}
+            ,#{resultDtlId}
+            ,#{tmpltId}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <insert id="insertSlfPerEvlSetDetailInfo" parameterType="map">
+        /* TchSlfperEvalMapper.slf_per_evl_set_detail_info */
+        INSERT INTO aidt_lms.slf_per_evl_set_detail_info
+        (
+            id
+            ,slf_per_evl_set_id
+            ,tmplt_itm_seq
+            ,evl_dmi
+            ,evl_iem
+            ,evl_stdr_cd
+            ,evl_stdr_dc
+            ,evl_result
+            ,evl_asw
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{slfPerEvlSetId}
+            ,#{tmpltItmSeq}
+            ,#{evlDmi}
+            ,#{evlIem}
+            ,#{evlStdrCd}
+            ,#{evlStdrDc}
+            ,null
+            ,null
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <select id="selectSlfPerEvlSetInfo" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSlfPerEvlSetInfo */
+        SELECT
+            id
+            , slf_per_evl_clsf_cd /* 1:자기평가, 2:동료평가 */
+            , slf_per_evl_nm
+            , wrter_id as apraser_id
+            , tmplt_id
+        FROM aidt_lms.slf_per_evl_set_info a
+        WHERE gb_cd = #{gbCd}   /* 1:교과자료, 2:과제, 3:평가 */
+        <if test='gbCd != null and ("1").equals(gbCd) '>
+            AND textbk_id = #{textbkId}
+            AND tab_id = #{tabId}    /* 교과서ID */
+        </if>
+        <if test='gbCd != null and ("2").equals(gbCd) '>
+            AND task_id = #{taskId}
+        </if>
+        <if test='gbCd != null and ("3").equals(gbCd) '>
+            AND evl_id = #{evlId}
+        </if>
+    </select>
+
+    <select id="selectTchSlfperEvlSlfView" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectTchSlfperEvlSlfView */
+        SELECT
+            a.tmplt_itm_seq
+            ,a.evl_dmi
+            ,a.evl_iem
+            ,a.evl_stdr_cd
+            ,a.evl_stdr_dc
+            ,a.evl_result
+            ,(
+                SELECT
+                evl_asw
+                FROM aidt_lms.slf_per_evl_result_info
+                WHERE slf_per_evl_detail_id = a.id
+                AND apraser_id = #{stntId}
+            ) as evl_asw
+        FROM aidt_lms.slf_per_evl_set_detail_info a
+        WHERE a.slf_per_evl_set_id = #{slfPerEvlSetDetailInfoId}
+        ORDER BY tmplt_itm_seq
+    </select>
+
+    <select id="selectTchSlfperEvlPerView" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectTchSlfperEvlPerView */
+        SELECT
+            a.tmplt_itm_seq
+            ,a.evl_dmi
+            ,a.evl_iem
+            ,a.evl_stdr_cd
+            ,a.evl_stdr_dc
+            ,a.evl_result
+            ,(
+                SELECT
+                evl_asw
+                FROM aidt_lms.slf_per_evl_result_info
+                WHERE slf_per_evl_detail_id = a.id
+                AND apraser_id = #{stntId}
+                AND per_apraser_id =#{perApraserId}
+                limit 1
+            ) as evl_asw
+        FROM aidt_lms.slf_per_evl_set_detail_info a
+        WHERE a.slf_per_evl_set_id = #{perInfoId}
+        ORDER BY tmplt_itm_seq
+    </select>
+
+    <select id="selectPerAprsrIdNm" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectPerAprsrIdNm */
+        SELECT
+            a.per_apraser_id
+            , (SELECT flnm FROM aidt_lms.user WHERE user_id = a.per_apraser_id) as flnm
+        FROM aidt_lms.slf_per_evl_result_info a
+        WHERE a.slf_per_evl_detail_id = #{slfPerEvlSetDetailInfoId}
+        AND a.apraser_id =#{stntId}
+        ORDER BY a.per_apraser_id
+    </select>
+
+    <select id="selectTmpltInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectTmpltInfoList */
+        SELECT
+            tmplt_itm_seq
+            ,evl_dmi
+            ,evl_iem
+            ,evl_stdr_cd
+            ,evl_stdr_dc
+        FROM aidt_lms.slf_per_evl_set_detail_info
+        WHERE slf_per_evl_set_id = #{slfPerEvlSetDetailInfoId}
+        ORDER BY tmplt_itm_seq
+    </select>
+
+    <select id="selectSlfPerEvlSetInfoSubm" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSlfPerEvlSetInfoSubm */
+        SELECT
+        a.id as slf_per_evl_set_info_id
+        ,a.gb_cd
+        , a.slf_per_evl_clsf_cd /* 1:자기평가, 2:동료평가 */
+        , a.slf_per_evl_nm
+        FROM aidt_lms.slf_per_evl_set_info a
+        WHERE gb_cd = #{gbCd}   /* 1:교과자료, 2:과제, 3:평가 */
+        AND sets_id = #{setsId}
+        <if test='gbCd != null and ("1").equals(gbCd) '>
+            AND textbk_id = #{textbkId}
+            AND tab_id = #{tabId}    /* 교과서ID */
+        </if>
+        <if test='gbCd != null and ("2").equals(gbCd) '>
+            AND task_id = #{taskId}
+        </if>
+        <if test='gbCd != null and ("3").equals(gbCd) '>
+            AND evl_id = #{evlId}
+        </if>
+    </select>
+
+    <select id="selectSubmStntInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSubmStntInfoList */
+        SELECT
+            a.apraser_id
+            ,(SELECT flnm FROM aidt_lms.user WHERE user_id=a.apraser_id) as flnm
+            ,(  SELECT
+                    count(*)
+                    FROM aidt_lms.slf_per_evl_result_info
+                    WHERE slf_per_evl_detail_id in
+                    (SELECT id FROM aidt_lms.slf_per_evl_set_detail_info where slf_per_evl_set_id = #{slfPerEvlSetDetailInfoIdClg})
+                    AND apraser_id = #{apraserId} /* 이쿼리에서 조회된 평가자 ID */
+                    GROUP BY per_apraser_id
+            ) as per_apraser_cnt
+        FROM aidt_lms.slf_per_evl_result_info a
+        WHERE a.slf_per_evl_detail_id in
+        (SELECT id FROM aidt_lms.slf_per_evl_set_detail_info WHERE slf_per_evl_set_id = #{slfPerEvlSetDetailInfoIdSlf})
+        GROUP BY a.apraser_id
+    </select>
+
+    <select id="selectSubmStntInfoListCnt" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectSubmStntInfoListCnt */
+        SELECT count(*) as cnt
+        FROM aidt_lms.std_dta_result_info
+        WHERE sets_id = #{setsId} and mamoym_id IN
+        (   SELECT apraser_id
+            FROM aidt_lms.slf_per_evl_result_info
+            WHERE slf_per_evl_detail_id = (
+                SELECT id
+                FROM aidt_lms.slf_per_evl_set_detail_info
+                WHERE slf_per_evl_set_id = #{slfPerEvlSetDetailInfoIdSlf})
+        )
+    </select>
+
+    <select id="selectNonSubmStntInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectNonSubmStntInfoList */
+        SELECT
+            mamoym_id  as apraser_id
+            ,(SELECT flnm FROM aidt_lms.user WHERE user_id=mamoym_id) as flnm
+        FROM aidt_lms.std_dta_result_info
+        WHERE sets_id = (SELECT sets_id FROM aidt_lms.tab_info WHERE id = #{tabId})
+        AND mamoym_id
+        NOT IN (
+            SELECT
+                apraser_id
+            FROM aidt_lms.slf_per_evl_result_info a
+            WHERE slf_per_evl_detail_id IN
+            (SELECT id
+            FROM aidt_lms.slf_per_evl_set_detail_info
+            WHERE slf_per_evl_set_id = #{slfPerEvlSetDetailInfoIdSlf})
+        )
+    </select>
+
+    <select id="selectNonSubmStntInfoListCnt" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.selectNonSubmStntInfoListCnt */
+        SELECT count(*) as cnt
+        FROM aidt_lms.std_dta_result_info
+        WHERE sets_id = #{setsId} AND mamoym_id NOT IN
+        (   SELECT apraser_id
+            FROM aidt_lms.slf_per_evl_result_info
+            WHERE slf_per_evl_detail_id = (
+                SELECT id
+                FROM aidt_lms.slf_per_evl_set_detail_info
+                WHERE slf_per_evl_set_id = #{slfPerEvlSetDetailInfoIdClg})
+        )
+    </select>
+
+
+    <select id="findTchSlfperEvlSlfSet" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfSet */
+        select *
+          from aidt_lms.slf_per_evl_set_info si
+         where si.gb_cd = #{gbCd}
+           and si.slf_per_evl_clsf_cd = #{slfPerEvlSetInfo}
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test=" (setsId != null and setsId != '') or (moduleId != null and moduleId != '') or (dtaIemId != null and dtaIemId != '')  ">
+                <if test="setsId != null and setsId != '' ">
+                    AND si.sets_id = #{setsId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <if test="dtaIemId != null and dtaIemId != '' ">
+                    AND si.module_id = #{dtaIemId}
+                </if>
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+                AND si.module_id is null
+            </otherwise>
+        </choose>
+        <if test="subId != null and subId != '' ">
+            AND si.sub_id = #{subId}
+        </if>
+        order by reg_dt desc
+        limit 1
+    </select>
+
+    <select id="findTchSlfperEvlSlfViewSl" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfViewSl */
+        select a.id as slfPerEvlSetId
+            , a.tmplt_itm_seq
+            , a.evl_dmi
+            , a.evl_iem
+            , a.evl_stdr_cd
+            , a.evl_stdr_dc
+            , a.evl_result
+            , (select evl_asw
+                 from aidt_lms.slf_per_evl_result_info
+                where slf_per_evl_detail_id = a.id
+                  and apraser_id = #{stntId}
+                    limit 1
+               )  as evl_asw
+          from aidt_lms.slf_per_evl_set_detail_info a
+         where a.slf_per_evl_set_id = #{selInfoId}
+         order by tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlSlfViewPerInfo" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfViewPerInfo */
+        select distinct per_apraser_id
+             , u.flnm
+          from aidt_lms.slf_per_evl_result_info eri
+          left outer join aidt_lms.user u on u.user_id = eri.per_apraser_id
+         where eri.slf_per_evl_detail_id in (select id
+                                               from aidt_lms.slf_per_evl_set_detail_info
+                                              where slf_per_evl_set_id = #{perInfoId})
+           and eri.apraser_id = #{stntId}
+           and eri.per_apraser_id is not null
+         order by per_apraser_id
+    </select>
+
+    <select id="findTchSlfperEvlSlfView_perResultInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfView_perResultInfoList */
+        select
+             sdi.id as slfPerEvlDetailId
+            ,sdi.tmplt_itm_seq
+            ,sdi.evl_dmi
+            ,sdi.evl_iem
+            ,sdi.evl_stdr_cd
+            ,sdi.evl_stdr_dc
+            ,sdi.evl_result
+            ,eri.per_apraser_id
+            ,eri.evl_asw
+        FROM aidt_lms.slf_per_evl_set_detail_info sdi
+        join aidt_lms.slf_per_evl_result_info eri on eri.slf_per_evl_detail_id = sdi.id and eri.per_apraser_id is not null
+        WHERE sdi.slf_per_evl_set_id = #{perInfoId}
+          and eri.apraser_id = #{stntId}
+    </select>
+
+    <select id="findSTchSlfperEvlSlfViewTemplt" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findSTchSlfperEvlSlfViewTemplt */
+        select id as slfPerEvlDetailId
+             , tmplt_itm_seq
+             , evl_dmi
+             , evl_iem
+             , evl_stdr_cd
+             , evl_stdr_dc
+          from aidt_lms.slf_per_evl_set_detail_info
+         where slf_per_evl_set_id = #{perInfoId}
+         order by tmplt_itm_seq
+    </select>
+
+    <select id="findSTchSlfperEvlSlfViewTempltExport" parameterType="map" resultType="string">
+        /* TchSlfperEvalMapper.findSTchSlfperEvlSlfViewTempltExport */
+        select
+            st_expos_at /* 학생 노출 여부 */
+        from aidt_lms.slf_per_evl_set_info b
+        where b.id = #{perInfoId}
+    </select>
+
+    <select id="findTchSlfperEvlPerStatus_submStntInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlPerStatus_submStntInfoList */
+        select a.apraser_id
+             , u.flnm
+             , (select count(distinct per_apraser_id)
+                  from aidt_lms.slf_per_evl_result_info
+                 where slf_per_evl_detail_id in (select id
+                                                   from aidt_lms.slf_per_evl_set_detail_info
+                                                  where slf_per_evl_set_id = #{perInfoId}
+                                                )
+                   and apraser_id = a.apraser_id
+               ) as perApraserCnt
+          from aidt_lms.slf_per_evl_result_info a
+          left outer join user u on u.user_id = a.apraser_id
+         where slf_per_evl_detail_id in (select id
+                                           from aidt_lms.slf_per_evl_set_detail_info
+                                          where slf_per_evl_set_id = #{selInfoId}
+                                         )
+        group by apraser_id
+    </select>
+
+    <select id="findTchSlfperEvlPerStatus_submStntInfoListPer" parameterType="map" resultType="camelHashMap">
+           /* TchSlfperEvalMapper.findTchSlfperEvlPerStatus_submStntInfoListPer */
+           select a.apraser_id
+                , u.flnm
+                , count(distinct per_apraser_id) as per_apraser_cnt
+             from aidt_lms.slf_per_evl_result_info a
+             left outer join user u on u.user_id = a.apraser_id
+            where slf_per_evl_detail_id in (select id
+                                              from aidt_lms.slf_per_evl_set_detail_info
+                                             where slf_per_evl_set_id = #{perInfoId}
+                                            )
+            GROUP BY a.apraser_id, u.flnm
+       </select>
+
+    <select id="findTchSlfperEvlPerStatus_nonSubStntInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlPerStatus_nonSubStntInfoList */
+        <choose>
+            <when test="gbCd == 1 ">
+                select
+                tcmi.stdt_id  as apraserId
+                , u.flnm
+                from tab_info ti
+                join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id and tcmi.actvtn_at = 'Y'
+                left outer join aidt_lms.user u on u.user_id = tcmi.stdt_id
+                where ti.id = #{tabId}
+                and ti.textbk_id = #{textbkId}
+                and tcmi.stdt_id  not in (select apraser_id
+                                           from slf_per_evl_result_info
+                                          where slf_per_evl_detail_id in (select id
+                                                                            from slf_per_evl_set_detail_info
+                                                                           where slf_per_evl_set_id = #{selInfoId}
+                                                                          )
+                                       group by apraser_id
+                                       )
+            </when>
+            <when test="gbCd == 2 ">
+                select tri.mamoym_id as apraserId
+                     , u.flnm
+                  from aidt_lms.task_result_info tri
+                  left outer join user u on u.user_id = tri.mamoym_id
+                 where tri.slf_subm_at = 'N'
+                   and tri.task_id = #{taskId}
+            </when>
+            <when test="gbCd == 3 ">
+                select eri.mamoym_id as apraserId
+                     , u.flnm
+                  from aidt_lms.evl_result_info eri
+                  left outer join user u on u.user_id = eri.mamoym_id
+                 where eri.slf_subm_at = 'N'
+                   and eri.evl_id = #{evlId}
+            </when>
+        </choose>
+    </select>
+
+    <select id="findTchSlfperEvlPerStatus_nonSubStntInfoListPer" parameterType="map" resultType="camelHashMap">
+            /* TchSlfperEvalMapper.findTchSlfperEvlPerStatus_nonSubStntInfoListPer */
+            <choose>
+                <when test="gbCd == 1 ">
+                    select tcmi.stdt_id  as apraserId
+                    	 , u.flnm
+                    from aidt_lms.tab_info ti
+                    join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id and tcmi.actvtn_at = 'Y'
+                    left outer join aidt_lms.user u on u.user_id = tcmi.stdt_id
+                    where ti.id = #{tabId}
+                    and ti.textbk_id = #{textbkId}
+                    and tcmi.stdt_id not in (select apraser_id
+                                               from slf_per_evl_result_info
+                                              where slf_per_evl_detail_id in (select id
+                                                                                from slf_per_evl_set_detail_info
+                                                                               where slf_per_evl_set_id = #{perInfoId}
+                                                                              )
+                                           group by apraser_id
+                                           )
+                </when>
+                <when test="gbCd == 2 ">
+                    select tri.mamoym_id as apraserId
+                         , u.flnm
+                      from aidt_lms.task_result_info tri
+                      left outer join user u on u.user_id = tri.mamoym_id
+                     where tri.per_subm_at = 'N'
+                       and tri.task_id = #{taskId}
+                </when>
+                <when test="gbCd == 3 ">
+                    select eri.mamoym_id as apraserId
+                         , u.flnm
+                      from aidt_lms.evl_result_info eri
+                      left outer join user u on u.user_id = eri.mamoym_id
+                     where eri.per_subm_at = 'N'
+                       and eri.evl_id = #{evlId}
+                </when>
+            </choose>
+        </select>
+
+    <insert id="createTchSlfperEvlTmplt" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchSlfperEvalMapper.createTchSlfperEvlTmplt */
+        INSERT INTO aidt_lms.slf_per_evl_tmplt
+        (
+            wrter_id
+            ,textbk_id
+            ,wrt_dt
+            ,slf_per_evl_clsf_cd
+            ,slf_per_evl_nm
+            ,st_expos_at
+            ,del_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            #{userId}
+            ,#{textbkId}
+            ,now()
+            ,#{slfPerEvlClsfCd}
+            ,#{slfPerEvlNm}
+            ,#{stExposAt}
+            ,'N'
+            ,'system'
+            ,NOW()
+            ,'system'
+            ,NOW()
+        )
+    </insert>
+
+    <update id="modifyTchSlfperEvlTmplt" parameterType="map">
+        /* TchSlfperEvalMapper.modifyTchSlfperEvlTmplt */
+        UPDATE aidt_lms.slf_per_evl_tmplt
+        SET wrter_id = #{userId}
+            ,textbk_id = #{textbkId}
+            ,slf_per_evl_clsf_cd = #{slfPerEvlClsfCd}
+            ,slf_per_evl_nm = #{slfPerEvlNm}
+            ,st_expos_at = #{stExposAt}
+            ,mdfr = 'system'
+            ,mdfy_dt = NOW()
+        WHERE id = #{tmpltId}
+    </update>
+
+    <insert id="createTchSlfperEvlTmpltDetail" parameterType="map" useGeneratedKeys="true">
+        /* TchSlfperEvalMapper.createTchSlfperEvlTmpltDetail */
+        INSERT INTO aidt_lms.slf_per_evl_tmplt_detail
+        (
+            tmplt_id
+            ,tmplt_itm_seq
+            ,evl_dmi
+            ,evl_iem
+            ,evl_stdr_cd
+            ,evl_stdr_dc
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            #{tmpltId}
+            ,#{tmpltItmSeq}
+            ,#{evlDmi}
+            ,#{evlIem}
+            ,#{evlStdrCd}
+            ,#{evlStdrDc}
+            ,'system'
+            ,NOW()
+            ,'system'
+            ,NOW()
+        )
+    </insert>
+
+    <delete id="removeTchSlfperEvlTmpltDetail" parameterType="map">
+        /* TchSlfperEvalMapper.removeTchSlfperEvlTmpltDetail */
+        delete
+        from aidt_lms.slf_per_evl_tmplt_detail
+        WHERE tmplt_id = #{tmpltId}
+    </delete>
+
+    <select id="findTchSlfperEvlSetInfo" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSetInfo */
+        select
+              b.tmplt_itm_seq as seq
+            , b.evl_dmi
+            , b.evl_iem
+            , b.evl_stdr_cd
+            , b.evl_stdr_dc
+        from
+            aidt_lms.slf_per_sets_mapng spsm
+            inner join aidt_lms.slf_per_evl_set_info a
+                on spsm.slf_per_evl_set_id = a.id
+                    and a.slf_per_evl_clsf_cd = #{slfPerEvlClsfCd} /* 1: 자기평가, 2: 동료평가 */
+            inner join aidt_lms.slf_per_evl_set_detail_info b
+                on a.id = b.slf_per_evl_set_id
+        where
+            1=1
+            and spsm.sets_id = #{setsId}
+        order by b.tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlSlfFormSl" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfFormSl */
+        select a.tmplt_itm_seq
+             , a.evl_dmi
+             , a.evl_iem
+             , a.evl_stdr_cd
+             , a.evl_stdr_dc
+        from aidt_lms.slf_per_evl_set_detail_info a
+        where a.slf_per_evl_set_id = #{selInfoId}
+        order by tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlSlfFormSlExport" parameterType="map" resultType="string">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSlfFormSlExport */
+        select
+            st_expos_at /* 학생 노출 여부 */
+        from aidt_lms.slf_per_evl_set_info b
+        where b.id = #{selInfoId}
+    </select>
+
+    <select id="findTchSlfperEvlSlfPerinfo" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findStntSlfperEvlSlfPerinfo */
+        select u.user_id as perApraserId, u.flnm from
+            aidt_lms.tc_cla_mb_info tcmi
+                left join user u on u.user_id = tcmi.stdt_id
+        where tcmi.cla_id = #{claId}
+          and tcmi.actvtn_at = 'Y'
+    </select>
+
+    <select id="findMdulSlfPerEvlAt" parameterType="map" resultType="camelHashMap">
+        /* StntSlfperEvalMapper.findMdulSlfPerEvlAt */
+        select if(use_evaluation > 0 ,'Y','N') as mdulSlfPerEvlAt
+        from aidt_lcms.article
+        where id = #{moduleId}
+    </select>
+
+    <insert id="saveSlfPerSetsMapng" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchSlfperEvalMapper.saveSlfPerSetsMapng */
+        INSERT INTO aidt_lms.slf_per_sets_mapng
+        (
+            id
+            ,slf_per_evl_set_id
+            ,sets_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{slfPerEvlSetId}
+            ,#{newSetsid}
+            ,'system'
+            ,now()
+            ,'system'
+            ,now()
+        )
+    </insert>
+
+    <select id="findSlfPerEvlClsfNm" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findSlfPerEvlClsfNm */
+        select
+        aidt_lms.F_CODE_NM('slf_per_evl_clsf_cd', #{slfPerEvlClsfCd}) as slfPerEvlClsfNm
+    </select>
+
+    <select id="findTchSlfperEvlSetInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlSetInfoList */
+        select si.id
+        , sdi.tmplt_itm_seq as evlSeq
+        , sdi.evl_dmi
+        , sdi.evl_iem
+        , sdi.evl_stdr_cd
+        , aidt_lms.F_CODE_NM('evl_stdr_cd',sdi.evl_stdr_cd) as evlStdrNm
+        , sdi.evl_stdr_dc
+        , si.st_expos_at
+        from aidt_lms.slf_per_evl_set_info si
+        join aidt_lms.slf_per_evl_set_detail_info sdi on sdi.slf_per_evl_set_id = si.id
+         where si.gb_cd = #{gbCd}
+          and si.slf_per_evl_clsf_cd = #{slfPerEvlClsfCd}
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <if test="setsId != null and setsId != '' ">
+            AND si.sets_id = #{setsId}
+        </if>
+        <if test="dtaIemId != null and dtaIemId != '' ">
+            AND si.module_id = #{dtaIemId}
+        </if>
+        <if test="moduleId != null and moduleId != '' ">
+            AND si.module_id = #{moduleId}
+        </if>
+        <if test="subId != null and subId != '' ">
+            AND si.sub_id = #{subId}
+        </if>
+        order by sdi.tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlResultList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlResultList */
+        select
+          sdi.tmplt_itm_seq as evlSeq
+        , sdi.evl_dmi
+        , sdi.evl_iem
+        , sdi.evl_stdr_cd
+        , aidt_lms.F_CODE_NM('evl_stdr_cd',sdi.evl_stdr_cd) as evlStdrNm
+        , sdi.evl_stdr_dc
+        , sdi.evl_result
+        , ri.evl_asw
+        , ri.apraser_id as stntId
+        , (SELECT flnm FROM aidt_lms.user WHERE user_id = ri.apraser_id) as flnm
+        from aidt_lms.slf_per_evl_set_info si
+        join aidt_lms.slf_per_evl_set_detail_info sdi on sdi.slf_per_evl_set_id = si.id
+        join aidt_lms.slf_per_evl_result_info ri on sdi.id = ri.slf_per_evl_detail_id
+         where si.gb_cd = #{gbCd}
+          and si.slf_per_evl_clsf_cd = #{slfPerEvlClsfCd}
+        <choose>
+            <when test="slfPerEvlClsfCd == 1 ">
+                and ri.apraser_id  = #{stntId}
+            </when>
+            <when test="slfPerEvlClsfCd == 2 ">
+                and ri.per_apraser_id  = #{stntId}
+            </when>
+            <otherwise>
+                and 1 = 2
+            </otherwise>
+        </choose>
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <if test="setsId != null and setsId != '' ">
+            AND si.sets_id = #{setsId}
+        </if>
+        <if test="dtaIemId != null and dtaIemId != '' ">
+            AND si.module_id = #{dtaIemId}
+        </if>
+        <if test="moduleId != null and moduleId != '' ">
+            AND si.module_id = #{moduleId}
+        </if>
+        <if test="subId != null and subId != '' ">
+            AND si.sub_id = #{subId}
+        </if>
+        order by sdi.tmplt_itm_seq, ri.id
+    </select>
+
+    <select id="findTchSlfperEvlResultDetailList" parameterType="map" resultType="camelHashMap">
+        /* TchSlfperEvalMapper.findTchSlfperEvlResultDetailList */
+        select tcmi.stdt_id as stntId
+        , u.flnm
+        , spesi.slf_per_evl_clsf_cd
+        , if(count(if(speri.evl_asw is not null, 1, null)) > 0, 'Y', 'N') as evlAswAt
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join aidt_lms.user u on u.user_id = tcmi.stdt_id
+        left join aidt_lms.slf_per_evl_set_info spesi on spesi.wrter_id = tcmi.user_id
+        left join aidt_lms.slf_per_evl_set_detail_info spesdi on spesdi.slf_per_evl_set_id = spesi.id
+        left join aidt_lms.slf_per_evl_result_info speri on speri.slf_per_evl_detail_id  = spesdi.id and speri.apraser_id = tcmi.stdt_id
+        where tcmi.cla_id = #{claId}
+        and spesi.gb_cd = #{gbCd}
+        and spesi.slf_per_evl_clsf_cd = 1 /* 자기평가 */
+        <choose>
+            <when test="gbCd == 1 ">
+                and spesi.textbk_id = #{textbkId}
+                and spesi.tab_id = #{tabId}
+                and spesi.sets_id = #{setsId}
+            </when>
+            <when test="gbCd == 2 ">
+                and spesi.task_id = #{taskId}
+            </when>
+            <when test="gbCd == 3 ">
+                and spesi.evl_id = #{evlId}
+            </when>
+        </choose>
+        <if test="stntId != null and stntId != '' ">
+            and speri.apraser_id = #{stntId}
+        </if>
+        group by tcmi.stdt_id, spesi.slf_per_evl_clsf_cd
+        union all
+        select tcmi.stdt_id as stntId
+        , u.flnm
+        , spesi.slf_per_evl_clsf_cd
+        , if(count(if(speri.evl_asw is not null, 1, null)) > 0, 'Y', 'N') as evlAswAt
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join aidt_lms.user u on u.user_id = tcmi.stdt_id
+        left join aidt_lms.slf_per_evl_set_info spesi on spesi.wrter_id = tcmi.user_id
+        left join aidt_lms.slf_per_evl_set_detail_info spesdi on spesdi.slf_per_evl_set_id = spesi.id
+        left join aidt_lms.slf_per_evl_result_info speri on speri.slf_per_evl_detail_id  = spesdi.id and speri.per_apraser_id = tcmi.stdt_id
+        where tcmi.cla_id = #{claId}
+        and spesi.gb_cd = #{gbCd}
+        and spesi.slf_per_evl_clsf_cd = 2 /* 동료평가 */
+        <choose>
+            <when test="gbCd == 1 ">
+                and spesi.textbk_id = #{textbkId}
+                and spesi.tab_id = #{tabId}
+                and spesi.sets_id = #{setsId}
+            </when>
+            <when test="gbCd == 2 ">
+                and spesi.task_id = #{taskId}
+            </when>
+            <when test="gbCd == 3 ">
+                and spesi.evl_id = #{evlId}
+            </when>
+        </choose>
+        <if test="stntId != null and stntId != '' ">
+            and speri.apraser_id = #{stntId}
+        </if>
+        group by tcmi.stdt_id, spesi.slf_per_evl_clsf_cd
+        order by flnm, stntId, slf_per_evl_clsf_cd
+    </select>
+
+</mapper>

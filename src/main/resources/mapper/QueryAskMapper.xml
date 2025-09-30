@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.mq.mapper.bulk.QueryAskMapper">
+
+    <select id="findQueryAskLog" resultType="com.visang.aidt.lms.api.mq.dto.query.QueryAskInfo">
+        /* QueryAskMapper.findQueryAskLog */
+        SELECT
+            id
+            , stnt_id AS userId
+            , trn_at  AS trnAt
+            , IFNULL(answ_at, 'N') AS answAt
+            , query_reg_dt AS `timestamp`
+            , rgtr
+            , IFNULL(duration,'-1')
+            , reg_dt
+            , mdfr
+            , mdfy_dt
+        FROM aidt_lms.bulk_query_asked_mq_log
+        where 1=1
+        <if test="trnAt != null and trnAt != ''">
+          and trn_at = #{trnAt}
+        </if>
+        <if test="userId != null and userId != ''">
+            and stnt_id = #{userId}
+        </if>
+        <if test="startTime != null and startTime != ''">
+            /*bulk 테스트 후 삭제 필요*/
+            <![CDATA[
+            and query_reg_dt >= #{startTime}
+            and query_reg_dt < #{endTime}
+            ]]>
+        </if>
+    </select>
+
+    <insert id="insertQueryAskLog" parameterType="com.visang.aidt.lms.api.mq.dto.query.QueryAskLog" useGeneratedKeys="true" keyProperty="id">
+        /* QueryAskMapper.insertQueryAskLog */
+        INSERT INTO aidt_lms.bulk_query_asked_mq_log (
+            `stnt_id`,
+            `trn_at`,
+            `answ_at`,
+            `query_reg_dt`
+        ) VALUES (
+            #{userId},
+            'N',
+            'N',
+            NOW()
+            )
+    </insert>
+
+    <select id="findQueryAskLogByQueryAskedId" resultType="com.visang.aidt.lms.api.mq.dto.query.QueryAskInfo">
+        /* QueryAskMapper.findQueryAskLogByQueryAskedId */
+        select id as queryAskedId,
+               query_reg_dt as `timestamp`
+        FROM aidt_lms.bulk_query_asked_mq_log
+        where 1=1
+          and id= #{queryAskedId}
+    </select>
+
+    <update id="modifyQueryAskLog" parameterType="com.visang.aidt.lms.api.mq.dto.query.QueryAskInfo">
+        /* QueryAskMapper.modifyQueryAskLog */
+        update aidt_lms.bulk_query_asked_mq_log
+        set `answ_at` = 'Y',
+            `duration` = #{duration},
+            `mdfy_dt` = now()
+        where id = #{queryAskedId}
+    </update>
+
+    <update id="modifyQueryAskTrnAt" parameterType="com.visang.aidt.lms.api.mq.dto.query.QueryAskInfo">
+        /* QueryAskMapper.modifyQueryAskTrnAt */
+        UPDATE aidt_lms.bulk_query_asked_mq_log
+        SET trn_at = 'Y'
+        WHERE trn_at = 'N'
+            <![CDATA[
+          and query_reg_dt >= #{startTime}
+          and query_reg_dt < #{endTime}
+        ]]>
+    </update>
+
+    <select id="getUserInfo" resultType="camelHashMap" parameterType="String">
+        /* QueryAskMapper.getUserInfo */
+        SELECT
+            COALESCE(ptn_id, '') AS ptn_id,
+            IFNULL(NULLIF(use_terms_agree_yn, ''), 'N') AS use_terms_agree_yn
+        FROM aidt_lms.user
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>

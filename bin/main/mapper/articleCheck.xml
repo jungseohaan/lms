@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.kafka.mapper.KafkaEngMapper">
+    <select id="getAticleCheck" parameterType="map" resultType="map">
+        WITH items AS (
+            <choose>
+                <when test="targetId == 3">
+                    SELECT
+                        a.sets_id as id,
+                        c.evl_iem_id as article_id,
+                        c.sub_id,
+                        a.textbook_id
+                    FROM aidt_lms.evl_info a
+                    INNER JOIN aidt_lms.evl_result_info b ON a.id = b.evl_id
+                    INNER JOIN aidt_lms.evl_result_detail c ON c.evl_result_id = b.id
+                    WHERE 1=1
+                    <if test="evlId != null and evlId != ''">
+                        and a.id = #{evlId}
+                    </if>
+                    <if test="setsId != null and setsId != ''">
+                        and a.sets_id = #{setsId}
+                    </if>
+                    <if test="articleId != null and articleId != ''">
+                        and c.evl_iem_id = #{articleId}
+                    </if>
+                    GROUP BY a.sets_id,c.evl_iem_id, c.sub_id, a.textbook_id
+                </when>
+                <when test="targetId == 2">
+                    SELECT
+                        a.sets_id as id,
+                        c.task_iem_id as article_id,
+                        c.sub_id,
+                        a.textbk_id as  textbook_id
+                    FROM aidt_lms.task_info a
+                    INNER JOIN aidt_lms.task_result_info b ON a.id = b.task_id
+                    INNER JOIN aidt_lms.task_result_detail c ON c.task_result_id = b.id
+                    WHERE 1=1
+                    <if test="taskId != null and taskId != ''">
+                    and a.id = #{taskId}
+                    </if>
+                    <if test="setsId != null and setsId != ''">
+                        and a.sets_id = #{setsId}
+                    </if>
+                    <if test="articleId != null and articleId != ''">
+                        and c.task_iem_id = #{articleId}
+                    </if>
+                    GROUP BY  a.sets_id,c.task_iem_id, c.sub_id, a.textbk_id
+                </when>
+                <when test="targetId == 4">
+                    SELECT
+                        a.id as id,
+                        b.module_id as article_id,
+                        b.sub_id,
+                        a.textbk_id as  textbook_id
+                    FROM aidt_lms.slf_std_info a
+                    inner join aidt_lms.slf_std_result_info b on a.id = b.std_id
+                    WHERE 1=1
+                    <if test="slfId != null and slfId != ''">
+                        and a.id = #{slfId}
+                    </if>
+                    <if test="articleId != null and articleId != ''">
+                        and c.module_id = #{articleId}
+                    </if>
+                    GROUP BY  a.id,b.module_id, b.sub_id, a.textbk_id
+                </when>
+                <otherwise>
+                    select
+                        a.sets_id as id,
+                        c.dta_iem_id as article_id,
+                        c.sub_id,
+                        a.textbk_id as textbook_id
+                    from  aidt_lms.tab_info a
+                    inner join aidt_lms.std_dta_result_info b on a.id = b.textbk_tab_id
+                    inner join aidt_lms.std_dta_result_detail c on b.id = c.dta_result_id
+                    where 1=1
+                    <if test="setsId != null and setsId != ''">
+                        and a.sets_id = #{setsId}
+                    </if>
+                    <if test="articleId != null and articleId != ''">
+                        and c.dta_iem_id = #{articleId}
+                    </if>
+                    GROUP BY a.sets_id,c.dta_iem_id, c.sub_id, a.textbk_id
+                </otherwise>
+            </choose>
+        ),
+         actual_meta AS (
+             SELECT article_id, meta_name
+             FROM aidt_lcms.article_meta_map
+             WHERE article_id IN (SELECT article_id FROM items)
+         ),
+         english_items AS (
+             SELECT article_id, sub_id
+             FROM items
+             WHERE textbook_id in (1150,1184,1189,6979,6981,6982)
+         ),
+         math_items AS (
+             SELECT article_id, sub_id
+             FROM items
+             WHERE textbook_id in (1198,1152,1201,1199,1175,1197,1342,7036,7040,7041,6993,7042)
+         ),
+         missing_studymap1 AS (
+             -- 모든 항목에 대해 studyMap1은 필수
+             SELECT
+                 e.article_id,
+                 e.sub_id,
+                 'studyMap1' AS missing_field
+             FROM items e
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM actual_meta am
+                 WHERE am.article_id = e.article_id AND am.meta_name = 'studyMap1'
+             )
+         ),
+         missing_studymap_1 AS (
+             -- 수학 항목에 대해 studyMap_1은 필수
+             SELECT
+                 m.article_id,
+                 m.sub_id,
+                 'studyMap_1' AS missing_field
+             FROM math_items m
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM actual_meta am
+                 WHERE am.article_id = m.article_id AND am.meta_name = 'studyMap_1'
+             )
+         ),
+         english_special_missing AS (
+             -- 영어의 경우 evaluationArea, contentsItem, evaluationArea3, evaluationCommu 중 하나라도 있는지 확인
+             SELECT
+                 e.article_id,
+                 e.sub_id,
+                 '영어 필수 항목(evaluationArea, contentsItem, evaluationArea3, evaluationCommu 중 1개)' AS missing_field
+             FROM english_items e
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM actual_meta am
+                 WHERE am.article_id = e.article_id
+                   AND am.meta_name IN ('evaluationArea', 'contentsItem', 'evaluationArea3', 'evaluationCommu')
+             )
+         ),
+         all_missing_fields AS (
+             SELECT article_id, sub_id, missing_field FROM missing_studymap1
+             UNION ALL
+             SELECT article_id, sub_id, missing_field FROM missing_studymap_1
+             UNION ALL
+             SELECT article_id, sub_id, missing_field FROM english_special_missing
+         ),
+         result_with_missing AS (
+             SELECT
+                 e.id,
+                 e.article_id,
+                 e.sub_id,
+                 COALESCE(GROUP_CONCAT(DISTINCT amf.missing_field ORDER BY
+                                       CASE
+                                           WHEN amf.missing_field = 'studyMap1' THEN 1
+                                           WHEN amf.missing_field = 'studyMap_1' THEN 2
+                                           ELSE 3
+                                           END
+                                       SEPARATOR ', '), '정상') AS missing_meta_names
+             FROM items e
+                      LEFT JOIN all_missing_fields amf ON e.article_id = amf.article_id AND e.sub_id = amf.sub_id
+             GROUP BY e.id, e.article_id, e.sub_id
+         ),
+         result_with_row_number AS (
+             SELECT
+                 r.*,
+                 @row_number := IF(@prev_result_id = r.id, @row_number + 1, 1) AS row_num,
+                 @prev_result_id := r.id
+             FROM result_with_missing r
+                      CROSS JOIN (SELECT @row_number := 0, @prev_result_id := NULL) AS vars
+             ORDER BY r.id, r.article_id, r.sub_id
+         )
+        SELECT
+            id,
+            article_id,
+            sub_id,
+            missing_meta_names,
+            row_num
+        FROM result_with_row_number
+        ORDER BY id, article_id, sub_id;
+    </select>
+
+    <select id="getTextbook" parameterType="String" resultType="map">
+        select
+            id
+            , wrter_id
+            , cla_id as claId
+            , smte_cd
+            , textbk_id as textbkId
+            , textbk_idx_id
+            , rgtr
+            , reg_dt
+            , mdfr
+            , mdfy_dt
+        from aidt_lms.tc_textbook
+        where wrter_id = #{writerId}
+    </select>
+
+    <update id="slfPerDataSetting" parameterType="String" >
+        UPDATE aidt_lms.slf_std_info s
+            JOIN (
+            SELECT aa.std_nm, bb.id AS new_std_usd_id, bb.stdt_id AS new_stdt_id
+            FROM (
+            SELECT a.id, a.kwg_main_id, b.std_nm, a.stdt_id AS orig_stdt_id
+            FROM aidt_lms.std_usd_info a
+            JOIN aidt_lms.slf_std_info b
+            ON a.stdt_id = b.stdt_id
+            AND a.id = b.std_usd_id
+            WHERE a.cla_id IN (#{targetClassId})
+            ) aa
+            JOIN (
+            SELECT id, kwg_main_id, stdt_id, REPLACE(stdt_id, 'tr-', '') AS base_stdt_id
+            FROM aidt_lms.std_usd_info
+            WHERE cla_id IN (#{copyClassId})
+            ) bb
+            ON aa.kwg_main_id = bb.kwg_main_id
+            AND aa.orig_stdt_id = bb.base_stdt_id
+            ) sub
+        ON s.std_nm = sub.std_nm AND s.stdt_id = sub.new_stdt_id
+            SET s.std_usd_id = sub.new_std_usd_id;
+    </update>
+
+
+</mapper>

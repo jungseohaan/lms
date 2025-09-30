@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.notification.mapper.StntNtcnMapper">
+    <select id="findStntNtcnListNoticeInfo" parameterType="map" resultType="camelHashMap">
+        /* StntNtcnMapper.findStntNtcnListNoticeInfo */
+        SELECT ni.trget_cd
+             , aidt_lms.F_CODE_NM('user_se_cd', ni.trget_cd) AS trget_nm
+             , ni.ntcn_ty_cd
+             , aidt_lms.F_CODE_NM('ntcn_ty_cd', ni.ntcn_ty_cd) AS ntcn_ty_nm
+             , ni.trget_ty_cd
+             , aidt_lms.F_CODE_NM('trget_ty_cd', ni.trget_ty_cd) AS trget_ty_nm
+             , ni.rcve_id
+        , (select COUNT(1) FROM aidt_lms.ntcn_info inner_ni
+                                        WHERE inner_ni.rcve_id = ni.rcve_id
+                                          and inner_ni.trget_cd = ni.trget_cd
+                                          and inner_ni.ntcn_ty_cd = ni.ntcn_ty_cd
+                                          and inner_ni.redng_at = 'N') as newNtCnt
+                     , count(*) OVER() AS full_count
+        FROM aidt_lms.ntcn_info ni
+         WHERE ni.rcve_id = #{userId}
+           AND ni.trget_cd = #{trgetCd}
+           AND ni.cla_id = #{claId}
+           AND ni.textbk_id = #{textbookId}
+/*            and ni.redng_at ='N' */
+        limit 1
+    </select>
+
+    <select id="findStntNtcnListNoticeList" parameterType="map" resultType="camelHashMap">
+        /* StntNtcnMapper.findStntNtcnListNoticeList */
+        SELECT ni.id
+             , ni.textbk_id
+             , lpad(ni.trget_ty_cd, 2, '0') as trget_ty_cd
+             , aidt_lms.F_CODE_NM('trget_ty_cd', ni.trget_ty_cd) AS trget_ty_nm
+             , ni.ntcn_Cn
+             , ni.redng_at
+             , (case 
+                     when ni.trget_ty_cd in ('9','10') and ni.ntcn_cn like '%마감일%' then ni.trget_id
+                     when ni.trget_ty_cd in ('9','10') and ni.ntcn_cn like '%시작일%' then CONCAT('list_', ni.trget_ty_cd)
+                     when ni.trget_ty_cd in ('9','10') and ni.ntcn_cn like '%리워드%' then 'reward'
+                     when ni.trget_ty_cd = '7' then CONCAT('report_eval_', ni.trget_id)
+                     when ni.trget_ty_cd = '6' then CONCAT('report_task_', ni.trget_id)
+                     when ni.trget_ty_cd in ('9','10') and ni.ntcn_cn like '%리포트%' then CONCAT('report_', ni.trget_ty_cd)
+                     else if(ni.trget_id = 0, '', ni.trget_id) end) as link_url
+             , ni.encrg_at
+             , ni.stnt_nm
+             , (CASE
+                    WHEN ni.trget_ty_cd = 6 THEN
+                        (SELECT task_nm FROM aidt_lms.task_info a WHERE a.id = ni.trget_id)
+                    WHEN ni.trget_ty_cd = 7 THEN
+                        (SELECT evl_nm FROM aidt_lms.evl_info b WHERE b.id = ni.trget_id)
+                    WHEN ni.trget_ty_cd = 99 AND JSON_EXTRACT(ni.ntcn_cn,'$.type') = 'report-evl-created' THEN
+                        (SELECT evl_nm
+                         FROM aidt_lms.evl_info c
+                         WHERE c.id = JSON_EXTRACT(ni.ntcn_cn,'$.shortcut.evlId'))
+                    WHEN ni.trget_ty_cd = 99 AND JSON_EXTRACT(ni.ntcn_cn,'$.type') = 'report-hwk-created' THEN
+                        (SELECT d.task_nm
+                         FROM aidt_lms.task_info d
+                         WHERE d.id = JSON_EXTRACT(ni.ntcn_cn, '$.shortcut.taskId'))
+                    ELSE ''
+             END) as evl_task_nm
+             , DATE_FORMAT(ni.reg_dt, "%Y-%m-%d %H:%i:%s") as reg_dt
+          FROM aidt_lms.ntcn_info ni
+        left join aidt_lms.se_code sc on sc.code_gb_cd = ni.trget_ty_cd
+        WHERE ni.rcve_id = #{param.userId}
+           AND ni.trget_cd = #{param.trgetCd}
+           AND ni.cla_id = #{param.claId}
+           AND ni.textbk_id = #{param.textbookId}
+/*            and ni.redng_at ='N' */
+          AND NOT (
+            ni.trget_ty_cd = 99
+                AND JSON_UNQUOTE(JSON_EXTRACT(ni.ntcn_cn,'$.type')) = 'report-evl-created'
+                AND NOT EXISTS (
+                SELECT 1
+                FROM aidt_lms.evl_result_info r
+                WHERE r.evl_id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ni.ntcn_cn,'$.shortcut.evlId')) AS UNSIGNED)
+                  AND r.mamoym_id = ni.rcve_id
+                  AND r.subm_at = 'Y')
+              )
+          AND NOT (
+            ni.trget_ty_cd = 99
+                AND JSON_UNQUOTE(JSON_EXTRACT(ni.ntcn_cn,'$.type')) = 'report-hwk-created'
+                AND NOT EXISTS (
+                SELECT 1
+                FROM aidt_lms.task_result_info t
+                WHERE t.task_id = CAST(JSON_UNQUOTE(JSON_EXTRACT(ni.ntcn_cn,'$.shortcut.taskId')) AS UNSIGNED)
+                  AND t.mamoym_id = ni.rcve_id
+                  AND t.subm_at = 'Y')
+            )
+             order by reg_dt desc
+         LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <update id="modifyStntNtcnStatus" parameterType="map" >
+        /* StntNtcnMapper.modifyStntNtcnStatus */
+        UPDATE aidt_lms.ntcn_info
+        SET ntcn_idnty_at ='Y'
+          , redng_at ='Y'
+          , mdfy_dt = now()
+        WHERE id =#{id}
+    </update>
+
+    <insert id="createStntNtcnInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* StntNtcnMapper.createStntNtcnInfo */
+        INSERT INTO aidt_lms.ntcn_info
+            ( rcve_id
+            , textbk_id, cla_id, trget_cd, ntcn_ty_cd,
+            <if test="trgetId != null and trgetId != '' ">
+                trget_id,
+             </if>
+             trget_ty_cd, ntcn_cn, redng_at, link_url, encrg_at, stnt_nm, rgtr, mdfr)
+        VALUES
+            ( #{rcveId}
+            , #{textbkId}, #{claId}, #{trgetCd}, #{ntcnTyCd},
+            <if test="trgetId != null and trgetId != '' ">
+                #{trgetId},
+            </if>
+             #{trgetTyCd}, #{ntcnCn}, 'N', #{linkUrl}, 'N', null, #{userId}, #{userId})
+    </insert>
+
+    <update id="modifyStntNtcnReadall" parameterType="map" >
+        /* StntNtcnMapper.modifyStntNtcnReadall */
+        UPDATE aidt_lms.ntcn_info
+           SET redng_at ='Y'
+              , mdfr = #{userId}
+              , mdfy_dt = now()
+         WHERE 1=1
+           and textbk_id = #{textbkId}
+           and cla_id    = #{claId}
+           and rcve_id   = #{userId}
+           and redng_at  ='N'
+    </update>
+
+    <update id="modifyNtcnIdntyAt" parameterType="map" >
+        /* StntNtcnMapper.modifyNtcnIdntyAt */
+        UPDATE aidt_lms.ntcn_info
+        SET ntcn_idnty_at ='Y'
+          , redng_at ='Y'
+            /*, mdfr = '수정자'*/
+          , mdfy_dt = now()
+        WHERE rcve_id = #{userId}
+          AND trget_cd = #{trgetCd}
+          AND cla_id = #{claId}
+          AND textbk_id = #{textbookId}
+    </update>
+
+    <select id="findStntNtcnListNoticeInfoOptional" parameterType="map" resultType="camelHashMap">
+        /* StntNtcnMapper.findStntNtcnListNoticeInfoOptional */
+        SELECT ni.trget_cd
+             , aidt_lms.F_CODE_NM('user_se_cd', ni.trget_cd) AS trget_nm
+             , ni.ntcn_ty_cd
+             , aidt_lms.F_CODE_NM('ntcn_ty_cd', ni.ntcn_ty_cd) AS ntcn_ty_nm
+             , ni.trget_ty_cd
+             , aidt_lms.F_CODE_NM('trget_ty_cd', ni.trget_ty_cd) AS trget_ty_nm
+             , ni.rcve_id
+             , (select COUNT(1) FROM aidt_lms.ntcn_info inner_ni
+                WHERE inner_ni.rcve_id = ni.rcve_id
+                  and inner_ni.trget_cd = ni.trget_cd
+                  and inner_ni.ntcn_ty_cd = ni.ntcn_ty_cd
+                  and inner_ni.redng_at = 'N') as newNtCnt
+             , count(*) OVER() AS full_count
+        FROM aidt_lms.ntcn_info ni
+        WHERE ni.rcve_id = #{param.userId}
+          AND ni.trget_cd = #{param.trgetCd}
+
+        <if test="param.claId != null and param.claId != '' ">
+          AND ni.cla_id = #{param.claId}
+        </if>
+
+        <if test="param.textbookId != null and param.textbookId != '' ">
+          AND ni.textbk_id = #{param.textbookId}
+        </if>
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findStntNtcnNoticeListOptional" parameterType="map" resultType="camelHashMap">
+        /* StntNtcnMapper.findStntNtcnListNoticeList */
+        SELECT ni.id
+             , ni.textbk_id
+             , lpad(ni.trget_ty_cd, 2, '0') as trget_ty_cd
+             , aidt_lms.F_CODE_NM('trget_ty_cd', ni.trget_ty_cd) AS trget_ty_nm
+             , ni.ntcn_Cn
+             , ni.redng_at
+             , (case when ni.trget_ty_cd in ('9','10') and ni.ntcn_cn like '%마감일%' then ni.trget_id
+                     when ni.trget_ty_cd in ('6','7','9','10') then ''
+                     else if(ni.trget_id = 0, '', ni.trget_id) end) as link_url
+             , ni.encrg_at
+             , ni.stnt_nm
+             , (CASE
+                    WHEN ni.trget_ty_cd = 6 THEN
+                            (SELECT task_nm FROM aidt_lms.task_info a WHERE a.id = ni.trget_id)
+                    WHEN ni.trget_ty_cd = 7 THEN
+                            (SELECT evl_nm FROM aidt_lms.evl_info b WHERE b.id = ni.trget_id)
+                    WHEN ni.trget_ty_cd = 99 AND JSON_EXTRACT(ni.ntcn_cn,'$.type') = 'report-evl-created' THEN
+                        (SELECT evl_nm
+                         FROM aidt_lms.evl_info c
+                         WHERE c.id = JSON_EXTRACT(ni.ntcn_cn,'$.shortcut.evlId'))
+                    WHEN ni.trget_ty_cd = 99 AND JSON_EXTRACT(ni.ntcn_cn,'$.type') = 'report-hwk-created' THEN
+                        (SELECT d.task_nm
+                         FROM aidt_lms.task_info d
+                         WHERE d.id = JSON_EXTRACT(ni.ntcn_cn, '$.shortcut.taskId'))
+                    ELSE ''
+            END) as evl_task_nm
+             , DATE_FORMAT(ni.reg_dt, "%Y-%m-%d %H:%i:%s") as reg_dt
+        FROM aidt_lms.ntcn_info ni
+                 left join aidt_lms.se_code sc on sc.code_gb_cd = ni.trget_ty_cd
+        WHERE ni.rcve_id = #{param.userId}
+          AND ni.trget_cd = #{param.trgetCd}
+        <if test="param.claId != null and param.claId != '' ">
+            AND ni.cla_id = #{param.claId}
+        </if>
+
+        <if test="param.textbookId != null and param.textbookId != '' ">
+            AND ni.textbk_id = #{param.textbookId}
+        </if>
+/*            and ni.redng_at ='N' */
+        order by reg_dt desc
+            LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+    
+    <update id="modifyNtcnIdntyAtOptional" parameterType="map" >
+        /* StntNtcnMapper.modifyNtcnIdntyAt */
+        UPDATE aidt_lms.ntcn_info
+        SET ntcn_idnty_at ='Y'
+          , redng_at ='Y'
+            /*, mdfr = '수정자'*/
+          , mdfy_dt = now()
+        WHERE rcve_id = #{userId}
+          AND trget_cd = #{trgetCd}
+        <if test="claId != null and claId != '' ">
+            AND cla_id = #{claId}
+        </if>
+
+        <if test="textbookId != null and textbookId != '' ">
+            AND textbk_id = #{textbookId}
+        </if>
+    </update>
+</mapper>

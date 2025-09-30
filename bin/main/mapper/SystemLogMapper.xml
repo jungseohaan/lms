@@ -1,0 +1,542 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.log.mapper.SystemLogMapper">
+
+    <!--[S]로그에서 사용하는 회원 조회-->
+    <select id="getUserInfoByUserId" parameterType="map" resultType="map">
+        /* UserMapper.getUserInfoByUserId -- user check에서 쓸 거 추가 */
+        select/*findUserInfoByUserId에 userIdx 컬럼 추가 (사이드이펙트 방지로 mapper 추가함)*/
+              a1.`id` as `userIdx`
+            , a1.user_id as `userId`
+            , a1.user_se_cd as `userSeCd`
+            , a1.flnm as `flnm`
+        from  aidt_lms.`user` a1
+        where a1.user_id = #{userId}
+    </select>
+    <!--[E]로그에서 사용하는 회원 조회-->
+
+
+    <!--[S]로그 공통 메타 관련-->
+    <select id="getLogInspCodeTotalCnt" parameterType="map" resultType="long">
+        /* UserMapper.getLogInspCodeTotalCnt */
+        select count(*)
+        FROM  aidt_lms.log_insp_code a1
+        WHERE a1.insp_attr = #{inspAttr}
+        <if test='inspCd != null and inspCd != ""'>
+        and   a1.insp_cd like concat('%', #{inspCd}, '%')
+        </if>
+        <if test='inspNm != null and inspNm != ""'>
+        and   a1.insp_nm like concat('%', #{inspNm}, '%')
+        </if>
+        <if test='inspCn != null and inspCn != ""'>
+        and   a1.insp_cn like concat('%', #{inspCn}, '%')
+        </if>
+        <if test='inspKey != null and inspKey != ""'>
+        and   a1.insp_key like concat('%', #{inspKey}, '%')
+        </if>
+    </select>
+
+    <select id="getLogInspCodeList" parameterType="map" resultType="map">
+        /* UserMapper.getLogInspCodeList */
+        select a1.`id`
+            , a1.insp_attr
+            , a1.insp_cd
+            , a1.insp_nm
+            , a1.insp_cn
+            , a1.insp_key
+            , a1.log_message
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , date_format(a1.reg_dt, '%Y-%m-%d')
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+            , date_format(a1.mdfy_dt, '%Y-%m-%d')
+        FROM  aidt_lms.log_insp_code a1
+        WHERE a1.insp_attr = #{inspAttr}
+        <if test='inspCd != null and inspCd != ""'>
+        and   a1.insp_cd like concat('%', #{inspCd}, '%')
+        </if>
+        <if test='inspNm != null and inspNm != ""'>
+        and   a1.insp_nm like concat('%', #{inspNm}, '%')
+        </if>
+        <if test='inspCn != null and inspCn != ""'>
+        and   a1.insp_cn like concat('%', #{inspCn}, '%')
+        </if>
+        <if test='inspKey != null and inspKey != ""'>
+        and   a1.insp_key like concat('%', #{inspKey}, '%')
+        </if>
+        ORDER BY a1.`id` DESC
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="getLogInspCodeDetail" parameterType="map" resultType="map">
+        /* UserMapper.getLogInspCodeDetail */
+        select a1.`id`
+            , a1.insp_attr
+            , a1.insp_cd
+            , a1.insp_nm
+            , a1.insp_cn
+            , a1.insp_key
+            , a1.log_message
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , date_format(a1.reg_dt, '%Y-%m-%d')
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+            , date_format(a1.mdfy_dt, '%Y-%m-%d')
+        FROM  aidt_lms.log_insp_code a1
+        WHERE a1.`id` = #{logInspCodeId}
+    </select>
+
+    <insert id="insertLogInspCode" parameterType="map">
+        /* UserMapper.insertLogInspCode */
+        INSERT INTO aidt_lms.log_insp_code (
+              insp_attr
+            , insp_cd
+            , insp_nm
+            , insp_cn
+            , insp_key
+            , log_message
+            , rgtr
+            , reg_dt
+        )
+        VALUES (
+              #{inspSrvc}
+            , #{inspAreaKey}
+            , #{inspNm}
+            , #{inspCn}
+            , #{logKey}
+            , #{logMessage}
+            , ifnull(#{saveUserId}, 'ststem')
+            , now()
+        )
+    </insert>
+
+    <update id="updateLogInspCode" parameterType="map">
+        /* UserMapper.updateLogInspCode */
+        update aidt_lms.log_insp_code
+        set   insp_nm = ifnull(#{inspNm}, insp_nm)
+            , insp_cn = ifnull(#{inspCn}, insp_cn)
+            , insp_key = ifnull(#{logKey}, insp_key)
+            , log_message = ifnull(#{logMessage}, log_message)
+            , mdfr = ifnull(#{saveUserId}, 'ststem')
+            , mdfy_dt = now()
+        where 1=1
+        <choose>
+            <when test="id != null and id > 0">
+        and   id = #{logInspCodeId}
+            </when>
+            <otherwise>
+        and   insp_cd = #{inspCd}
+            </otherwise>
+        </choose>
+
+    </update>
+    <!--[E]로그 공통 메타 관련-->
+
+
+    <!--[S]공통 시스템 로그 관련-->
+    <select id="getLogCheckTotalCnt" parameterType="map" resultType="long">
+        /* UserMapper.getLogCheckTotalCnt */
+        select count(*)
+        FROM  aidt_lms.log_check a1
+        WHERE 1=1
+        <if test='inspSrvc != null and inspSrvc != ""'>
+        and   a1.insp_srvc like concat('%', #{inspSrvc}, '%')
+        </if>
+        <if test='inspAreaKey != null and inspAreaKey != ""'>
+        and   a1.insp_area_key like concat('%', #{inspAreaKey}, '%')
+        </if>
+        <if test='inspNm != null and inspNm != ""'>
+        and   a1.insp_nm like concat('%', #{inspNm}, '%')
+        </if>
+        <if test='logTy != null and logTy != ""'>
+        and   a1.log_ty = #{logTy}
+        </if>
+    </select>
+
+    <select id="getLogCheckList" parameterType="map" resultType="map">
+        /* UserMapper.getLogCheckList */
+        select a1.`id`
+            , a1.insp_srvc as inspSrvc
+            , a1.insp_area_key as inspAreaKey
+            , a1.insp_nm as inspNm
+            , a1.log_ty as logTy
+            , a1.log_level as logLevel
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+        FROM  aidt_lms.log_check a1
+        WHERE 1=1
+        <if test='param.inspSrvc != null and param.inspSrvc != ""'>
+        and   a1.insp_srvc like concat('%', #{param.inspSrvc}, '%')
+        </if>
+        <if test='param.inspAreaKey != null and param.inspAreaKey != ""'>
+        and   a1.insp_area_key like concat('%', #{param.inspAreaKey}, '%')
+        </if>
+        <if test='param.inspNm != null and param.inspNm != ""'>
+        and   a1.insp_nm like concat('%', #{param.inspNm}, '%')
+        </if>
+        <if test='param.logTy != null and param.logTy != ""'>
+        and   a1.log_ty = #{param.logTy}
+        </if>
+        ORDER BY a1.`id` DESC
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="getLogCheckInfo" parameterType="map" resultType="map">
+        /* UserMapper.getLogCheckInfo */
+        select a1.`id` as logCheckId
+            , a1.log_ty as logTy
+            , a1.log_level as logLevel
+        FROM  aidt_lms.log_check a1
+        WHERE a1.insp_srvc = ifnull(#{inspSrvc}, 'visang-aidt-launcher')/*런처에서 주로 쓰기 때문에 하드코딩*/
+        and   a1.insp_area_key = ifnull(#{inspAreaKey}, 'default')/*초기 설정 DEFAULT 값으로 처리*/
+    </select>
+
+    <select id="getLogCheckInspListForFe" parameterType="map" resultType="map">
+        /* UserMapper.getLogCheckInspListForFe */
+        select a1.insp_cd as inspCd
+            , a1.log_level as logLevel
+            , b1.insp_key as inspKey
+            , b1.log_message as logMessage
+        FROM  aidt_lms.log_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.log_check_id = #{logCheckId}
+        and   a1.log_level >= #{logLevel}
+    </select>
+
+    <select id="getLogCheckInspTotalCnt" parameterType="map" resultType="long">
+        /* UserMapper.getLogCheckInspTotalCnt */
+        select count(*)
+        FROM  aidt_lms.log_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.log_check_id = #{logCheckId}
+        <if test='inspCd != null and inspCd != ""'>
+        and   b1.insp_cd = #{inspCd}
+        </if>
+        <if test='inspNm != null and inspNm != ""'>
+        and   b1.insp_nm like concat('%', #{inspNm}, '%')
+        </if>
+        <if test='inspCn != null and inspCn != ""'>
+        and   b1.insp_cn like concat('%', #{inspCn}, '%')
+        </if>
+        <if test='inspKey != null and inspKey != ""'>
+        and   b1.insp_key like concat('%', #{inspKey}, '%')
+        </if>
+    </select>
+
+    <select id="getLogCheckInspList" parameterType="map" resultType="map">
+        /* UserMapper.getLogCheckInspList */
+        select a1.insp_cd as inspCd
+            , a1.log_level as logLevel
+            , b1.insp_nm as inspNm
+            , b1.insp_cn as inspCn
+            , b1.insp_key as inspKey
+            , b1.log_message as logMessage
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+        FROM  aidt_lms.log_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.log_check_id = #{param.logCheckId}
+        <if test='param.inspCd != null and param.inspCd != ""'>
+        and   b1.insp_cd = #{param.inspCd}
+        </if>
+        <if test='param.inspNm != null and param.inspNm != ""'>
+        and   b1.insp_nm like concat('%', #{param.inspNm}, '%')
+        </if>
+        <if test='param.inspCn != null and param.inspCn != ""'>
+        and   b1.insp_cn like concat('%', #{param.inspCn}, '%')
+        </if>
+        <if test='param.inspKey != null and param.inspKey != ""'>
+        and   b1.insp_key like concat('%', #{param.inspKey}, '%')
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="getLogCheckInspDetail" parameterType="map" resultType="map">
+        /* UserMapper.getLogCheckInspDetail */
+        select a1.insp_cd as inspCd
+            , a1.log_level as logLevel
+            , b1.insp_nm as inspNm
+            , b1.insp_cn as inspCn
+            , b1.insp_key as inspKey
+            , b1.log_message as logMessage
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+        FROM  aidt_lms.log_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.id = #{id}
+    </select>
+
+    <insert id="insertLogCheck" parameterType="map">
+        /* UserMapper.insertLogCheck */
+        INSERT INTO aidt_lms.log_check (
+              insp_srvc
+            , insp_area_key
+            , insp_nm
+            , log_ty
+            , log_level
+            , rgtr
+        )
+        VALUES (
+              #{inspSrvc}
+            , #{inspAreaKey}
+            , #{inspNm}
+            , #{logTy}
+            , #{logLevel}
+            , ifnull(#{saveUserId}, 'system')
+            , now()
+        )
+    </insert>
+
+    <update id="updateLogCheck" parameterType="map">
+        /* UserMapper.updateLogCheck */
+        update aidt_lms.log_check (
+        set   insp_area_key = ifnull(#{inspAreaKey}, insp_area_key)
+            , insp_nm = ifnull(#{inspNm}, insp_nm)
+            , log_ty = ifnull(#{logTy}, log_ty)
+            , log_level = ifnull(#{logLevel}, log_level)
+            , mdfr = ifnull(#{saveUserId}, 'ststem')
+            , mdfy_dt = now()
+        where 1=1
+        <choose>
+            <when test="id != null and id > 0">
+        and   id = #{id}
+            </when>
+            <otherwise>
+        and   log_check_id = #{logCheckId}
+        and   insp_cd = #{inspCd}
+            </otherwise>
+        </choose>
+    </update>
+
+    <insert id="insertLogCheckInsp" parameterType="map">
+        /* UserMapper.insertLogCheckInsp */
+        INSERT INTO aidt_lms.log_check_isnp_map (
+              log_check_id
+            , insp_cd
+            , log_level
+            , rgtr
+            , reg_dt
+        )
+        VALUES (
+              #{logCheckId}
+            , #{inspCd}
+            , ifnull(#{logLevel}, 100)/*default 100(ALL)*/
+            , ifnull(#{saveUserId}, 'system')
+            , now()
+        )
+    </insert>
+
+    <update id="updateLogCheckInsp" parameterType="map">
+        /* UserMapper.insertLogCheckInsp */
+        update aidt_lms.user_check_isnp_map (
+        set   log_level
+            , mdfr = ifnull(#{saveUserId}, 'ststem')
+            , mdfy_dt = now()
+        where 1=1
+        <choose>
+            <when test="id != null and id > 0">
+        and   id = #{id}
+            </when>
+            <otherwise>
+        and   log_check_id = #{logCheckId}
+        and   insp_cd = #{inspCd}
+            </otherwise>
+        </choose>
+    </update>
+    <!--[E]공통 시스템 로그 관련-->
+
+
+    <!--[S]사용자 개별 로그 관련-->
+    <select id="getUserCheckTotalCnt" parameterType="map" resultType="long">
+        /* UserMapper.getUserCheckTotalCnt */
+        select count(*)
+        FROM  aidt_lms.user_check a1
+        WHERE a1.log_check_id = #{logCheckId}
+        and   a1.user_id concat('%', #{userId}, '%')
+    </select>
+
+    <select id="getUserCheckList" parameterType="map" resultType="map">
+        /* UserMapper.getUserCheckList */
+        select a1.`id`
+            , a1.log_check_id as logCheckId
+            , a1.log_level as logLevel
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+        FROM  aidt_lms.user_check a1
+        WHERE a1.log_check_id = #{param.logCheckId}
+        and   a1.user_id concat('%', #{param.userId}, '%')
+        ORDER BY a1.`id` DESC
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="getUserCheckDetail" parameterType="map" resultType="map">
+        /* UserMapper.getUserCheckList */
+        select a1.`id`
+            , a1.insp_srvc as inspSrvc
+            , a1.insp_area_key as inspAreaKey
+            , a1.insp_nm as inspNm
+            , a1.log_ty as logTy
+            , a1.log_level as logLevel
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+        FROM  aidt_lms.user_check a1
+        WHERE a1.id = #{userCheckId}
+    </select>
+
+    <select id="getUserCheckInfo" parameterType="map" resultType="map">
+        /* UserMapper.getUserCheckInfo */
+        select a1.`id` as userIdx
+            , b1.user_id as userId
+            , b1.`id` as userCheckId
+            , b1.log_reg_at as logRegAt
+            , b1.log_level as logLevel
+        FROM  aidt_lms.`user` a1
+              inner join aidt_lms.user_check b1 on a1.`user_id` = b1.user_id
+        WHERE b1.user_id = #{userId}
+    </select>
+
+    <select id="getUserCheckInspListForFe" parameterType="map" resultType="map">
+        /* UserMapper.getUserCheckInspListForFe */
+        select a1.insp_cd as inspCd
+            , a1.log_level as logLevel
+            , b1.insp_key as inspKey
+            , b1.log_message as logMessage
+        FROM  aidt_lms.user_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.user_check_id = #{userCheckId}
+        and   a1.log_level >= #{logLevel}
+    </select>
+
+    <select id="getUserCheckInspTotalCnt" parameterType="map" resultType="long">
+        /* UserMapper.getUserCheckInspTotalCnt */
+        select count(*)
+        FROM  aidt_lms.user_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.user_check_id = #{userCheckId}
+        <if test='inspCd != null and inspCd != ""'>
+        and   b1.insp_cd = #{inspCd}
+        </if>
+        <if test='inspNm != null and inspNm != ""'>
+        and   b1.insp_nm like concat('%', #{inspNm}, '%')
+        </if>
+        <if test='inspCn != null and inspCn != ""'>
+        and   b1.insp_cn like concat('%', #{inspCn}, '%')
+        </if>
+        <if test='inspKey != null and inspKey != ""'>
+        and   b1.insp_key like concat('%', #{inspKey}, '%')
+        </if>
+    </select>
+
+    <select id="getUserCheckInspList" parameterType="map" resultType="map">
+        /* UserMapper.getUserCheckInspList */
+        select a1.insp_cd as inspCd
+            , a1.log_level as logLevel
+            , b1.insp_nm as inspNm
+            , b1.insp_cn as inspCn
+            , b1.insp_key as inspKey
+            , b1.log_message as logMessage
+            , a1.rgtr as rgtr
+            , a1.reg_dt as regDt
+            , a1.mdfr as mdfr
+            , a1.mdfy_dt as mdfyDt
+        FROM  aidt_lms.user_check_isnp_map a1
+              inner join aidt_lms.log_insp_code b1 on a1.insp_cd = b1.insp_cd
+        WHERE a1.user_check_id = #{param.userCheckId}
+        <if test='param.inspCd != null and param.inspCd != ""'>
+        and   b1.insp_cd = #{param.inspCd}
+        </if>
+        <if test='param.inspNm != null and param.inspNm != ""'>
+        and   b1.insp_nm like concat('%', #{param.inspNm}, '%')
+        </if>
+        <if test='param.inspCn != null and param.inspCn != ""'>
+        and   b1.insp_cn like concat('%', #{param.inspCn}, '%')
+        </if>
+        <if test='param.inspKey != null and param.inspKey != ""'>
+        and   b1.insp_key like concat('%', #{param.inspKey}, '%')
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <insert id="insertUserCheck" parameterType="map" useGeneratedKeys="true" keyProperty="userCheckId">
+        /* UserMapper.insertUserCheck */
+        INSERT INTO aidt_lms.user_check (
+              log_check_id
+            , user_id
+            , log_reg_at
+            , log_level
+            , rgtr
+            , reg_dt
+        )
+        VALUES (
+              ifnull(#{logCheckId})/*null 일 경우 default 런처*/
+            , #{userId}
+            , #{logRegAt}
+            , ifnull(#{logLevel}, 100)/*default 1(ALL)*/
+            , 'system'
+            , now()
+        )
+    </insert>
+
+    <update id="updateUserCheck" parameterType="map">
+        /* UserMapper.updateUserCheck */
+        update aidt_lms.user_check
+        set   log_reg_at = ifnull(#{logRegAt}, log_reg_at)
+            , log_level = ifnull(#{logLevel}, log_level)
+            , mdfr = 'system'
+            , mdfy_dt = now()
+        where id = #{userCheckId}
+    </update>
+
+    <insert id="insertUserCheckInsp" parameterType="map">
+        /* UserMapper.insertUserCheckInsp */
+        INSERT INTO aidt_lms.user_check_isnp_map (
+              user_check_id
+            , insp_cd
+            , log_level
+            , rgtr
+            , reg_dt
+        )
+        VALUES (
+              #{userCheckId}
+            , #{inspCd}
+            , ifnull(#{logLevel}, 100)/*default 100(ALL)*/
+            , ifnull(#{rgtr}, 'system')
+            , now()
+        )
+    </insert>
+
+    <update id="updateUserCheckInsp" parameterType="map">
+        /* UserMapper.updateUserCheckInsp */
+        update aidt_lms.user_check_isnp_map
+        set   log_level
+            , mdfr = ifnull(#{saveUserId}, 'ststem')
+            , mdfy_dt = now()
+        where 1=1
+        <choose>
+            <when test="userCheckInspId != null and userCheckInspId > 0">
+        and   id = #{userCheckInspId}
+            </when>
+            <otherwise>
+        and   log_check_id = #{logCheckId}
+        and   insp_cd = #{inspCd}
+            </otherwise>
+        </choose>
+    </update>
+    <!--[E]사용자 개별 로그 관련-->
+
+</mapper>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.contents.repository.SetSummaryRepository">
+
+    <insert id="addSetSummary"
+    	parameterType="com.visang.aidt.lms.api.contents.dto.SetSummaryVO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aidt_lcms.setsummary (
+			<trim prefixOverrides=",">
+				
+				<if test="set_id != null "> , set_id </if>
+				<if test="article_id != null "> , article_id </if>
+				<if test="sub_id != null "> , sub_id </if>
+				
+				<if test="thumbnail != null and thumbnail != '' "> , thumbnail </if>
+				<if test="name != null and name != '' "> , name </if>
+				
+				<if test="gradingMethod != null "> , gradingMethod </if>
+				<if test="points != null "> , points </if>
+				
+				<if test="description != null and description != '' "> , description </if>
+				<if test="qnum != null and qnum != '' "> , qnum </if>
+				, creator_id, creator, creator_name 
+				
+				
+			</trim>
+				)
+	        VALUES (
+			<trim prefixOverrides=",">
+				<if test="set_id != null "> , #{set_id} </if>
+				<if test="article_id != null "> , #{article_id} </if>
+				<if test="sub_id != null "> , #{sub_id} </if>
+				
+				<if test="thumbnail != null and thumbnail != '' "> , #{thumbnail} </if>
+				<if test="name != null and name != '' "> , #{name} </if>
+				
+				<if test="gradingMethod != null "> , #{gradingMethod} </if>
+				<if test="points != null "> , #{points} </if>
+				
+				<if test="description != null and description != '' "> , #{description} </if>
+				<if test="qnum != null and qnum != '' "> , #{qnum} </if>
+					 <!--  테스트 후  저작자 임의 입력 금지   -->
+				<choose><when test=" creator_id != null ">
+					, #{creator_id}
+					,(select uid from aidt_lcms.user where id = #{creator_id})
+					,(select name from aidt_lcms.user where id = #{creator_id}) </when>
+					<when test=" creator != null and creator != ''  ">
+					,(select id from aidt_lcms.user where uid = #{creator})
+					, #{creator}
+					,(select name from aidt_lcms.user where uid = #{creator}) </when>
+					<otherwise>
+					,(select id from aidt_lcms.user where uid = #{loginUserId})
+					,(select uid from aidt_lcms.user where uid = #{loginUserId})
+					,(select name from aidt_lcms.user where uid = #{loginUserId}) </otherwise> </choose>
+					
+				
+			</trim>
+			)
+	</insert>
+    
+    
+    
+
+    <delete id="deleteSetSummaryBySetId" parameterType="string" >
+        DELETE
+        FROM aidt_lcms.setsummary
+        WHERE set_id = #{set_id}
+    </delete>
+    
+</mapper>

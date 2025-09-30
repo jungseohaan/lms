@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.integration.mapper.IntegCommonMapper">
+
+    <select id="listPtnInfo" parameterType="map" resultType="camelHashMap" >
+        SELECT api.ptn_id AS ptnId
+             , api.textbk_cd AS textbkCd
+             , api.curri_school AS curriSchool
+             , api.curri_grade AS curriGrade
+             , api.curri_semester AS curriSemester
+             , api.curri_subject AS curriSubject
+             , api.curri_book AS curriBook
+        FROM aidt_lms.aidt_ptn_info api
+        WHERE 1=1
+        <if test="ptnId != null and ptnId != '' ">
+            AND api.ptn_id = #{ptnId}
+        </if>
+        <if test="textbkCd != null and textbkCd != '' ">
+            AND api.textbk_cd = #{textbkCd}
+        </if>
+        <if test="curriSchool != null and curriSchool != '' ">
+            AND api.curri_school = #{curriSchool}
+        </if>
+        <if test="curriGrade != null and curriGrade != '' ">
+            AND api.curri_grade = #{curriGrade}
+        </if>
+        <if test="curriSemester != null and curriSemester != '' ">
+            AND api.curri_semester = #{curriSemester}
+        </if>
+        <if test="curriSubject != null and curriSubject != '' ">
+            AND api.curri_subject = #{curriSubject}
+        </if>
+        <if test="curriBook != null and curriBook != '' ">
+            AND api.curri_book = #{curriBook}
+        </if>
+    </select>
+
+    <select id="listClaId" parameterType="map" resultType="String" >
+        SELECT cla_id
+        FROM tc_cla_info
+        WHERE cla_id LIKE CONCAT(#{claKey},'%')
+    </select>
+
+    <select id="getClaInfo" parameterType="map" resultType="camelHashMap" >
+        SELECT cla_id
+                , schl_nm
+                , grade_cd
+                , cla_nm
+        FROM tc_cla_info
+        WHERE cla_id = #{claId}
+    </select>
+</mapper>

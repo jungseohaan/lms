@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.StntMdulMapper">
+    <update id="updateStntNoteInfo" parameterType="map">
+        /* StntMdulMapper.updateStntMdulNote */
+        UPDATE aidt_lms.std_dta_result_detail
+        SET hdwrt_cn = #{hdwrtCn}
+        <if test="userId != null and userId != '' ">
+            ,mdfr = #{userId}
+        </if>
+            ,mdfy_dt = NOW()
+        WHERE id = #{resultDetailId}
+
+    </update>
+
+    <select id="selectTcNoteConts" parameterType="map" resultType="camelHashMap">
+        /* stntMdulMapper.selectTcNoteConts */
+        SELECT
+            b.id as note_id
+            ,a.module_id
+            ,a.textbk_id
+            ,a.tab_id
+            , b.note_seq
+            , b.note_img_url
+        FROM aidt_lms.tc_note_info a
+            JOIN aidt_lms.tc_note_conts b
+            ON a.id = b.note_id
+            AND a.module_id = b.module_id
+            AND a.tab_id = #{tabId}
+            AND a.module_id = #{moduleId}
+        ORDER BY note_seq DESC
+    </select>
+
+
+    <select id="getStntMdulFdbShare_selectStdDtaResult" parameterType="map" resultType="camelHashMap">
+        /* stntMdulMapper.getStntMdulFdbShare_selectStdDtaResult */
+        SELECT std_fdb_dc,
+               std_fdb_url,
+               exlt_anw_at,
+               fdb_exp_at,
+               errata,
+               sub_mit_anw,
+               sub_mit_anw_url,
+               hdwrt_cn
+        FROM aidt_lms.std_dta_result_detail
+        where 1 = 1
+          and id = #{resultDetailId}
+        union  all
+        SELECT std_fdb_dc,
+               std_fdb_url,
+               exlt_anw_at,
+               fdb_exp_at,
+               errata,
+               sub_mit_anw,
+               sub_mit_anw_url,
+               hdwrt_cn
+        FROM aidt_lms.std_dta_result_hist
+        WHERE 1 = 1
+          and id = #{resultDetailId}
+    </select>
+
+    <select id="selectStdDtaResult" parameterType="map" resultType="camelHashMap">
+        /* stntMdulMapper.selectStdDtaResult */
+        SELECT std_fdb_dc,
+               std_fdb_url,
+               exlt_anw_at,
+               fdb_exp_at,
+               errata,
+               sub_mit_anw,
+               sub_mit_anw_url,
+               hdwrt_cn,
+               mdfy_dt,
+                (
+                SELECT pf_ui_img
+                FROM aidt_lms.sp_pf_info
+                WHERE
+                id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info WHERE user_id = (select mamoym_id from aidt_lms.std_dta_result_info where id=dta_result_id) AND cla_id = (select cla_id from aidt_lms.tc_cla_mb_info where stdt_id = (select mamoym_id from aidt_lms.std_dta_result_info where id=dta_result_id) and actvtn_at = 'Y') AND prchs_gds_se_cd = 'P' limit 1), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+                ) as profile_img
+        FROM aidt_lms.std_dta_result_detail
+        where 1 = 1
+          and dta_result_id in (select id
+                                from aidt_lms.std_dta_result_info
+                                where (textbk_tab_id, sets_id) in (select textbk_tab_id, sets_id
+                                                                   from aidt_lms.std_dta_result_info
+                                                                   where id = (select dta_result_id
+                                                                               from aidt_lms.std_dta_result_detail
+                                                                               where id = #{resultDetailId})))
+          AND exlt_anw_at = 'Y'
+        and (dta_iem_id, sub_id) in (select dta_iem_id, sub_id
+                           from aidt_lms.std_dta_result_detail
+                           where id = #{resultDetailId})
+        union  all
+        SELECT std_fdb_dc,
+               std_fdb_url,
+               exlt_anw_at,
+               fdb_exp_at,
+               errata,
+               sub_mit_anw,
+               sub_mit_anw_url,
+               hdwrt_cn,
+               mdfy_dt,
+                (
+                    SELECT pf_ui_img
+                    FROM aidt_lms.sp_pf_info
+                    WHERE
+                    id = IFNULL((SELECT rprs_gds_id FROM aidt_lms.sp_prchs_info WHERE user_id = (select mamoym_id from aidt_lms.std_dta_result_info where id=(select dta_result_id
+                                                                                                   from aidt_lms.std_dta_result_detail
+                                                                                                   where id = #{resultDetailId})) AND cla_id = (select cla_id from aidt_lms.tc_cla_mb_info where stdt_id = (select mamoym_id from aidt_lms.std_dta_result_info where id=(select dta_result_id
+                                                                                                                                                                                  from aidt_lms.std_dta_result_detail
+                                                                                                                                                                                  where id = #{resultDetailId})) and actvtn_at = 'Y') AND prchs_gds_se_cd = 'P' limit 1), (SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'))
+                    ) as profile_img
+        FROM aidt_lms.std_dta_result_hist
+        WHERE 1 = 1
+          and dta_result_id in (select id
+                                from aidt_lms.std_dta_result_info
+                                where (textbk_tab_id, sets_id) in (select textbk_tab_id, sets_id
+                                                                   from aidt_lms.std_dta_result_info
+                                                                   where id = (select dta_result_id
+                                                                               from aidt_lms.std_dta_result_detail
+                                                                               where id = #{resultDetailId})))
+          AND exlt_anw_at = 'Y'
+        and (dta_iem_id, sub_id) in (select dta_iem_id, sub_id
+                           from aidt_lms.std_dta_result_detail
+                           where id = #{resultDetailId})
+        order by mdfy_dt desc
+    </select>
+
+
+    <select id="selectExltCnt" parameterType="map" resultType="camelHashMap">
+        /* stntMdulMapper.selectExltCnt */
+        SELECT
+            (SELECT ifnull(count(1), 0) FROM aidt_lms.std_dta_result_detail WHERE id = #{resultDetailId} AND exlt_anw_at ='Y')
+            + (SELECT ifnull(count(1), 0 )FROM aidt_lms.std_dta_result_hist WHERE dta_result_detail_id = #{resultDetailId} AND exlt_anw_at ='Y') as exltCnt
+    </select>
+
+    <select id="selectStntMdulHdwrntCn" parameterType="map" resultType="camelHashMap">
+        /* stntMdulMapper.selectTchMdulHdwrntCn */
+        SELECT hdwrt_cn
+        FROM aidt_lms.std_dta_result_detail
+        WHERE id = #{resultDetailId}
+    </select>
+</mapper>

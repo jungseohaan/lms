@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.socket.mapper.SocketMapper">
+    <select parameterType="map" resultType="camelHashMap" id="findByClassConnLogIdxAndClassIdxAndUserIdx">
+        SELECT  class_conn_log_idx
+                , class_idx
+                , user_div
+                , user_idx
+                , open_date
+                , close_date
+                , remote_service
+                , conn_status
+        FROM    aidt_lms.class_conn_log
+        WHERE   class_conn_log_idx = #{classConnLogIdx}
+        AND     class_idx = #{classIdx}
+        AND     user_idx = #{userIdx}
+    </select>
+
+    <update id="updateClassConnLog" parameterType="map">
+        UPDATE  aidt_lms.class_conn_log
+        SET     close_date = NOW()
+                , conn_status = 2
+        WHERE   class_conn_log_idx = #{classConnLogIdx}
+        AND     class_idx = #{classIdx}
+        AND     user_idx = #{userIdx}
+    </update>
+
+    <select id="findByClaIdAndActvtnAt" parameterType="map" resultType="camelHashMap" >
+        SELECT c.*
+        from tc_cla_mb_info a
+         inner join stdt_reg_info b ON a.stdt_id  = b.user_id
+         inner join user c ON b.user_id  = c.user_id
+        where 1=1
+          and a.cla_id = #{claId}
+          and a.actvtn_at = 'Y'
+        order by b.num
+    </select>
+
+    <select id="selectTcClaMbInfoMonitUrl" parameterType="map" resultType="map">
+        /* SocketMapper.selectTcClaMbInfoMonitUrl */
+        SELECT IFNULL(monit_file_url, '1') as monitFileUrl
+        FROM aidt_lms.tc_cla_mb_info
+        WHERE 1=1
+        AND cla_id = #{claId}
+        AND stdt_id = #{userId}
+        AND actvtn_at = 'Y'
+    </select>
+
+    <select id="findClassTeacher" parameterType="map" resultType="map">
+        /* SocketMapper.selectTcClaMbInfoMonitUrl */
+        SELECT
+            id
+            , user_id
+            , cla_id as classId
+            , activeyn
+            , ref_tc_type
+            , main_sub_flag
+        FROM aidt_lms.tc_cla_user_info
+        WHERE 1=1
+          AND cla_id = #{claId}
+    </select>
+
+    <select id="findClassTeacherByUserId" parameterType="map" resultType="map">
+        /* SocketMapper.findClassTeacherByUserId */
+        SELECT
+            id
+             , user_id
+             , cla_id as classId
+             , activeyn
+             , ref_tc_type
+             , main_sub_flag
+        FROM aidt_lms.tc_cla_user_info
+        WHERE 1=1
+          AND cla_id = #{claId}
+          AND user_id = #{userId}
+    </select>
+
+    <select id="selectUserAuthInfo" resultType="map" parameterType="map">
+        select a1.user_pwd as userPwd
+            , a1.account_expire_dt as accountExpireDt
+        from  aidt_lms.user_auth a1
+        where a1.user_id = ifnull(#{uuid}, #{userId})
+    </select>
+
+    <!-- upsert -->
+    <insert id="upsertUserAuth" parameterType="map">
+        INSERT INTO aidt_lms.user_auth (
+            user_id, user_pwd, rgtr, reg_dt, mdfr, mdfy_dt, account_expire_dt
+        ) VALUES (
+            #{userId}, #{passwordBytes,jdbcType=BINARY},
+            'system', NOW(), 'system', NOW(), IFNULL(#{accountExpireDt}, DATE_ADD(NOW(), INTERVAL 1 YEAR))
+        )
+        ON DUPLICATE KEY UPDATE
+            user_pwd = VALUES(user_pwd),
+            mdfr = 'system',
+            mdfy_dt = NOW()
+            /*기존 만료일 유지: account_expire_dt 는 업데이트하지 않음*/
+    </insert>
+
+    <!-- 유저 존재 여부 확인 -->
+    <select id="existsUserByUserId" parameterType="string" resultType="int">
+        SELECT COUNT(1)
+        FROM aidt_lms.user
+        WHERE USER_ID = #{userId}
+    </select>
+
+    <!-- 단건 조회 (필요시 확장) -->
+    <select id="selectUserByUserId" parameterType="string" resultType="map">
+        SELECT
+            ID           AS id,
+            USER_ID      AS userId,
+            USER_SE_CD   AS userSeCd,
+            FLNM         AS flnm
+        FROM aidt_lms.user
+        WHERE USER_ID = #{userId}
+        LIMIT 1
+    </select>
+
+</mapper>

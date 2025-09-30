@@ -1,0 +1,1793 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.keris.mapper.KerisApiMapper">
+
+    <select id="getUserInfo" parameterType="map" resultType="map">
+        /* Keris.getUserInfo */
+        SELECT u.id
+        , u.user_id AS userId
+        , u.rgtr
+        , ifnull(sri.schl_cd, '') AS schlCd
+        , ifnull(tri.schl_cd, '') AS tcSchlCd
+        , ifnull(u.indv_info_agre_yn, 'N') AS indvInfoAgreYn
+        , COALESCE(NULLIF(use_terms_agree_yn, ''), 'N') AS useTermsAgreeYn
+        FROM `aidt_lms`.`user` u
+        LEFT JOIN `aidt_lms`.`stdt_reg_info` sri ON u.user_id = sri.user_id
+        LEFT JOIN `aidt_lms`.`tc_reg_info` tri ON u.user_id = tri.user_id
+        WHERE u.user_id = #{user_id}
+        <if test='user_type != null and user_type != ""'>
+            AND u.user_se_cd = #{user_type}
+        </if>
+    </select>
+
+    <select id="getPtnInfo" parameterType="map" resultType="map">
+        /* Keris.getPtnInfo */
+        SELECT ptn_id AS ptnId
+             , api_domain AS apiDomain
+             , tc_main_url AS tcMainUrl
+             , stdt_main_url AS stdtMainUrl
+             , pa_main_url AS paMainUrl
+             , curri_subject AS curriSubject
+             , curri_school AS curriSchool
+             , curri_grade AS curriGrade
+        FROM `aidt_lms`.`aidt_ptn_info`
+        WHERE textbk_cd = #{textbkCd}
+    </select>
+
+    <update id="updatePtnInfo" parameterType="map">
+        /* Keris.updatePtnInfo */
+        UPDATE `aidt_lms`.`aidt_ptn_info`
+        SET api_domain = #{apiDomain}
+        WHERE textbk_cd = #{textbkCd}
+    </update>
+
+    <insert id="insertUser" parameterType="map">
+        /* KerisMapper.insertUser */
+        insert into `aidt_lms`.`user` (
+                                        user_id, sso_tk, flnm, user_se_cd, eml_addr, mbl_telno, ptn_id
+                                      , sex, brth, eml_rcptn_agre_yn, sms_rcptn_agre_yn
+                                      , rcptn_agre_ymd, dmt_chg_ymd, rgtr, reg_dt, mdfr, mdfy_dt
+                                      , age14_blw_lgrp_ci_no, age14_blw_lgrp_name, use_terms_agree_yn, use_terms_agree_dt
+        ) values (
+                   #{userId}
+                 , '-'
+                 , '-'
+                 , #{userType}
+                 , '-'
+                 , '-'
+                 , #{partnerId}
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , 'kerisAPI'
+                 , now()
+                 , 'kerisAPI'
+                 , now()
+                 , #{age14BlwLgrpCiNo}
+                 , '-'
+                 , #{useTermsAgreeYn}
+                 , #{useTermsAgreeDt}
+                 )
+    </insert>
+
+    <select id="getSchlInfo" parameterType="map" resultType="map">
+        /* KerisMapper.getSchlInfo */
+        SELECT id
+        FROM `aidt_lms`.`school`
+        WHERE schl_cd = LEFT(SHA2(#{schlCd}, '256'), 50)
+    </select>
+
+    <insert id="insertSchool" parameterType="map" useGeneratedKeys="true" keyProperty="schlId">
+        /* KerisMapper.insertSchool */
+        INSERT INTO `aidt_lms`.`school` (
+            schl_cd, schl_nm, schl_ty_cd
+        ) VALUES (
+                     LEFT(SHA2(#{schlCd}, '256'), 50), '', #{userDivision}
+                 )
+            ON DUPLICATE KEY UPDATE
+                                 schl_nm = ''
+    </insert>
+
+    <insert id="insertStdtRegInfo" parameterType="map">
+        /* KerisMapper.insertStdtRegInfo */
+        insert into `aidt_lms`.`stdt_reg_info`  (
+                                                  user_id, flnm, user_stts_cd, schl_id, schl_cd, schl_nm
+                                                , brth, yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd, cla_cd
+                                                , num, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+                   #{userId}
+                 , '-'
+                 , #{userStatus}
+                 , '0'
+                 , IF(#{schlCd} = '', '', LEFT(SHA2(#{schlCd}, 256), 50))
+                 , '-'
+                 , '-'
+                 , #{year}
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , #{userNumber}
+                 , 'kerisAPI'
+                 , NOW()
+                 , 'kerisAPI'
+                 , NOW()
+                 )
+    </insert>
+
+    <insert id="insertSchedule" parameterType="map">
+        /* KerisMapper.insertSchedule */
+        INSERT INTO `aidt_lms`.`schdul` (
+            wrter_id, `yr`, smt, std_sys_cd, sbjct_nm, cla_pr, cla_id, schl_nm, textbk_id, textbk_nm, rgtr, lctr_code
+        ) VALUES (
+                   #{userId}
+                 , #{year}
+                 , 0
+                 , #{day_week}
+                 , #{subject_name}
+                 , #{class_period}
+                 , ''
+                 , ''
+                 , 0
+                 , ''
+                 , 'kerisAPI'
+                 , #{lecture_code}
+                 )
+    </insert>
+
+    <insert id="insertTcRegInfo" parameterType="map">
+        /* Keris.insertTcRegInfo */
+        insert into `aidt_lms`.`tc_reg_info` (
+                                               user_id, flnm, user_stts_cd, schl_cd, schl_nm, brth
+                                             , yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd
+                                             , cla_cd, cla_nm, num, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+                            #{userId}
+                     , '-'
+                     , #{userStatus}
+                     , LEFT(SHA2(#{schlCd}, '256'), 50)
+                     , '-'
+                     , '-'
+                     , #{year}
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , -1
+                     , 'kerisAPI'
+                     , NOW()
+                     , 'kerisAPI'
+                     , NOW()
+                 )
+    </insert>
+
+    <insert id="insertTcClaInfo" parameterType="map">
+        /* Keris.insertTcClaInfo */
+        insert into `aidt_lms`.`tc_cla_info` (
+            cla_id, user_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, rgtr, reg_dt, mdfr, mdfy_dt, estbl_sbjct_cd, course_rm_cd, cla_sub_id
+        ) values (
+                   #{claId}
+                 , #{userId}
+                 , #{year}
+                 , -1
+                 , '-'
+                 , '-'
+                 , '-'
+                 , '-'
+                 , 'kerisAPI'
+                 , NOW()
+                 , 'kerisAPI'
+                 , NOW()
+                 , '-'
+                 , '-'
+                 , '-'
+                 )
+    </insert>
+
+    <insert id="insertTcClaMbInfo" parameterType="map">
+        /* Keris.insertTcClaMbInfo */
+        INSERT INTO `aidt_lms`.tc_cla_mb_info (
+            cla_id, user_id, stdt_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, actvtn_at, rgtr, mdfr
+        ) VALUES (
+                     #{claId}, #{userId}, #{stdtId}, #{year}, 0, '-', '-', '-', '-', 'Y', 'kerisAPI', 'kerisAPI'
+                 )
+    </insert>
+
+    <select id="getUserStudyInfo" parameterType="map" resultType="map">
+        /* Keris.getUserStudyInfo */
+        <![CDATA[
+        WITH RECURSIVE cte AS (
+            SELECT 1 AS n
+            UNION ALL
+            SELECT n + 1 FROM cte WHERE n < 20
+        ),
+               -- 교과서 표준체계 조회
+               textbk_curri_data AS (
+                   SELECT COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(me.val1, '#^|', ','), ',', cte.n), ',', -1)), '-1'), '-1') AS curriculum
+                        , COUNT(*) AS moduleCnt
+                   FROM aidt_lms.tab_info ti
+                            INNER JOIN aidt_lcms.setSummary ss ON ti.sets_id = ss.set_id
+                            INNER JOIN aidt_lcms.meta m1 ON ti.setCategory = m1.id
+                            INNER JOIN aidt_lcms.article a ON ss.article_id = a.id
+                            INNER JOIN aidt_lcms.meta m2 ON m2.id = a.articleType
+                            INNER JOIN aidt_lcms.article_meta_map amm1 ON amm1.article_id = ss.article_id AND amm1.sub_id = ss.sub_id AND amm1.meta_name = 'studyMap1'
+                            INNER JOIN aidt_lcms.article_meta_map amm2 ON amm2.article_id = ss.article_id AND amm2.sub_id = ss.sub_id AND amm2.meta_name = 'studyMap_1'
+                            INNER JOIN aidt_lcms.meta m3 ON m3.id = amm2.meta_id
+                            INNER JOIN aidt_lcms.meta_extension me ON m3.meta_extension_id = me.meta_extension_id
+                            INNER JOIN cte ON cte.n <= LENGTH(REPLACE(me.val1, '#^|', ',')) - LENGTH(REPLACE(REPLACE(me.val1, '#^|', ','), ',', '')) + 1
+                   WHERE 1=1
+                     AND ti.cla_id = #{claId}
+                     AND ti.tab_add_at = 'N' /* 기본 제공탭 기준, 교사가 추가한 탭은 제외 */
+                     AND m1.code = 'textbook' /* 교과과정 */
+                     AND m2.code = 'question' /* 문항유형 */
+                   GROUP BY curriculum
+               ),
+-- 학생이 교과서에서 학습한 표준체계 조회(전체)
+               user_result_curri_data AS (
+                   SELECT COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(me.val1, '#^|', ','), ',', cte.n), ',', -1)), '-1'), '-1') AS curriculum
+                        , COUNT(*) AS moduleAnwCnt
+                        , SUM(IF(rd.errata=1, 1, IF(rd.errata=3, 0.5, 0))) AS score
+                   FROM std_dta_result_detail rd
+                            INNER JOIN std_dta_result_info ri ON ri.id = rd.dta_result_id
+                            INNER JOIN tab_info ti ON ri.textbk_tab_id = ti.id
+                            INNER JOIN aidt_lcms.meta m1 ON ti.setCategory = m1.id
+                            INNER JOIN aidt_lcms.article a ON rd.dta_iem_id = a.id
+                            INNER JOIN aidt_lcms.meta m2 ON m2.id = a.articleType
+                            INNER JOIN aidt_lcms.article_meta_map amm1 ON amm1.article_id = rd.dta_iem_id AND amm1.sub_id = rd.sub_id AND amm1.meta_name = 'studyMap1'
+                            INNER JOIN aidt_lcms.article_meta_map amm2 ON amm2.article_id = rd.dta_iem_id AND amm2.sub_id = rd.sub_id AND amm2.meta_name = 'studyMap_1'
+                            INNER JOIN aidt_lcms.meta m3 ON m3.id = amm2.meta_id
+                            INNER JOIN aidt_lcms.meta_extension me ON m3.meta_extension_id = me.meta_extension_id
+                            INNER JOIN cte ON cte.n <= LENGTH(REPLACE(me.val1, '#^|', ',')) - LENGTH(REPLACE(REPLACE(me.val1, '#^|', ','), ',', '')) + 1
+                   WHERE ri.mamoym_id = #{user_id}
+                     AND ti.cla_id = #{claId}
+                     AND ti.tab_add_at = 'N' /* 기본 제공탭 기준, 교사가 추가한 탭은 제외 */
+                     AND m1.code = 'textbook' /* 교과과정 */
+                     AND m2.code = 'question' /* 문항유형 */
+                     AND rd.src_detail_id = 0 /* 다른문제 풀기 제외 */
+                     AND (rd.sub_mit_anw IS NOT NULL OR rd.sub_mit_anw_url IS NOT NULL)  /* 제출답안 있을 경우 */
+                   GROUP BY curriculum
+               )
+        SELECT ROUND(COALESCE((ud.moduleAnwCnt / td.moduleCnt) * 100, 0)) AS percent
+             , ud.moduleAnwCnt
+             , td.moduleCnt
+             , td.curriculum
+        FROM user_result_curri_data ud
+                 INNER JOIN textbk_curri_data td ON ud.curriculum = td.curriculum
+        ]]>
+    </select>
+
+    <select id="getUserTcInfo" parameterType="map" resultType="map">
+        /* keris.getUserTcId */
+        SELECT USER_ID as tcId
+             , CLA_ID as claId
+        FROM tc_cla_mb_info tcmi
+        WHERE stdt_id = #{user_id}
+          AND actvtn_at = 'Y'
+    </select>
+
+    <select id="getUserMathStudyInfo" parameterType="map" resultType="map">
+        /* Keris.getUserMathStudyInfo */
+        select c.val1 /* 표준체계 ID */
+             , ROUND(COALESCE(sum(a.usd_scr) / count(c.val1),0),0) AS usd_scr /* 이해도, 소수점 없이 */
+        from aidt_lms.std_usd_info a
+                 left join aidt_lcms.meta b on a.kwg_main_id = b.id
+                 left join aidt_lcms.meta_extension c on b.meta_extension_id = c.meta_extension_id
+        where a.stdt_id = #{user_id}
+          and a.cla_id = #{claId}
+        group by c.val1
+        order by c.val1
+    </select>
+
+    <select id="getUserEnglStudyInfo" parameterType="map" resultType="map">
+        /* Keris.getUserEnglStudyInfo */
+        select c1.val1 /* 표준체계 ID */
+             , ROUND(COALESCE(sum(a1.kwg_ach_num) / sum(a1.kwg_main_tot_exm_num) * 100,0),0) AS usd_scr /* 성취도, 소수점 없이 */
+        from aidt_lms.usd_ach_src2_kwg a1
+                 inner join aidt_lcms.meta b1 on a1.kwg_main_id = b1.id
+                 inner join aidt_lcms.meta_extension c1 on b1.meta_extension_id = c1.meta_extension_id
+        where a1.stdt_id = #{user_id}
+          and a1.cla_id = #{claId}
+          and a1.std_dt = (
+            select max(c1.std_dt)
+            from aidt_lms.usd_ach_src2_kwg c1
+            where c1.stdt_id = #{user_id}
+        )
+        group by c1.val1
+        order by c1.val1
+    </select>
+
+    <insert id="insertTransferTcClaMbInfo" parameterType="map">
+        /* Keris.insertTransferTcClaMbInfo */
+        INSERT INTO `aidt_lms`.tc_cla_mb_info (
+            cla_id, user_id, stdt_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, rgtr, mdfr
+        ) VALUES (
+                     #{claId}, #{tcId}, #{stdtId}, #{year}, 0, '', '', '', '', 'kerisAPI', 'kerisAPI'
+                 )
+    </insert>
+
+    <insert id="insertTransferStdtRegInfo" parameterType="map">
+        /* KerisMapper.insertTransferStdtRegInfo */
+        insert into `aidt_lms`.`stdt_reg_info`  (
+                                                  user_id, flnm, user_stts_cd, schl_id, schl_cd, schl_nm
+                                                , brth, yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd, cla_cd
+                                                , num, rgtr, reg_dt, mdfr, mdfy_dt
+        ) values (
+                            #{userId}
+                     , '-'
+                     , 'E'
+                     , '0'
+                     , LEFT(SHA2(#{schlCd}, '256'), 50)
+                     , '-'
+                     , '-'
+                     , #{year}
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , '-'
+                     , -1
+                     , 'kerisAPI'
+                     , NOW()
+                     , 'kerisAPI'
+                     , NOW()
+                 )
+    </insert>
+
+    <insert id="insertAidtNwStdtInfo" parameterType="map">
+        /* Keris.insertAidtNwStdtInfo */
+        INSERT INTO aidt_lms.aidt_nw_stdt_info (
+            user_id, stdard_id, achv_lvl, `percent`, part_stdard_id, rgtr, mdfr
+        ) VALUES (
+                     #{user_id}, #{curriculum}, #{achievement_level}, #{percent}, #{partner_curriculum}, 'kerisAPI', 'kerisAPI'
+                 )
+    </insert>
+
+    <update id="updateStdtRegInfoOut" parameterType="string">
+        /* Keris.updateStdtRegInfoOut */
+        UPDATE aidt_lms.stdt_reg_info
+        SET user_stts_cd = 'O'
+        WHERE user_id = #{userId}
+    </update>
+
+    <update id="updateTcClaMbInfoOut" parameterType="string">
+        /* Keris.updateTcClaMbInfoOut */
+        UPDATE aidt_lms.tc_cla_mb_info
+        SET actvtn_at = 'N'
+            , mdfy_dt = NOW()
+        WHERE stdt_id = #{userId}
+    </update>
+
+    <select id="getClaIdFromTcClaMbInfo" parameterType="map" resultType="string">
+        /* Keris.getClaIdFromTcClaMbInfo */
+        SELECT cla_id
+        FROM aidt_lms.tc_cla_mb_info
+        WHERE 1=1
+        <choose>
+            <when test='user_type != null and user_type == "T"'>
+                AND user_id = #{user_id}
+            </when>
+            <when test='user_type != null and user_type == "S"'>
+                AND stdt_id = #{user_id}
+            </when>
+        </choose>
+        LIMIT 1
+    </select>
+
+    <select id="getTextbkIdFromTcTextbook" parameterType="map" resultType="int">
+        /* Keris.getTextbkIdFromTcTextbook */
+        SELECT textbk_id
+        FROM aidt_lms.tc_textbook
+        WHERE 1=1
+        <choose>
+            <when test='user_type != null and user_type == "T"'>
+                AND wrter_id = #{user_id}
+            </when>
+            <when test='user_type != null and user_type == "S"'>
+                AND wrter_id = (
+                SELECT tcmi.user_id
+                FROM aidt_lms.tc_cla_mb_info tcmi
+                WHERE tcmi.stdt_id = #{user_id}
+                )
+            </when>
+        </choose>
+        LIMIT 1
+    </select>
+
+    <select id="selectExistsClaId" parameterType="map" resultType="string">
+        SELECT cla_id
+        FROM aidt_lms.tc_cla_info
+        WHERE cla_id = #{lecture_code}
+            LIMIT 1
+    </select>
+
+    <update id="updatePersonaClaIdUpdate" parameterType="map">
+        /* act_tol_info */
+        UPDATE `aidt_lms`.`act_tol_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* ach_cac_src_info */
+        UPDATE `aidt_lms`.`ach_cac_src_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* bkmk_info */
+        UPDATE `aidt_lms`.`bkmk_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* bkmk_tag_mapng */
+        UPDATE `aidt_lms`.`bkmk_tag_mapng`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* cla_bbsmaster */
+        UPDATE `aidt_lms`.`cla_bbsmaster`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* classroom */
+        UPDATE `aidt_lms`.`classroom`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* dash_rpt_set */
+        UPDATE `aidt_lms`.`dash_rpt_set`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* evl_info */
+        UPDATE `aidt_lms`.`evl_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* ext_learn_cnts */
+        UPDATE `aidt_lms`.`ext_learn_cnts`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* gl_set_info */
+        UPDATE `aidt_lms`.`gl_set_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* last_scrn_mv_info */
+        UPDATE `aidt_lms`.`last_scrn_mv_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* math_expd_hg_scr_info */
+        UPDATE `aidt_lms`.`math_expd_hg_scr_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* math_vill_rpt */
+        UPDATE `aidt_lms`.`math_vill_rpt`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* math_vill_std_step_info */
+        UPDATE `aidt_lms`.`math_vill_std_step_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* mv_lms_ach_cac_src_info */
+        UPDATE `aidt_lms`.`mv_lms_ach_cac_src_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* mv_lms_usd_ach_src2_detail */
+        UPDATE `aidt_lms`.`mv_lms_usd_ach_src2_detail`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* mv_lms_usd_ach_src2_info */
+        UPDATE `aidt_lms`.`mv_lms_usd_ach_src2_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* mv_lms_usd_ach_src2_kwg */
+        UPDATE `aidt_lms`.`mv_lms_usd_ach_src2_kwg`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* mv_lms_usd_cac_src_info */
+        UPDATE `aidt_lms`.`mv_lms_usd_cac_src_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* ntcn_info */
+        UPDATE `aidt_lms`.`ntcn_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* often_use_sents */
+        UPDATE `aidt_lms`.`often_use_sents`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* report_cmmnt */
+        UPDATE `aidt_lms`.`report_cmmnt`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* rwd_earn_hist */
+        UPDATE `aidt_lms`.`rwd_earn_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* rwd_earn_info */
+        UPDATE `aidt_lms`.`rwd_earn_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* schdul */
+        UPDATE `aidt_lms`.`schdul`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* slf_ai_std_info */
+        UPDATE `aidt_lms`.`slf_ai_std_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* slf_std_info */
+        UPDATE `aidt_lms`.`slf_std_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* spot_qiz_info */
+        UPDATE `aidt_lms`.`spot_qiz_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* stat_user_std_info */
+        UPDATE `aidt_lms`.`stat_user_std_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* stat_user_trgt_schd */
+        UPDATE `aidt_lms`.`stat_user_trgt_schd`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* std_dta_info */
+        UPDATE `aidt_lms`.`std_dta_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* std_lastlesson */
+        UPDATE `aidt_lms`.`std_lastlesson`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* std_recode_info */
+        UPDATE `aidt_lms`.`std_recode_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* std_tol_info */
+        UPDATE `aidt_lms`.`std_tol_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_content_area_hist */
+        UPDATE `aidt_lms`.`std_usd_content_area_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_day_hist */
+        UPDATE `aidt_lms`.`std_usd_day_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_info */
+        UPDATE `aidt_lms`.`std_usd_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_notstdt_unit_day_hist */
+        UPDATE `aidt_lms`.`std_usd_notstdt_unit_day_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_stdt_unit_kwg_day_hist */
+        UPDATE `aidt_lms`.`std_usd_stdt_unit_kwg_day_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_total_hist */
+        UPDATE `aidt_lms`.`std_usd_total_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_unit_day_hist */
+        UPDATE `aidt_lms`.`std_usd_unit_day_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_unit_info */
+        UPDATE `aidt_lms`.`std_usd_unit_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* std_usd_unit_kwg_day_hist */
+        UPDATE `aidt_lms`.`std_usd_unit_kwg_day_hist`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId}
+        <if test='textbkId != 0 and textbkId > 0'>
+            AND textbk_id = #{textbkId}
+        </if>
+        AND 1=1;
+
+        /* tab_info */
+        UPDATE `aidt_lms`.`tab_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tag_info */
+        UPDATE `aidt_lms`.`tag_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* task_info */
+        UPDATE `aidt_lms`.`task_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tb_dgnss_info */
+        UPDATE `aidt_diagnosis`.`tb_dgnss_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_class_memo */
+        UPDATE `aidt_lms`.`tc_class_memo`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_cla_info */
+        UPDATE `aidt_lms`.`tc_cla_info`
+        SET cla_id = #{targetClaId}
+        , course_rm_cd = #{lectureCode}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_cla_mb_info */
+        UPDATE `aidt_lms`.`tc_cla_mb_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_cls_enrollment */
+        UPDATE `aidt_lms`.`tc_cls_enrollment`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_cls_participant */
+        UPDATE `aidt_lms`.`tc_cls_participant`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_curriculum */
+        UPDATE `aidt_lms`.`tc_curriculum`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_lastlesson */
+        UPDATE `aidt_lms`.`tc_lastlesson`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_lecture */
+        UPDATE `aidt_lms`.`tc_lecture`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_note_info */
+        UPDATE `aidt_lms`.`tc_note_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_notice_brd */
+        UPDATE `aidt_lms`.`tc_notice_brd`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_opnn_brd */
+        UPDATE `aidt_lms`.`tc_opnn_brd`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_textbook */
+        UPDATE `aidt_lms`.`tc_textbook`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_tol_set */
+        UPDATE `aidt_lms`.`tc_tol_set`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tc_wht_brd */
+        UPDATE `aidt_lms`.`tc_wht_brd`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* tdy_md_detail */
+        UPDATE `aidt_lms`.`tdy_md_detail`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* usd_ach_src2_info */
+        UPDATE `aidt_lms`.`usd_ach_src2_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* usd_ach_src2_info_daily */
+        UPDATE `aidt_lms`.`usd_ach_src2_info_daily`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* usd_ach_src2_kwg */
+        UPDATE `aidt_lms`.`usd_ach_src2_kwg`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* usd_ach_src2_kwg_daily */
+        UPDATE `aidt_lms`.`usd_ach_src2_kwg_daily`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+
+        /* usd_cac_src_info */
+        UPDATE `aidt_lms`.`usd_cac_src_info`
+        SET cla_id = #{targetClaId}
+        WHERE cla_id = #{originClaId};
+    </update>
+
+    <update id="updatePersonaUserUpdate" parameterType="map">
+        UPDATE `aidt_lms`.`user`
+        SET rgtr = #{targetRgtr}
+          , mdfr = #{targetRgtr}
+        WHERE user_id IN (
+            SELECT t.user_id
+            FROM (
+                     SELECT a1_1.user_id
+                     FROM `aidt_lms`.`user` a1_1
+                              INNER JOIN `aidt_lms`.`tc_cla_mb_info` b1_1 ON (a1_1.user_id = b1_1.user_id OR a1_1.user_id = b1_1.stdt_id)
+                     WHERE b1_1.cla_id = #{targetClaId}
+                     GROUP BY b1_1.user_id, a1_1.user_id
+                 ) t
+        )
+    </update>
+
+    <select id="getTcClaInfo" parameterType="map" resultType="map">
+        SELECT cla_id
+             , course_rm_cd AS courseRmCd
+             , user_id AS userId
+             , teacher_lecture_code AS teacherLectureCode
+             , smt
+        FROM aidt_lms.tc_cla_info
+        WHERE cla_id = #{claId}
+        LIMIT 1
+    </select>
+
+    <select id="listTcClaStdtInfo" parameterType="map" resultType="map">
+        /* Keris.listTcClaStdtInfo */
+        SELECT user_id AS userId
+        FROM `aidt_lms`.`stdt_reg_info`
+        WHERE user_id IN (<foreach item="userId" collection="userIdList" separator=",">#{userId}</foreach>)
+    </select>
+
+    <select id="listStdtRegInfo" parameterType="map" resultType="map">
+        /* Keris.listStdtRegInfo */
+        SELECT user_id AS userId
+        FROM `aidt_lms`.`stdt_reg_info`
+        WHERE user_id IN (<foreach item="userId" collection="userIdList" separator=",">#{userId}</foreach>)
+    </select>
+
+    <select id="listOtherTcClaMbStdtInfo" parameterType="map" resultType="map">
+        /* Keris.listTcClaMbStdtInfo */
+        SELECT stdt_id AS userId
+        , cla_id AS claId
+        FROM `aidt_lms`.`tc_cla_mb_info`
+        WHERE stdt_id IN (<foreach item="userId" collection="userIdList" separator=",">#{userId}</foreach>)
+        AND cla_id != #{claId}
+        AND actvtn_at = 'Y'
+    </select>
+
+    <select id="listTcClaMbInfo" parameterType="map" resultType="map">
+        /* Keris.listTcClaMbInfo */
+        SELECT stdt_id AS userId
+        FROM `aidt_lms`.`tc_cla_mb_info`
+        WHERE 1=1
+          AND cla_id = #{claId}
+          AND actvtn_at = 'Y'
+    </select>
+
+
+    <update id="deleteSchdul" parameterType="map">
+        /* Keris.deleteSchdul */
+        DELETE FROM `aidt_lms`.`schdul`
+        WHERE wrter_id = #{userId}
+    </update>
+
+    <update id="updateStdtRegInfo" parameterType="map">
+        /* Keris.updateStdtRegInfo */
+        UPDATE `aidt_lms`.`stdt_reg_info`
+        SET schl_cd = LEFT(SHA2(#{schlCd}, '256'), 50)
+        WHERE user_id = #{userId}
+    </update>
+
+    <update id="updateTcRegInfo" parameterType="map">
+        /* Keris.tc_reg_info */
+        UPDATE `aidt_lms`.`tc_reg_info`
+        SET schl_cd = LEFT(SHA2(#{schlCd}, '256'), 50)
+        WHERE user_id = #{userId}
+    </update>
+
+    <select id="listSchdulInfo" parameterType="map" resultType="map">
+        /* Keris.listSchdulInfo */
+        SELECT wrter_id AS wrterId
+             , lctr_code AS lctrCode
+        FROM `aidt_lms`.`schdul`
+        WHERE wrter_id = #{wrterId}
+    </select>
+
+    <update id="updateUserindvInfoAgreYn" parameterType="map">
+        /* keris.updateUserindvInfoAgreYn */
+        UPDATE `aidt_lms`.`user`
+        SET indv_info_agre_yn = 'Y'
+          , indv_info_agre_dt = current_timestamp
+          , age14_blw_lgrp_ci_no = #{age14BlwLgrpCiNo}
+          , age14_blw_lgrp_name= '-'
+          , use_terms_agree_yn = #{useTermsAgreeYn}
+          , use_terms_agree_dt = #{useTermsAgreeDt}
+        WHERE user_id = #{user_id}
+    </update>
+
+    <delete id="deleteAidtNwStdtInfo" parameterType="string">
+        /* Keris.deleteAidtNwStdtInfo */
+        DELETE FROM `aidt_lms`.`aidt_nw_stdt_info`
+        WHERE user_id = #{user_id}
+    </delete>
+
+    <update id="updateTcClaMbInfoActv" parameterType="java.util.Set">
+        /* Keris.updateTcClaMbInfoActv */
+        UPDATE aidt_lms.tc_cla_mb_info
+        SET actvtn_at = 'N'
+        WHERE cla_id IN
+        <foreach collection="collection" item="claId" open="(" separator="," close=")">
+            #{claId}
+        </foreach>
+    </update>
+
+    <insert id="insertUserBulk" parameterType="list">
+        /* Keris.insertUser - 배치 삽입 */
+        insert into `aidt_lms`.`user` (
+        user_id, sso_tk, flnm, indv_info_agre_yn, user_se_cd, eml_addr, mbl_telno, ptn_id
+        , sex, brth, eml_rcptn_agre_yn, sms_rcptn_agre_yn
+        , rcptn_agre_ymd, dmt_chg_ymd, rgtr, reg_dt, mdfr, mdfy_dt
+        , age14_blw_lgrp_ci_no, age14_blw_lgrp_name, use_terms_agree_yn, use_terms_agree_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , '-'
+            , '-'
+            , 'Y'
+            , #{user.userType}
+            , '-'
+            , '-'
+            , #{user.partnerId}
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , 'kerisAPI'
+            , now()
+            , 'kerisAPI'
+            , now()
+            , #{user.age14BlwLgrpCiNo}
+            , '-'
+            , #{user.useTermsAgreeYn}
+            , #{user.useTermsAgreeDt}
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertStdtRegInfoBulk" parameterType="list">
+        /* Keris.insertStdtRegInfo - 배치 삽입 */
+        insert into `aidt_lms`.`stdt_reg_info` (
+        user_id, flnm, user_stts_cd, schl_id, schl_cd, schl_nm
+        , brth, yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd, cla_cd
+        , num, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , '-'
+            , #{user.userStatus}
+            , '0'
+            , IF(#{user.schlCd} = '', '', LEFT(SHA2(#{user.schlCd}, 256), 50))
+            , '-'
+            , '-'
+            , #{user.year}
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , #{user.userNumber}
+            , 'kerisAPI'
+            , NOW()
+            , 'kerisAPI'
+            , NOW()
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertTcRegInfoBulk" parameterType="list">
+        /* Keris.insertTcRegInfoBulk - 배치 삽입 */
+        insert into `aidt_lms`.`tc_reg_info` (
+        user_id, flnm, user_stts_cd, schl_cd, schl_nm, brth
+        , yr, csr_cd, grade_cd, day_night_cd, affil_cd, scsbj_cd
+        , cla_cd, cla_nm, num, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , '-'
+            , #{user.userStatus}
+            , LEFT(SHA2(#{user.schlCd}, '256'), 50)
+            , '-'
+            , '-'
+            , #{user.year}
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            , -1
+            , 'kerisAPI'
+            , NOW()
+            , 'kerisAPI'
+            , NOW()
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertTcClaInfoBulk" parameterType="list">
+        /* Keris.insertTcClaInfoBulk - 배치 삽입 */
+        insert into `aidt_lms`.`tc_cla_info` (
+        cla_id, user_id, yr, smt, schl_nm, grade_cd, cla_cd, cla_nm, rgtr, reg_dt, mdfr, mdfy_dt, estbl_sbjct_cd, course_rm_cd, cla_sub_id, teacher_lecture_code
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.claId}
+            , #{user.userId}
+            , #{user.year}
+            , #{user.smt}
+            , '-'
+            , '-'
+            , '-'
+            , '-'
+            <choose>
+                <when test='user.rgtr != null and user.rgtr != ""'>
+                    , #{user.rgtr}
+                </when>
+                <otherwise>
+                    , 'kerisAPI'
+                </otherwise>
+            </choose>
+            , NOW()
+            , 'kerisAPI'
+            , NOW()
+            , '-'
+            , #{user.courseRmCd}
+            , '-'
+            , #{user.teacherLectureCode}
+            )
+        </foreach>
+    </insert>
+
+    <insert id="insertTcClaMbInfoBulk" parameterType="list">
+        /* Keris.insertTcClaMbInfoBulk - 배치 업서트 */
+        insert into `aidt_lms`.`tc_cla_mb_info` (
+        cla_id, user_id, stdt_id, yr, actvtn_at, smt, schl_nm, grade_cd, cla_cd, cla_nm, rgtr, mdfr
+        )
+        values
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.claId}, #{user.userId}, #{user.stdtId}, #{user.year}, #{user.actvtnAt}, 0, '-', '-', '-', '-', 'kerisAPI', 'kerisAPI'
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        actvtn_at = VALUES(actvtn_at),
+        mdfy_dt = NOW()
+    </insert>
+
+    <update id="updateTcClaInfoBulk" parameterType="list">
+        /* Keris.updateTcClaInfoBulk - 배치 업데이트 */
+        <foreach collection="list" item="user" separator=";">
+            update `aidt_lms`.`tc_cla_info`
+            set mdfy_dt = now()
+                <if test='user.courseRmCd != null and user.courseRmCd != ""'>
+                    , course_rm_cd = #{user.courseRmCd}
+                </if>
+                <if test='user.teacherLectureCode != null and user.teacherLectureCode != ""'>
+                    , teacher_lecture_code = #{user.teacherLectureCode}
+                </if>
+                <if test='user.smt != null and user.smt != ""'>
+                    , smt = #{user.smt}
+                </if>
+            where cla_id = #{user.claId}
+        </foreach>
+    </update>
+
+
+    <update id="updateTcClaMbInfoOutBulk" parameterType="map">
+        /* Keris.updateTcClaMbInfoOutBulk */
+        UPDATE aidt_lms.tc_cla_mb_info
+        SET actvtn_at = 'N'
+            , mdfy_dt = NOW()
+        WHERE stdt_id IN (<foreach item="userId" collection="userIdList" separator=",">#{userId}</foreach>)
+    </update>
+
+
+    <select id="listClaInfo" parameterType="map" resultType="map">
+        /* Keris.listClaInfo */
+        SELECT COALESCE(tcgi.origin_cla_id, a.cla_id) AS claId
+                , a.course_rm_cd AS courseRmCd
+                , CASE WHEN prev.id IS NULL THEN 'N'
+                       WHEN tt.textbk_id IS NULL THEN 'Y'
+                       ELSE 'N' END AS pasteYn
+        from tc_cla_user_info tcui
+        inner join tc_cla_info a on tcui.cla_id = a.cla_id
+        left join aidt_lms.tc_textbook tt ON tcui.cla_id = tt.cla_id
+        left join aidt_lms.tc_cla_group_info tcgi ON tcui.cla_id = tcgi.cla_id
+        LEFT JOIN (
+            SELECT tt.id
+            FROM tc_cla_info a
+            LEFT JOIN aidt_lms.tc_textbook tt ON a.cla_id  = tt.cla_id
+            WHERE a.user_id = #{user_id}
+            AND a.rgtr = 'preview'
+            LIMIT 1
+        ) prev ON 1=1
+        WHERE tcui.user_id = #{user_id}
+        <if test='lecture_code != null and lecture_code != ""'>
+            AND a.course_rm_cd = #{lecture_code}
+        </if>
+        AND a.rgtr != 'preview'
+    </select>
+
+    <insert id="insertShopSkinHist" parameterType="list">
+        /* Keris.insertShopSkin - 배치 삽입 */
+        INSERT INTO `aidt_lms`.`sp_prchs_hist` (
+        user_id, user_se_cd, cla_id, prchs_gds_se_cd, inv_se_cd, rwd_se_cd, prchs_gds_id, ntsl_gds_amt
+        )
+        VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userType}
+            , #{user.claId}
+            , 'S'
+            , '1'
+            , '1'
+            , IFNULL((SELECT id FROM aidt_lms.sp_sk_info WHERE initl_at = 'Y'), 1)
+            , 0
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = now()
+    </insert>
+
+    <insert id="insertShopGameHist" parameterType="list">
+        /* Keris.insertShopSkin - 배치 삽입 */
+        INSERT INTO `aidt_lms`.`sp_prchs_hist` (
+        user_id, user_se_cd, cla_id, prchs_gds_se_cd, inv_se_cd, rwd_se_cd, prchs_gds_id, ntsl_gds_amt
+        )
+        VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userType}
+            , #{user.claId}
+            , 'G'
+            , '1'
+            , '1'
+            , IFNULL((SELECT id FROM aidt_lms.sp_gm_info WHERE initl_at = 'Y'), 1)
+            , 0
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = now()
+    </insert>
+
+    <insert id="insertShopProfileHist" parameterType="list">
+        /* Keris.insertShopProfileHist - 배치 삽입 */
+        INSERT INTO `aidt_lms`.`sp_prchs_hist` (
+        user_id, user_se_cd, cla_id, prchs_gds_se_cd, inv_se_cd, rwd_se_cd, prchs_gds_id, ntsl_gds_amt
+        )
+        VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userType}
+            , #{user.claId}
+            , 'P'
+            , '1'
+            , '1'
+            , IFNULL((SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'), 1)
+            , 0
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = now()
+    </insert>
+
+    <insert id="insertShopSkin" parameterType="list">
+        /* Keris.sp_prchs_info - 배치 삽입 */
+        INSERT INTO `aidt_lms`.`sp_prchs_info` (
+        user_id, user_se_cd, cla_id, prchs_gds_se_cd, ht_prchs_amt, st_prchs_amt, rprs_gds_id
+        )
+        VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userType}
+            , #{user.claId}
+            , 'S'
+            , 0
+            , 0
+            , IFNULL((SELECT id FROM aidt_lms.sp_sk_info WHERE initl_at = 'Y'), 1)
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = now()
+    </insert>
+
+    <insert id="insertShopGame" parameterType="list">
+        /* Keris.insertShopSkin - 배치 삽입 */
+        INSERT INTO `aidt_lms`.`sp_prchs_info` (
+        user_id, user_se_cd, cla_id, prchs_gds_se_cd, ht_prchs_amt, st_prchs_amt, rprs_gds_id
+        )
+        VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userType}
+            , #{user.claId}
+            , 'G'
+            , 0
+            , 0
+            , IFNULL((SELECT id FROM aidt_lms.sp_gm_info WHERE initl_at = 'Y'), 1)
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = now()
+    </insert>
+
+    <insert id="insertShopProfile" parameterType="list">
+        /* Keris.insertShopProfileHist - 배치 삽입 */
+        INSERT INTO `aidt_lms`.`sp_prchs_info` (
+        user_id, user_se_cd, cla_id, prchs_gds_se_cd, ht_prchs_amt, st_prchs_amt, rprs_gds_id
+        )
+        VALUES
+        <foreach collection="list" item="user" separator=",">
+            (
+            #{user.userId}
+            , #{user.userType}
+            , #{user.claId}
+            , 'P'
+            , 0
+            , 0
+            , IFNULL((SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'), 1)
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = now()
+    </insert>
+
+    <select id="getTcClaMbInfoSt" parameterType="map" resultType="map">
+        /* Keris.getTcClaMbInfoSt */
+        SELECT tci.user_id AS userId
+             , tci.cla_id AS claId
+             , tcmi.stdt_id AS stdtId
+        FROM aidt_lms.tc_cla_info tci
+        LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON tci.cla_id = tcmi.cla_id AND tcmi.stdt_id = #{stdtId}
+        WHERE tci.cla_id = #{claId}
+    </select>
+
+    <update id="updateOverWriteClaId" parameterType="map">
+        UPDATE aidt_lms.tc_cla_info
+        SET user_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.tc_cla_mb_info
+        SET user_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.tc_textbook
+        SET wrter_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.tc_curriculum
+        SET wrter_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.tab_info
+        SET wrter_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.tc_lastlesson
+        SET wrter_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_diagnosis.tb_dgnss_info
+        SET tc_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.gl_set_info
+        SET user_id = #{trgTcId}
+        WHERE cla_id = #{claId}
+          AND user_ty = 'T';
+
+        UPDATE aidt_lms.evl_info
+        SET wrter_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        UPDATE aidt_lms.task_info
+        SET wrter_id = #{trgTcId}
+        WHERE cla_id = #{claId};
+
+        INSERT INTO aidt_lms.tc_lecture (
+            cla_id, user_id, actvtn_at, rgtr, reg_dt, mdfr, mdfy_dt
+        ) VALUES (
+                   #{claId}
+                 , #{srcTcId}
+                 , 'N'
+                 , 'system'
+                 , NOW()
+                 , 'system'
+                 , NOW()
+                 )
+            ON DUPLICATE KEY UPDATE
+                                 actvtn_at= 'N';
+
+        INSERT INTO aidt_lms.tc_lecture (
+            cla_id, user_id, actvtn_at, rgtr, reg_dt, mdfr, mdfy_dt
+        ) VALUES (
+                   #{claId}
+                 , #{trgTcId}
+                 , 'Y'
+                 , 'system'
+                 , NOW()
+                 , 'system'
+                 , NOW()
+                 )
+            ON DUPLICATE KEY UPDATE
+                                 actvtn_at= 'Y'
+                                 , mdfy_dt = NOW();
+    </update>
+
+    <select id="getUserTypeAndStatus" parameterType="map" resultType="map">
+        SELECT
+            api.textbk_cd,
+            u.user_se_cd
+        FROM aidt_lms.user u
+                 INNER JOIN aidt_lms.aidt_ptn_info api ON u.ptn_id = api.ptn_id
+        WHERE user_id = #{user_id}
+    </select>
+
+    <select id="selectPrevClaId" parameterType="map" resultType="string">
+        /* Keris.selectPrevClaId */
+        SELECT cla_id
+        FROM aidt_lms.tc_cla_info
+        WHERE user_id = #{userId}
+          AND rgtr = 'preview'
+            LIMIT 1
+    </select>
+
+    <insert id="pasteTcTextbook" parameterType="map">
+        /* Keris.pasteTcTextbook */
+        INSERT INTO aidt_lms.tc_textbook (
+            wrter_id, cla_id, smte_cd, textbk_id, textbk_idx_id, rgtr, reg_dt
+        )
+        SELECT #{tcId}
+             , #{trgtClaId}
+             , smte_cd
+             , textbk_id
+             , textbk_idx_id
+             , #{userId}
+             , NOW()
+        FROM aidt_lms.tc_textbook
+        WHERE cla_id = #{prevClaId}
+    </insert>
+
+    <insert id="pasteTcCurriculum" parameterType="map">
+        /* Keris.pasteTcCurriculum */
+        INSERT INTO aidt_lms.tc_curriculum (
+                                             wrter_id, cla_id, smte_cd, textbk_id, textbk_idx_id, textbk_idx_nm,  brand_id, `key`, `order`, parent
+                                           , droppable, child_depth, tabIndex, `depth`, `text`, startPage, endPage, use_at
+                                           , del_at, addcon_at, rgtr, reg_dt
+                                           , curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5
+        )
+        SELECT #{tcId}, #{trgtClaId}, smte_cd, textbk_id, textbk_idx_id, textbk_idx_nm,  brand_id, `key`, `order`, parent
+             , droppable, child_depth, tabIndex, `depth`, `text`, startPage, endPage, use_at
+             , del_at, addcon_at, #{tcId}, NOW()
+             , curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5
+        FROM aidt_lms.tc_curriculum
+        WHERE cla_id = #{prevClaId}
+    </insert>
+
+    <insert id="pasteTabInfo" parameterType="map">
+        /* Keris.pasteTabInfo */
+        insert into aidt_lms.tab_info (
+                                        wrter_id, cla_id, smte_cd, textbk_id, crcul_id, tab_nm, tab_seq, thm_cd, thm_path
+                                      , sets_id, use_at
+                                      , expos_at
+                                      , setCategory, rgtr, reg_dt
+                                      , ebk_id, ebk_use_at, startPage, endPage, thm_desc
+        )
+        SELECT #{tcId}, #{trgtClaId}, smte_cd, textbk_id, crcul_id, tab_nm, tab_seq, thm_cd, thm_path
+             , sets_id, use_at
+             , expos_at
+             , setCategory, #{tcId}, NOW()
+             , ebk_id, ebk_use_at, startPage, endPage, thm_desc
+        FROM aidt_lms.tab_info
+        WHERE cla_id = #{prevClaId}
+    </insert>
+
+    <select id="selectStdtList" parameterType="map" resultType="string">
+        /* Keris.selectStdtList */
+        SELECT stdt_id
+        FROM aidt_lms.tc_cla_mb_info
+        WHERE cla_id = #{trgtClaId}
+    </select>
+
+    <insert id="pasteEvlInfo" parameterType="map">
+        /* Keris.pasteEvlInfo */
+        INSERT INTO aidt_lms.evl_info (
+            wrter_id, cla_id, textbook_id, evl_nm, evl_se_cd, sets_id, pd_evl_st_dt, pd_evl_ed_dt,
+            evl_prg_dt, evl_cp_dt, mrk_cp_dt, tim_time, eam_mth, eam_trget, eam_exm_num, pd_set_at, tim_st_at,
+            rwd_set_at, evl_stdr_set, rgtr, mdfr, rpt_auto_othbc_at, evl_stts_cd, tmpr_strg_at
+        )
+        SELECT #{tcId}, #{trgtClaId}, textbook_id, evl_nm, evl_se_cd, sets_id, NULL, NULL,
+               NULL, NULL, NULL, NULL, eam_mth, eam_trget, eam_exm_num, pd_set_at, tim_st_at,
+               rwd_set_at, evl_stdr_set, #{tcId}, #{tcId}, rpt_auto_othbc_at,
+               '1' AS evl_stts_cd,
+               CASE
+                   WHEN sets_id REGEXP '^[0-9]+$' THEN tmpr_strg_at
+                   ELSE 'Y'
+                   END AS tmpr_strg_at
+        FROM aidt_lms.evl_info
+        WHERE cla_id = #{prevClaId}
+    </insert>
+
+    <insert id="pasteTaskInfo" parameterType="map">
+        /* Keris.pasteTaskInfo */
+        INSERT INTO aidt_lms.task_info (
+                                         wrter_id, cla_id, textbk_id , task_nm, sets_id, pd_evl_st_dt, pd_evl_ed_dt, tim_time
+                                       , eam_mth, eam_trget, eam_exm_num, tim_st_at, rwd_set_at, task_stts_cd, rgtr, mdfr
+                                       , task_prg_dt, task_cp_dt, tmpr_strg_at, rpt_auto_othbc_at
+        )
+        SELECT #{tcId}, #{trgtClaId}, textbk_id , task_nm, sets_id, pd_evl_st_dt, pd_evl_ed_dt, tim_time
+             , eam_mth, eam_trget, eam_exm_num, tim_st_at, rwd_set_at, '1', #{tcId}, #{tcId}
+             , task_prg_dt, task_cp_dt, tmpr_strg_at, rpt_auto_othbc_at
+        FROM aidt_lms.task_info
+        WHERE cla_id = #{prevClaId}
+    </insert>
+
+    <select id="selectEvlIdList" parameterType="map" resultType="int">
+        /* Keris.selectEvlIdList */
+        SELECT id
+        FROM aidt_lms.evl_info
+        WHERE cla_id = #{claId}
+        ORDER BY id
+    </select>
+
+    <select id="selectEvlIemInfo" parameterType="map" resultType="map">
+        /* Keris.selectEvlIemInfo */
+        SELECT evl_id
+        , sub_id
+        , evl_iem_id
+        , evl_iem_scr
+        , mrk_ty
+        FROM aidt_lms.evl_iem_info
+        WHERE evl_id IN (<foreach item="evlId" collection="evlIdList" separator=",">#{evlId}</foreach>)
+        ORDER BY id
+    </select>
+
+    <insert id="insertEvlIemInfoBulk" parameterType="map">
+        /* Keris.insertEvlIemInfoBulk */
+        INSERT INTO aidt_lms.evl_iem_info
+        (
+        evl_id, sub_id, evl_iem_id, evl_iem_scr, mrk_ty, rgtr, mdfr
+        )
+        VALUES
+        <foreach collection="evlIemInfoList" item="list" separator=",">
+            (
+            #{list.evl_id}
+            , #{list.sub_id}
+            , #{list.evl_iem_id}
+            , #{list.evl_iem_scr}
+            , #{list.mrk_ty}
+            , 'system'
+            , 'system'
+            )
+        </foreach>
+    </insert>
+
+    <select id="getPrevClaId" parameterType="map" resultType="string">
+        /* Keris.getPrevClaId */
+        SELECT cla_id
+        FROM aidt_lms.tc_cla_info
+        WHERE user_id = #{user_id}
+          AND rgtr = 'preview'
+        LIMIT 1
+    </select>
+
+    <select id="getRegularClaExistsYn" parameterType="map" resultType="string">
+        /* Keris.getRegularClaExistsYn */
+        SELECT IFNULL( (
+            SELECT 'Y'
+            FROM tc_cla_user_info tcui
+            INNER JOIN tc_cla_info tci ON tcui.cla_id = tci.cla_id
+            INNER JOIN aidt_lms.tc_textbook tt ON tcui.cla_id = tt.cla_id
+            WHERE tci.rgtr != 'preview'
+            AND tcui.user_id = #{user_id}
+            LIMIT 1
+        ), 'N')
+    </select>
+
+    <select id="selectTcClaUserInfo" parameterType="map" resultType="map">
+        SELECT
+            user_id as userId
+             , cla_id as claId
+             , ref_tc_type as refTcType
+        FROM aidt_lms.tc_cla_user_info
+        WHERE user_id = #{userId}
+          AND cla_id = #{claId}
+    </select>
+
+    <select id="selectTcClaMainInfo" parameterType="map" resultType="map">
+        SELECT
+            user_id as userId
+             , cla_id as claId
+             , ref_tc_type as refTcType
+        FROM aidt_lms.tc_cla_user_info
+        WHERE ref_tc_type = 'Y'
+          AND claId = #{claId}
+    </select>
+
+
+    <!-- 활성화된 주교사 수 조회 -->
+    <select id="selectTcClaUserHistCount" parameterType="map" resultType="int">
+        SELECT COUNT(1)
+        FROM aidt_lms.tc_cla_user_hist
+        WHERE cla_id = #{claId}
+          AND main_sub_flag = 'Y'
+          AND user_status = 'A'
+    </select>
+
+    <select id="selectTcClaUserTeachHistCount" parameterType="map" resultType="int">
+        SELECT COUNT(1)
+        FROM aidt_lms.tc_cla_user_hist
+        WHERE cla_id = #{claId}
+          AND user_id = #{userId}
+          AND user_status = 'A'
+    </select>
+
+    <!-- 사용자 정보 조회 -->
+    <select id="selectTcClaUserInfoCheck" parameterType="map" resultType="int">
+        SELECT COUNT(1)
+        FROM aidt_lms.tc_cla_user_info
+        WHERE cla_id = #{claId}
+          AND user_id = #{userId}
+    </select>
+
+    <!-- 히스토리 테이블 삽입 -->
+    <insert id="insertTcClaUserHist" parameterType="map">
+        INSERT INTO aidt_lms.tc_cla_user_hist(
+            user_id,
+            cla_id,
+            main_sub_flag,
+            user_status,
+            change_st_dt,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        ) VALUES (
+                     #{userId},
+                     #{claId},
+                     #{mainSubFlag},
+                     #{userStatus},
+                     NOW(),
+                     #{userId},
+                     NOW(),
+                     #{userId},
+                     NOW()
+                 )
+    </insert>
+
+    <!-- 사용자 정보 테이블 삽입 -->
+    <insert id="insertTcClaUserInfo" parameterType="map">
+        INSERT INTO aidt_lms.tc_cla_user_info(
+            user_id,
+            cla_id,
+            activeyn,
+            ref_tc_type,
+            main_sub_flag,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        ) VALUES (
+                     #{userId},
+                     #{claId},
+                     #{activeyn},
+                     #{refTcType},
+                     #{mainSubFlag},
+                     #{userId},
+                     NOW(),
+                     #{userId},
+                     NOW()
+                 )
+    </insert>
+
+    <!-- 히스토리 테이블에서 특정 사용자를 나간 상태로 업데이트 -->
+    <update id="updateTcClaUserHistToLeave" parameterType="map">
+        UPDATE aidt_lms.tc_cla_user_hist
+        SET user_status = 'L',
+            change_end_dt = NOW(),
+            mdfr = #{userId},
+            mdfy_dt = NOW()
+        WHERE cla_id = #{claId}
+          AND user_id = #{userId}
+          AND user_status = 'A'
+    </update>
+
+    <!-- 히스토리 테이블에서 주교사들을 나간 상태로 업데이트 -->
+    <update id="updateTcClaUserHistMainTeacherToLeave" parameterType="map">
+        UPDATE aidt_lms.tc_cla_user_hist
+        SET user_status = 'L',
+            change_end_dt = NOW(),
+            mdfr = 'system',
+            mdfy_dt = NOW()
+        WHERE cla_id = #{claId}
+          AND main_sub_flag = 'Y'
+          AND user_status = 'A'
+    </update>
+
+    <!-- 사용자 정보 테이블에서 주교사들을 빈값으로 업데이트 -->
+    <update id="updateTcClaUserInfoMainTeacherToEmpty" parameterType="map">
+        UPDATE aidt_lms.tc_cla_user_info
+        SET main_sub_flag = '',
+            mdfr = 'system',
+            mdfy_dt = NOW()
+        WHERE cla_id = #{claId}
+          AND main_sub_flag = 'Y'
+    </update>
+
+    <!-- 사용자 정보 테이블 업데이트 -->
+    <update id="updateTcClaUserInfo" parameterType="map">
+        UPDATE aidt_lms.tc_cla_user_info
+        SET main_sub_flag = #{mainSubFlag},
+            mdfr = #{userId},
+            mdfy_dt = NOW()
+        WHERE cla_id = #{claId}
+          AND user_id = #{userId}
+    </update>
+
+    <select id="selectCurrentTeacherRole" parameterType="map" resultType="string">
+        SELECT main_sub_flag
+        FROM aidt_lms.tc_cla_user_hist
+        WHERE user_id = #{userId}
+          AND cla_id = #{claId}
+          AND user_status = 'A'
+        ORDER BY reg_dt DESC
+            LIMIT 1
+    </select>
+
+    <select id="getSelectClaInfo" parameterType="map" resultType="map">
+        SELECT user_id
+        , cla_id
+        FROM aidt_lms.tc_cla_info
+        WHERE 1=1
+          AND cla_id = #{claId}
+          AND user_id = #{userId}
+    </select>
+
+    <update id="upsertTcClaUserInfo" parameterType="map">
+        INSERT INTO aidt_lms.tc_cla_user_info (
+            cla_id, user_id, activeyn, ref_tc_type
+        ) VALUES (
+             #{claId}, #{userId}, 'Y', CASE WHEN EXISTS (SELECT 1 FROM tc_cla_info WHERE user_id = #{userId} AND cla_id = #{claId}) THEN 'Y' ELSE 'N' END
+        )
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = NOW()
+    </update>
+
+    <select id="getTextbookInfo" parameterType="map" resultType="map">
+        /* KerisApiMapper.tcClaUserInfoMappingStatusInfo */
+        SELECT 1
+        FROM aidt_lms.aidt_ptn_info
+        WHERE ptn_id = #{ptn_id}
+          AND textbk_cd NOT IN ('englmi1', 'mathmi1')
+    </select>
+
+    <!-- 그룹 매핑 정보 조회 -->
+    <select id="getGroupMappingInfo" parameterType="map" resultType="map">
+        /* KerisApiMapper.getGroupMappingInfo */
+        SELECT *
+        FROM tc_cla_group_info
+        WHERE cla_id = #{cla_id}
+    </select>
+
+    <!-- 1학기 강의목록 조회 (매핑이 없을 경우) -->
+    <select id="getFirstSemesterLectureList" parameterType="map" resultType="map">
+        /* KerisApiMapper.getFirstSemesterLectureList */
+        SELECT
+            a.cla_id AS claId,
+            a.course_rm_cd AS courseRmCd,
+            a.user_id AS userId,
+            (CASE
+                 WHEN (SELECT tcgi.cla_id
+                       FROM aidt_lms.tc_cla_group_info tcgi
+                       WHERE a.cla_id = tcgi.origin_cla_id) IS NOT NULL
+                     THEN 'Y'
+                 ELSE 'N'
+                END) AS mappingYn
+        FROM aidt_lms.tc_cla_info a
+             INNER JOIN aidt_lms.tc_reg_info tr ON a.user_id = tr.user_id
+             INNER JOIN aidt_lms.tc_textbook tt ON a.cla_id = tt.cla_id
+             INNER JOIN aidt_lms.user u on tr.user_id = u.user_id
+        WHERE a.smt = 1
+          AND a.rgtr != 'preview'
+        AND tr.schl_cd = (
+            -- 같은 학교
+            SELECT tri.schl_cd
+            FROM aidt_lms.tc_reg_info tri
+            WHERE tri.user_id = #{user_id}
+        )
+        AND tt.textbk_id = (
+            -- 같은 교과서
+            SELECT tt.textbk_id
+            FROM aidt_lms.tc_cla_user_info tcui
+                INNER JOIN aidt_lms.tc_textbook tt ON tcui.cla_id = tt.cla_id
+            WHERE tcui.user_id = #{user_id}
+            LIMIT 1
+        );
+    </select>
+
+    <!-- 매핑 데이터 셋팅 관련 쿼리들 -->
+    <select id="getClaIdFromLectureCode" parameterType="map" resultType="map">
+        /* KerisApiMapper.getClaIdFromLectureCode */
+        SELECT user_id AS userId, cla_id AS claId, yr
+        FROM aidt_lms.tc_cla_info
+        WHERE cla_id = #{claId}
+        LIMIT 1
+    </select>
+
+    <insert id="insertTcClaGroupInfo" parameterType="map">
+        /* KerisApiMapper.insertTcClaGroupInfo */
+        INSERT INTO aidt_lms.tc_cla_group_info (
+            origin_cla_id,
+            cla_id,
+            yr,
+            smt,
+            group_index,
+            user_id,
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        ) VALUES (
+            #{originClaId},
+            #{claId},
+            #{yr},
+            #{smt},
+            #{groupIndex},
+            #{userId},
+            'system',
+            NOW(),
+            'system',
+            NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            mdfy_dt = NOW(),
+            mdfr = 'system'
+    </insert>
+
+    <select id="getGroupClaInfo" parameterType="map" resultType="map">
+        /* KerisApiMapper.getGroupClaInfo */
+        SELECT 
+            origin_cla_id AS originClaId,
+            cla_id AS claId,
+            smt,
+            group_index AS groupIndex
+        FROM aidt_lms.tc_cla_group_info 
+        WHERE user_id = #{user_id}
+        ORDER BY smt
+    </select>
+
+    <update id="updateTcClaMbInfoActivation" parameterType="map">
+        /* KerisApiMapper.updateTcClaMbInfoActivation */
+        UPDATE aidt_lms.tc_cla_mb_info
+        SET actvtn_at = #{actvtnAt},
+            mdfy_dt = NOW(),
+            mdfr = 'system'
+        WHERE cla_id = #{claId}
+          AND yr = #{yr}
+          AND smt = #{smt}
+    </update>
+
+    <select id="getTcClaGroupInfo" parameterType="map" resultType="map">
+        /* KerisApiMapper.getTcClaGroupInfo */
+        SELECT origin_cla_id AS originClaId
+                , cla_id AS claId
+        FROM tc_cla_group_info
+        WHERE cla_id = #{claId}
+    </select>
+
+</mapper>

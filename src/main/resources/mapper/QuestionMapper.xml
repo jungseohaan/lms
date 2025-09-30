@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.QuestionMapper">
+    <select id="findQuestionList" parameterType="map" resultType="camelHashMap">
+    /* QuestionMapper.findQuestionList */
+    select
+        distinct
+            g.id,
+            a.sub_id,
+            a.thumbnail, /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+            (select m.val from aidt_lcms.meta m where m.id = c.meta_id) as difyNm,
+            (select m.val from aidt_lcms.meta m where m.id = f.meta_id) as questionTypeNm
+    from
+        (
+            select
+                a.thumbnail,
+                b.article_id,
+                b.sub_id,
+                max(if(b.meta_name = 'studyMap1',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap1,
+                max(if(b.meta_name = 'studyMap_1',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap_1,
+                max(if(b.meta_name = 'studyMap_2',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap_2,
+                max(if(b.meta_name = 'difficulty',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as difficulty
+            from
+                aidt_lcms.article a
+                inner join aidt_lcms.article_meta_map b
+                    on a.id = b.article_id
+                        /* 대분류, 지식요인, 유형, 난이도 */
+                        and b.meta_name in ('studyMap1','studyMap_1','studyMap_2','questionType','difficulty')
+                        /* 문항교체, 다른문제풀기시 대상이 되는 아티클의 is_active, is_publicOpen은 체크 안하는게 맞을것 같음 */
+                        /* 학습중인 아티클이 미노출 이라고 해서 제외되는건 아닌것 같아서 */
+                        /*
+                        and a.is_active = 1
+                        and a.is_publicOpen = 1
+                        */
+                        and b.sub_id = 0
+            where
+                1=1
+                and a.id = #{articleId}
+            group by
+                b.article_id
+        ) a
+        inner join aidt_lcms.article_meta_map b
+            on b.meta_name = 'studyMap1' /* 대분류(단원) */
+                and b.meta_id = a.studyMap1
+                and b.sub_id = 0
+        inner join aidt_lcms.article_meta_map c
+            on b.article_id = c.article_id
+                and b.sub_id = c.sub_id
+                and c.meta_name = 'difficulty' /* 난이도 */
+                and c.meta_id = a.difficulty
+        inner join aidt_lcms.article_meta_map d
+            on b.article_id = d.article_id
+                and b.sub_id = d.sub_id
+                and d.meta_name = 'studyMap_1' /* 학습맵(지식요인) */
+                and d.meta_id = a.studyMap_1
+        inner join aidt_lcms.article_meta_map e
+            on b.article_id = e.article_id
+                and b.sub_id = e.sub_id
+                and e.meta_name = 'studyMap_2' /* 학습맵(유형) */
+        <choose>
+            <when test=' gbCd == 2 '>
+                and e.meta_id <![CDATA[<>]]> a.studyMap_2 /* 유형이 다른 조건 */
+            </when>
+            <otherwise>
+                and e.meta_id = a.studyMap_2 /* 유형이 같은 조건 */
+            </otherwise>
+        </choose>
+        inner join aidt_lcms.article_meta_map f
+            on b.article_id = f.article_id
+                and b.sub_id = f.sub_id
+                and f.meta_name = 'questionType'
+                and f.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+        inner join aidt_lcms.article_meta_map h
+            on b.article_id = h.article_id
+                and b.sub_id = h.sub_id
+                and h.meta_name = 'articleCategory'
+                and h.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+        inner join aidt_lcms.article g
+            on b.article_id = g.id
+                and g.is_publicOpen = 1
+                and g.is_active = 1
+    where
+        1=1
+        and g.id <![CDATA[<>]]> a.article_id
+        and g.articleType in (
+            select id from aidt_lcms.meta where name = 'articleType' and code = 'question' /* 유형(문항) */
+        )
+        and g.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+        and (g.id,0) not in (
+						select distinct t3.evl_iem_id as articleId, t3.sub_id
+                                 from aidt_lms.evl_info t1
+                                 join aidt_lms.evl_result_info t2 on t2.evl_id = t1.id
+                                 join aidt_lms.evl_result_detail t3 on t3.evl_result_id = t2.id and t3.mrk_ty = 1
+                                 where 1=1
+                                      and t1.cla_id = #{claId}
+                                      and t1.textbook_id = #{textbkId}
+                                      and t2.mamoym_id = #{mamoymId}
+                                      and t3.sub_id = 0
+                          union all
+                              select distinct t3.task_iem_id as articleId, t3.sub_id
+                              from aidt_lms.task_info t1
+                              join aidt_lms.task_result_info t2 on t2.task_id = t1.id
+                              join aidt_lms.task_result_detail t3 on t3.task_result_id = t2.id and t3.mrk_ty = 1
+                             where 1=1
+                                    and t1.cla_id = #{claId}
+                                    and t1.textbk_id = #{textbkId}
+                                    and t2.mamoym_id = #{mamoymId}
+                                    and t3.sub_id = 0
+                          union all
+                              select distinct t3.dta_iem_id as articleId, t3.sub_id
+                             from aidt_lms.tab_info t1
+                               join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                               join aidt_lms.std_dta_result_detail t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1
+                               where 1=1
+                                    and t1.cla_id = #{claId}
+                                    and t1.textbk_id = #{textbkId}
+                                    and t2.mamoym_id = #{mamoymId}
+                                    and t3.sub_id = 0
+                          union all
+                              select distinct t3.dta_iem_id as articleId, t3.sub_id
+                             from aidt_lms.tab_info t1
+                               join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                               join aidt_lms.std_dta_result_hist t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1
+                               where 1=1
+                                    and t1.cla_id = #{claId}
+                                    and t1.textbk_id = #{textbkId}
+                                    and t2.mamoym_id = #{mamoymId}
+                                    and t3.sub_id = 0
+        )
+    order by g.id asc
+    limit #{limitNum}
+    </select>
+
+    <!-- 다른문제풀기 - frequency 적용 -->
+    <select id="findQuestionList2" parameterType="map" resultType="camelHashMap">
+    /* QuestionMapper.findQuestionList2 */
+    select
+        distinct
+            g.id,
+            a.sub_id,
+            a.thumbnail, /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+            (select m.val from aidt_lcms.meta m where m.id = c.meta_id) as difyNm,
+            (select m.val from aidt_lcms.meta m where m.id = f.meta_id) as questionTypeNm,
+            (
+                select sum(cnt) from (
+                    /* 평가에 출제이력이 있는 문항 */
+                    select count(*) cnt
+                    from aidt_lms.evl_info t1
+                    join aidt_lms.evl_result_info t2 on t2.evl_id = t1.id
+                    join aidt_lms.evl_result_detail t3 on t3.evl_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                    where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbook_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.evl_iem_id = g.id
+                        and t3.sub_id = 0
+                    union all
+                    /* 과제에 출제이력이 있는 문항 */
+                    select count(*) cnt
+                    from aidt_lms.task_info t1
+                    join aidt_lms.task_result_info t2 on t2.task_id = t1.id
+                    join aidt_lms.task_result_detail t3 on t3.task_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                    where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.task_iem_id = g.id
+                        and t3.sub_id = 0
+                    union all
+                    /* 수업에 출제이력이 있는 문항 */
+                    select count(*) cnt
+                    from aidt_lms.tab_info t1
+                    join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                    join aidt_lms.std_dta_result_detail t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                    where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.dta_iem_id = g.id
+                        and t3.sub_id = 0
+                    union all
+                    select count(*) cnt
+                    from aidt_lms.tab_info t1
+                    join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                    join aidt_lms.std_dta_result_hist t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                    where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.dta_iem_id = g.id
+                        and t3.sub_id = 0
+                ) k
+            ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+    from
+        (
+            select
+                a.thumbnail,
+                b.article_id,
+                b.sub_id,
+                max(if(b.meta_name = 'studyMap1',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap1,
+                max(if(b.meta_name = 'studyMap_1',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap_1,
+                max(if(b.meta_name = 'studyMap_2',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as studyMap_2,
+                max(if(b.meta_name = 'difficulty',(select id from aidt_lcms.meta where id = b.meta_id), 0)) as difficulty
+            from
+                aidt_lcms.article a
+                inner join aidt_lcms.article_meta_map b
+                    on a.id = b.article_id
+                        /* 대분류, 지식요인, 유형, 난이도 */
+                        and b.meta_name in ('studyMap1','studyMap_1','studyMap_2','questionType','difficulty')
+                        /* 문항교체, 다른문제풀기시 대상이 되는 아티클의 is_active, is_publicOpen은 체크 안하는게 맞을것 같음 */
+                        /* 학습중인 아티클이 미노출 이라고 해서 제외되는건 아닌것 같아서 */
+                        /*
+                        and a.is_active = 1
+                        and a.is_publicOpen = 1
+                        */
+                        and b.sub_id = 0
+            where
+                1=1
+                and a.id = #{articleId}
+            group by
+                b.article_id
+        ) a
+        inner join aidt_lcms.article_meta_map b
+            on b.meta_name = 'studyMap1' /* 대분류(단원) */
+                and b.meta_id = a.studyMap1
+                and b.sub_id = 0
+        inner join aidt_lcms.article_meta_map c
+            on b.article_id = c.article_id
+                and b.sub_id = c.sub_id
+                and c.meta_name = 'difficulty' /* 난이도 */
+                and c.meta_id = a.difficulty
+        inner join aidt_lcms.article_meta_map d
+            on b.article_id = d.article_id
+                and b.sub_id = d.sub_id
+                and d.meta_name = 'studyMap_1' /* 학습맵(지식요인) */
+                and d.meta_id = a.studyMap_1
+        inner join aidt_lcms.article_meta_map e
+            on b.article_id = e.article_id
+                and b.sub_id = e.sub_id
+                and e.meta_name = 'studyMap_2' /* 학습맵(유형) */
+                and e.meta_id = a.studyMap_2 /* 유형이 같은 조건 */
+        inner join aidt_lcms.article_meta_map f
+            on b.article_id = f.article_id
+                and b.sub_id = f.sub_id
+                and f.meta_name = 'questionType'
+                and f.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+        inner join aidt_lcms.article_meta_map h
+            on b.article_id = h.article_id
+                and b.sub_id = h.sub_id
+                and h.meta_name = 'articleCategory'
+                and h.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+        inner join aidt_lcms.article g
+            on b.article_id = g.id
+                and g.is_publicOpen = 1
+                and g.is_active = 1
+    where 1=1
+        and g.articleType in (
+            select id from aidt_lcms.meta where name = 'articleType' and code = 'question' /* 유형(문항) */
+        )
+        and g.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+    order by frequency, g.id desc
+    limit #{limitNum}
+    </select>
+
+    <!-- 다른문제풀기 -->
+    <!-- 아티클(유사,쌍둥이) 맵(article_article_map) 사용 -->
+    <select id="findQuestionList3" parameterType="map" resultType="camelHashMap">
+        /* QuestionMapper.findQuestionList3 */
+        select
+            g.id,
+            g.sub_id,
+            g.thumbnail, /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+            (select m.val from aidt_lcms.meta m where m.id = g.difficulty) as difyNm,
+            (select m.val from aidt_lcms.meta m where m.id = g.questionType) as questionTypeNm,
+            (
+                select sum(cnt) from (
+                     /* 평가에 출제이력이 있는 문항 */
+                     select count(*) cnt
+                     from aidt_lms.evl_info t1
+                          join aidt_lms.evl_result_info t2 on t2.evl_id = t1.id
+                          join aidt_lms.evl_result_detail t3 on t3.evl_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                     where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbook_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.evl_iem_id = g.id
+                        and t3.sub_id = 0
+                     union all
+                     /* 과제에 출제이력이 있는 문항 */
+                     select count(*) cnt
+                     from aidt_lms.task_info t1
+                          join aidt_lms.task_result_info t2 on t2.task_id = t1.id
+                          join aidt_lms.task_result_detail t3 on t3.task_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                     where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.task_iem_id = g.id
+                        and t3.sub_id = 0
+                     union all
+                     /* 수업에 출제이력이 있는 문항 */
+                     select count(*) cnt
+                     from aidt_lms.tab_info t1
+                          join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                          join aidt_lms.std_dta_result_detail t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                     where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.dta_iem_id = g.id
+                        and t3.sub_id = 0
+                     union all
+                     select count(*) cnt
+                     from aidt_lms.tab_info t1
+                          join aidt_lms.std_dta_result_info t2 on t2.textbk_tab_id = t1.id
+                          join aidt_lms.std_dta_result_hist t3 on t3.dta_result_id = t2.id and t3.mrk_ty = 1 /* 자동 채점 유형 */
+                     where 1=1
+                        and t1.cla_id = #{claId}
+                        and t1.textbk_id = #{textbkId}
+                        and t2.mamoym_id = #{mamoymId}
+                        and t3.dta_iem_id = g.id
+                        and t3.sub_id = 0
+                ) k
+            ) as frequency /* 자동문항 출제 빈도수 */
+        from
+        (
+                /*
+                    다른문제풀기 : 추출조건(대단원,난이도,지식요인,유형 동일, 비교과 / 연쇄형 제외, 문항유형)
+
+                    type : 0(유사문항), 1(쌍둥이)
+                    - 일단 유사문항으로 처리. 다른문제풀기는 쌍둥이 조건으로 처리하는게 맞는것 같은데 추후 확인해서 처리하기 바람.
+                */
+                select
+                    c.thumbnail,
+                    c.id,
+                    0 as sub_id,
+                    d.meta_id as difficulty,
+                    e.meta_id as questionType
+                from aidt_lcms.article a
+                     inner join aidt_lcms.article_article_map b /* 아티클(유사,쌍둥이) 맵 */
+                        on a.id = b.article_id_a and b.`type` = 0 /* 0:유사문항, 1:쌍둥이 */
+                     inner join aidt_lcms.article c
+                        on c.id = b.article_id_b
+                     inner join aidt_lcms.article_meta_map d
+                        on c.id = d.article_id
+                            and d.sub_id = 0
+                            and d.meta_name = 'difficulty' /* 난이도 */
+                     inner join aidt_lcms.article_meta_map e
+                        on c.id = e.article_id
+                            and e.sub_id = 0
+                            and e.meta_name = 'questionType'
+                where 1=1
+                  and a.id = #{articleId}
+        ) g
+        order by frequency, g.id desc
+        limit #{limitNum}
+    </select>
+
+    <select id="findTabInfo" parameterType="map" resultType="camelHashMap">
+        /* findTabInfo.QuestionMapper */
+        select ti.wrter_id, ti.cla_id, ti.textbk_id, sdri.mamoym_id
+        from aidt_lms.tab_info ti
+        join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+        join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+        where sdrd.id = #{detailId}
+    </select>
+
+</mapper>

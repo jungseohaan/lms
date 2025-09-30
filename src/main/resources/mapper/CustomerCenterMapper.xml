@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.operation.mapper.CustomerCenterMapper">
+
+    <select id="getCustomerNotice" parameterType="map" resultType="com.visang.aidt.lms.api.operation.dto.NoticeInfoDto">
+        select  /* CustomerCenterMapper getCustomerNotice */
+            main.notice_id          as noticeId
+             , main.title           as title
+             , main.link            as link
+             , main.is_pinned       as isPinned
+             , main.rgtr            as rgtr
+             , main.reg_dt          as regDt
+             , main.mdfr            as mdfr
+             , main.mdfy_dt         as mdfyDt
+            , (select count(f.customer_file_id) from
+                notice_file f, customer_file_info fi
+                where f.customer_file_id = fi.customer_file_id
+                and fi.file_type_cd = '100'
+                and f.notice_id = main.notice_id
+             )                   as fileCnt
+        from cs_notice_info main
+        where main.is_visible = 'Y'
+          and main.is_deleted = 'N'
+          and (
+            main.school_level_cd like '%A%'
+            <if test='schoolLevelCd != null and schoolLevelCd != "A" and schoolLevelCd != null and schoolLevelCd != ""'>
+                or main.school_level_cd like concat('%', #{schoolLevelCd}, '%')
+            </if>
+          )
+          and main.expos_trgt_cd in ('A', #{exposTrgtCd})
+          and main.brand_id in ('A', #{brandId})
+        <if test="search != null and search != ''">
+          AND (
+            main.title like concat('%', #{search}, '%')
+            OR main.content like concat('%', #{search}, '%')
+        )
+        </if>
+        order by main.is_pinned DESC,       -- 'Y' 먼저, 'N' 나중
+                 main.pin_order ASC,        -- 고정공지 우선순위
+                 main.notice_id DESC           -- 일반 공지 최신순
+            limit #{pageSize}
+        offset #{offset}
+    </select>
+
+    <select id="getCustomerNoticeCnt" parameterType="map" resultType="int">
+        select  /* CustomerCenterMapper getCustomerNoticeCnt */
+            count(main.notice_id)
+        from cs_notice_info main
+        where main.is_visible = 'Y'
+          and main.is_deleted = 'N'
+          and (
+            main.school_level_cd like '%A%'
+            <if test='schoolLevelCd != null and schoolLevelCd != "A" and schoolLevelCd != null and schoolLevelCd != ""'>
+                or main.school_level_cd like concat('%', #{schoolLevelCd}, '%')
+            </if>
+          )
+          and main.expos_trgt_cd in ('A', #{exposTrgtCd})
+          and main.brand_id in ('A', #{brandId})
+        <if test="search != null and search != ''">
+            and (
+            main.title like concat('%', #{search}, '%')
+            OR main.content like concat('%', #{search}, '%')
+            )
+        </if>
+    </select>
+
+    <select id="getCustomerNoticeDtl" parameterType="map" resultType="com.visang.aidt.lms.api.operation.dto.NoticeInfoDto">
+        select  /* CustomerCenterMapper getCustomerNoticeDtl */
+            main.notice_id       as noticeId
+             , main.title           as title
+             , main.content         as content
+             , main.link            as link
+             , main.rgtr            as rgtr
+             , main.reg_dt          as regDt
+             , main.mdfr            as mdfr
+             , main.mdfy_dt         as mdfyDt
+        from cs_notice_info main
+        where main.is_visible = 'Y'
+          and main.is_deleted = 'N'
+          and main.notice_id = #{noticeId}
+    </select>
+
+    <select id="getCustomerNoticeFile" parameterType="map" resultType="map">
+        select  /* CustomerCenterMapper getCustomerNoticeFile */
+            b.file_nm                           as fileNm
+             ,   concat(#{cloudAwsS3Url},  b.url )   as url
+        from notice_file a, customer_file_info b
+        where a.customer_file_id = b.customer_file_id
+          and a.notice_id = #{noticeId}
+          and b.file_type_cd = '100'
+    </select>
+
+    <select id="getCustomerFaq" parameterType="map" resultType="com.visang.aidt.lms.api.operation.dto.FaqInfoDto">
+        select  /* CustomerCenterMapper getCustomerFaq */
+            main.faq_id       as faqId
+             , main.title           as title
+             , main.category        as category
+             , ( select code_nm from aidt_lms.se_code
+                 where code_gb_cd = 'cs_faq_category'
+                   and code_cd = main.category ) as categoryNm
+             , main.link            AS link
+             , main.rgtr            as rgtr
+             , main.reg_dt          as regDt
+             , main.mdfr            as mdfr
+             , main.mdfy_dt         as mdfyDt
+             , (select count(f.customer_file_id) from
+                aidt_lms.faq_file f, aidt_lms.customer_file_info fi
+                where f.customer_file_id = fi.customer_file_id
+                and fi.file_type_cd = '100'
+                and f.faq_id = main.faq_id
+                )                   as fileCnt
+        from
+            cs_faq_info main
+        where main.is_visible = 'Y'
+          and main.is_deleted = 'N'
+          <if test="category != null and category != ''">
+            and main.category = #{category}
+          </if>
+          and (
+            main.school_level_cd like '%A%'
+            <if test='schoolLevelCd != null and schoolLevelCd != "A" and schoolLevelCd != null and schoolLevelCd != ""'>
+                or main.school_level_cd like concat('%', #{schoolLevelCd}, '%')
+            </if>
+          )
+          and main.expos_trgt_cd in ('A', #{exposTrgtCd})
+          and main.brand_id in ('A', #{brandId})
+        <if test="search != null and search != ''">
+            AND (
+            main.title like concat('%', #{search}, '%')
+            OR main.content like concat('%', #{search}, '%')
+            )
+        </if>
+        order by
+                 main.pin_order DESC
+            limit #{pageSize}
+        offset #{offset}
+    </select>
+
+    <select id="getCustomerFaqCnt" parameterType="map" resultType="int">
+        select  /* CustomerCenterMapper getCustomerFaqCnt */
+            count(main.faq_id)
+        from cs_faq_info main
+        where main.is_visible = 'Y'
+          and main.is_deleted = 'N'
+          and (
+            main.school_level_cd like '%A%'
+            <if test='schoolLevelCd != null and schoolLevelCd != "A" and schoolLevelCd != null and schoolLevelCd != ""'>
+                or main.school_level_cd like concat('%', #{schoolLevelCd}, '%')
+            </if>
+          )
+          <if test="category != null and category != ''">
+            and main.category = #{category}
+          </if>
+          and main.expos_trgt_cd in ('A', #{exposTrgtCd})
+          and main.brand_id in ('A', #{brandId})
+          <if test="search != null and search != ''">
+            AND (
+                main.title like concat('%', #{search}, '%')
+                OR main.content like concat('%', #{search}, '%')
+            )
+          </if>
+    </select>
+
+    <select id="getCustomerFaqDtl" parameterType="map" resultType="com.visang.aidt.lms.api.operation.dto.FaqInfoDto">
+        select  /* CustomerCenterMapper getCustomerFaqDtl */
+            main.faq_id       as faqId
+             , main.title           as title
+             , main.content         as content
+             , main.category        as category
+             , ( select code_nm from aidt_lms.se_code
+                 where code_gb_cd = 'cs_faq_category'
+                   and code_cd = main.category ) as categoryNm
+             , main.link            as link
+             , main.rgtr            as rgtr
+             , main.reg_dt          as regDt
+             , main.mdfr            as mdfr
+             , main.mdfy_dt         as mdfyDt
+        from cs_faq_info main
+        where main.is_visible = 'Y'
+          and main.is_deleted = 'N'
+          and main.faq_id = #{faqId}
+    </select>
+
+    <select id="getCustomerFaqFile" parameterType="map" resultType="map">
+        select  /* CustomerCenterMapper getCustomerFaqFile */
+            b.file_nm                           as fileNm
+             ,   concat(#{cloudAwsS3Url},  b.url )   as url
+        from faq_file a, customer_file_info b
+        where a.customer_file_id = b.customer_file_id
+          and b.file_type_cd = '100'
+          and a.faq_id = #{faqId}
+    </select>
+
+
+    <select id="getCustomerCodeList" parameterType="map" resultType="map">
+        select  /* CustomerCenterMapper getCustomerCodeList */
+            code_cd     as codeCd,
+            code_nm     as codeNm
+        from
+            aidt_lms.se_code
+        where code_gb_cd = #{codeGbCd}
+        and use_at = 'Y'
+        order by code_seq
+    </select>
+
+
+</mapper>

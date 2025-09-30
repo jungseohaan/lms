@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.vclc.mapper.VclcEvlMapper">
+
+    <select id="findVclcLastEval" resultType="camelHashMap">
+        /* VclcEvlMapper.findVclcLastEval */
+        select
+            evl_id
+             , evl_nm
+             , evl_se_cd
+             , rpt_othbc_at
+        from ((SELECT
+                   pb.id  as pb_id,
+                   ei.id as evl_id
+                    , ei.evl_nm as evl_nm
+                    , ei.evl_se_cd as evl_se_cd
+                    , ei.rpt_othbc_at
+                    , eri.subm_at
+               FROM aidt_lms.evl_info ei
+                        INNER JOIN aidt_lms.evl_result_info eri
+                                   ON ei.id = eri.evl_id
+                        INNER JOIN aidt_lms.tc_cla_mb_info tcmi
+                                   ON eri.mamoym_id = tcmi.stdt_id
+                                       AND tcmi.cla_id = ei.cla_id
+                        inner join aidt_lms.publish_box pb
+               WHERE ei.cla_id = #{claId}
+                 AND ei.evl_stts_cd = 2
+               ORDER BY ei.evl_cp_dt DESC)
+              UNION ALL
+              (SELECT
+                   pb.id  as pb_id,
+                   ei.id as evl_id
+                    , ei.evl_nm as evl_nm
+                    , ei.evl_se_cd as evl_se_cd
+                    , ei.rpt_othbc_at
+                    , eri.subm_at
+               FROM aidt_lms.evl_info ei
+                        INNER JOIN aidt_lms.evl_result_info eri
+                                   ON ei.id = eri.evl_id
+                        INNER JOIN aidt_lms.tc_cla_mb_info tcmi
+                                   ON eri.mamoym_id = tcmi.stdt_id
+                                       AND tcmi.cla_id = ei.cla_id
+                        inner join aidt_lms.publish_box pb
+                                   oN pb.trgt_id = ei.id
+               WHERE ei.cla_id = #{claId}
+                 AND ei.evl_stts_cd IN (3, 4, 5)
+               ORDER BY ei.evl_cp_dt DESC)) as tb
+        where subm_at = 'Y'
+            limit 1
+    </select>
+
+    <select id="findVclcEvlReportSummary" resultType="camelHashMap">
+        /* VclcEvlMapper.findEvlReportSummary */
+        SELECT
+            ei.id                                           AS evlId,
+            DATE_FORMAT(ei.evl_prg_dt, '%Y-%m-%d %H:%i:%s') AS evl_prg_dt, /* 평가 시작 일시 */
+            DATE_FORMAT(ei.evl_cp_dt, '%Y-%m-%d %H:%i:%s')  AS evl_cp_dt, /* 평가 종료 일시 */
+            (SELECT COUNT(CASE WHEN eri2.subm_at = 'Y' THEN 1 END) * 100.0 / COUNT(*)
+             FROM aidt_lms.evl_result_info eri2
+             WHERE eri2.evl_id = ei.id)                     AS submissionRate, /* 제출률 */
+            (SELECT COUNT(*)
+             FROM aidt_lms.evl_result_info eri2
+             WHERE eri2.evl_id = ei.id)                     AS totalStudents, /* 총 학생수 */
+            (SELECT SUM(IF(eri2.subm_at = 'Y',1,0))
+             FROM aidt_lms.evl_result_info eri2
+             WHERE eri2.evl_id = ei.id)                                   AS submittedStudents, /* 제출한 학생 수 */
+            ROUND(SUM(CASE aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id)
+                          WHEN 1
+                              THEN 1
+                          WHEN 3
+                              THEN 0.5
+                END)
+                      / COUNT(
+                          CASE
+                              WHEN aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id) in (1, 2, 3)
+                                  THEN 1
+                              END) * 100, 2
+            )                                               AS avgCorrectRate,
+            (SELECT ROUND(AVG(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)), 1)
+             FROM aidt_lms.evl_result_detail erd
+             WHERE erd.evl_result_id = eri.id)              AS scoreAvr /* 평가결과 평균점수 */
+        FROM aidt_lms.evl_info ei
+                 INNER JOIN aidt_lms.evl_iem_info eii
+                            ON ei.id = eii.evl_id
+                 INNER JOIN aidt_lms.evl_result_info eri
+                            ON ei.id = eri.evl_id
+                 INNER JOIN aidt_lms.evl_result_detail erd
+                            ON eri.id = erd.evl_result_id
+        WHERE ei.id = #{evlId}
+          AND eri.subm_at = 'Y'
+          AND eri.subm_dt IS NOT NULL
+        GROUP BY ei.id
+    </select>
+
+
+    <select id="findStntEvalListEvalCheck" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalListEvalCheck */
+        select eri.mamoym_id
+        , SUM(IF(ei.evl_stts_cd = 1, 1, 0))  AS pln_evl_cnt
+        , SUM(IF(ei.evl_stts_cd = 2, 1, 0))  AS pg_evl_cnt
+        , SUM(IF(ei.evl_stts_cd >= 3, 1, 0)) AS cp_evl_cnt
+        , SUM(IF(ei.evl_stts_cd >= 3 and eri.subm_at = 'Y' , 1, 0)) AS subm_cnt
+        from aidt_lms.evl_info as ei
+        inner join aidt_lms.evl_result_info as eri on ei.id = eri.evl_id
+        left join aidt_lms.tc_cla_mb_info as tcmi ON tcmi.cla_id = ei.cla_id AND tcmi.stdt_id = eri.mamoym_id
+        WHERE 1 = 1
+        AND (eri.eak_stts_cd != 5 OR (eri.eak_stts_cd = 5 AND (tcmi.reg_dt IS NULL OR ei.evl_cp_dt > tcmi.reg_dt)))
+        AND eri.mamoym_id in
+        <foreach collection="userIds" item="userId" open="(" close=")" separator=",">
+            #{userId}
+        </foreach>
+        <if test="textbookId!= null and textbookId != '' ">
+            AND ei.textbook_id = #{textbookId}
+        </if>
+        <if test="claId != null and claId != '' ">
+            AND ei.cla_id = #{claId}
+        </if>
+        <if test="submAt != null and submAt != '' ">
+            AND eri.subm_at = #{submAt}
+        </if>
+        group by eri.mamoym_id
+    </select>
+
+    <select id="findStntEvalListEvalInfo" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalListEvalInfo */
+        with sub as (
+        select row_number() over (order by main.order_grade) as no,
+        main.*
+        from (
+        SELECT eri.mamoym_id,
+        ei.id,
+        ei.evl_nm,
+        CASE ei.evl_stts_cd
+        WHEN 1 THEN COALESCE(DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d %H:%i:%s'), '-')
+        ELSE DATE_FORMAT(ei.evl_prg_dt, '%Y-%m-%d %H:%i:%s')
+        END                                                                       AS evl_prg_dt,
+        CASE ei.evl_stts_cd
+        WHEN 1 THEN COALESCE(DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d %H:%i:%s'), '-')
+        ELSE DATE_FORMAT(ei.evl_cp_dt, '%Y-%m-%d %H:%i:%s')
+        END                                                                       AS evl_cp_dt,
+        ei.evl_stts_cd,
+        aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)                             AS evl_stts_nm,
+        eri.eak_stts_cd,
+        aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd)                            AS eak_stts_nm,
+        IF(ei.rpt_othbc_at = 'Y' AND eri.subm_at = 'Y', 'Y', 'N')                     AS rpt_othbc_at,
+        ei.sets_id,
+        CASE
+        WHEN (SELECT creator_ty FROM aidt_lcms.sets a WHERE a.id = ei.sets_id) = 1
+        THEN 'Y'
+        ELSE 'N'
+        END                                                                       AS creatorTyYn,
+        eri.subm_at,
+        eri.slf_subm_at,
+        eri.per_subm_at,
+        eri.slf_per_subm_at,
+        tcmi.reg_dt,
+        pb.id                                                                         AS publish_id,
+        pb.cla_id,
+        eb.exam_nm                                                                    AS publish_nm,
+        CASE
+        WHEN pb.publish_type = 1 THEN '클래스'
+        WHEN pb.publish_type = 2 THEN 'URL'
+        WHEN pb.publish_type = 3 THEN '출력용'
+        END                                                                       AS publish_use,
+        IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_st_dt, '%Y-%m-%d'),
+        NULL)                                                                      AS pd_publish_st_dt,
+        IF(pb.publish_type IN (1, 2), DATE_FORMAT(ei.pd_evl_ed_dt, '%Y-%m-%d'),
+        NULL)                                                                      AS pd_publish_ed_dt,
+        CASE
+        WHEN pb.publish_type IN (1, 2)
+        THEN CASE
+        WHEN ei.evl_stts_cd = 1 THEN '예정'
+        WHEN ei.evl_stts_cd = 2 THEN '진행중'
+        ELSE '종료'
+        END
+        WHEN pb.publish_type = 3 THEN NULL
+        END                                                                       AS stts_nm,
+        CASE
+        WHEN pb.publish_type = 1 THEN
+        CASE
+        WHEN ei.evl_stts_cd = 2 THEN aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)
+        WHEN
+        (SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)), 'T', 'F')
+        FROM aidt_lms.evl_result_info eri
+        JOIN aidt_lms.evl_result_detail erd
+        ON eri.id = erd.evl_result_id
+        WHERE eri.evl_id = ei.id
+        GROUP BY eri.evl_id) = 'F'
+        THEN
+        (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0, '채점 필요',
+        '채점 완료')
+        FROM aidt_lms.evl_result_info eri2
+        WHERE eri2.evl_id = ei.id)
+        ELSE '채점 불필요'
+        END
+        WHEN pb.publish_type = 2 THEN
+        CASE
+        WHEN ei.evl_stts_cd = 2 THEN aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd)
+        WHEN (SELECT IF(COUNT(1) = SUM(IF(erd.mrk_ty = 3, 1, 0)), 'T', 'F')
+        FROM aidt_lms.evl_result_info eri
+        JOIN aidt_lms.evl_result_detail erd ON eri.id = erd.evl_result_id
+        WHERE eri.evl_id = ei.id
+        AND eri.subm_at = 'Y' -- 제출한 학생만 고려
+        GROUP BY eri.evl_id) = 'F'
+        THEN (SELECT IF(COUNT(CASE WHEN eri2.eak_stts_cd != 5 THEN 1 END) > 0,
+        '채점 필요',
+        '채점 완료')
+        FROM aidt_lms.evl_result_info eri2
+        WHERE eri2.evl_id = ei.id
+        AND eri2.subm_at = 'Y' -- 제출한 학생만 고려
+        )
+        ELSE '채점 불필요'
+        END
+        WHEN pb.publish_type = 3 THEN '직접 채점'
+        END                                                                       AS check_stts,
+        IF(pb.publish_type IN (1, 2),
+        COALESCE(
+        (SELECT COUNT(1)
+        FROM aidt_lms.evl_result_info eri3
+        WHERE eri3.evl_id = pb.trgt_id
+        GROUP BY eri3.evl_id),
+        0), NULL)                                                          AS target_cnt,
+        IF(pb.publish_type IN (1, 2),
+        COALESCE(
+        (SELECT COUNT(1)
+        FROM aidt_lms.evl_result_info eri4
+        WHERE eri4.evl_id = pb.trgt_id
+        AND eri4.subm_at = 'Y'
+        GROUP BY eri4.evl_id),
+        0), NULL)                                                          AS submit_cnt,
+        pb.exam_id,
+        pb.publish_type,
+        pb.trgt_id,
+        pb.hint_on_off,
+        pb.textbk_id,
+        ei.tim_time,
+        IF(ei.pd_set_at = 'N' AND ei.evl_stts_cd = 2
+        AND (ei.evl_cp_dt is null OR ei.evl_cp_dt > NOW()), 1, 0)              AS live_on,
+        IF(ei.pd_set_at = 'Y' AND ei.evl_stts_cd = 2, 1, 0)                           AS hwk_live_on,  -- 과제형 평가 진행 중 여부
+        m.val                                                                         AS curriBookNm,
+        eb.rgtr                                                                       as regId,
+        IF(ei.evl_stts_cd <![CDATA[>=]]> 3
+        and (eri.eak_at = 'N'
+        or eri.subm_at = 'N'
+        or subm_dt is null
+        or ei.evl_cp_dt <![CDATA[<]]> eri.eak_ed_dt)
+        , '미제출',
+        '제출')                                                                      as subm_in_evl   -- 임시 저장 여부 필드
+        ,
+        IF(ei.evl_stts_cd = 2
+        and eri.done_yn = 'Y'
+        and eri.eak_at = 'Y'
+        and eri.subm_at != 'Y', true,
+        false)                                                                     as eval_live_on, -- 실시간 평가 응시중 여부
+        case
+        when
+        ei.evl_stts_cd = 2 -- 평가 마스터 평가 상태 : 진행 중
+        and eri.eak_stts_cd = 2 -- 평가결과정보 응시상태 : 진행 중
+        and eri.done_yn = 'Y'
+        and eri.eak_at = 'Y' -- 학생 응시 여부
+        and eri.subm_at != 'Y' -- 제출 여부 : 미제출 -> 진행 중
+        and ei.pd_set_at = 'N' -- 기간 설정 X
+        then 1 -- 실시간 진행중
+        when
+        ei.evl_stts_cd = 2 then 2 -- 진행중
+        when
+        ei.evl_stts_cd = 1 then 3 -- 예정
+        else 4 end                                                                as order_grade,
+        if(ei.pd_set_at = 'N', evl_prg_dt, '')                                      as liveEvlStDt   -- 실시간 평가 시작 시간
+        FROM aidt_lms.evl_info ei
+        LEFT JOIN aidt_lms.evl_result_info eri ON eri.evl_id = ei.id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tcmi
+        ON tcmi.cla_id = ei.cla_id AND tcmi.stdt_id = eri.mamoym_id
+        LEFT JOIN aidt_lms.publish_box pb ON pb.trgt_id = ei.id
+        LEFT JOIN aidt_lms.exam_box eb ON pb.exam_id = eb.id
+        LEFT JOIN aidt_lms.tc_cla_info tci ON pb.cla_id = tci.cla_id
+        LEFT JOIN aidt_lms.user u ON pb.wrter_id = u.user_id
+        LEFT JOIN aidt_lcms.textbook t ON pb.textbk_id = t.id
+        LEFT JOIN aidt_lcms.meta m ON t.curriBook = m.id
+        WHERE eri.mamoym_id IN
+        <foreach collection="param.userIds" item="userId" open="(" close=")" separator=",">
+            #{userId}
+        </foreach>
+        <if test="param.claId != null and param.claId != ''">
+            AND ei.cla_id = #{param.claId}
+        </if>
+        <if test="param.textbookId != null and param.textbookId != ''">
+            AND ei.textbook_id = #{param.textbookId}
+        </if>
+        <choose>
+            <when test="param.evlSttsCds != null and param.evlSttsCds.length > 0">
+                AND ei.evl_stts_cd IN
+                <foreach collection="param.evlSttsCds" item="evlSttsCd" open="(" close=")" separator=",">
+                    #{evlSttsCd}
+                </foreach>
+            </when>
+            <otherwise>
+                AND ei.evl_stts_cd = ei.evl_stts_cd
+            </otherwise>
+        </choose>
+        <if test="param.keyword != null and param.keyword != '' ">
+            <choose>
+                <when test="param.condition == 'name' ">
+                    AND ei.evl_nm LIKE CONCAT('%', #{param.keyword}, '%')
+                </when>
+                <otherwise>
+                    AND ei.evl_nm LIKE CONCAT('%', #{param.keyword}, '%')
+                </otherwise>
+            </choose>
+        </if>
+        AND (eri.eak_stts_cd != 5 OR
+        (eri.eak_stts_cd = 5
+        AND (tcmi.reg_dt IS NULL OR ei.evl_cp_dt > tcmi.reg_dt)
+        )
+        )
+        <if test="param.keyword != null and param.keyword != ''">
+            AND eb.exam_nm LIKE CONCAT('%', #{param.keyword}, '%')
+        </if>
+
+        <if test="param.submAt != null and param.submAt != ''">
+            AND eri.subm_at = #{param.submAt}
+        </if>
+        order by order_grade) as main
+        )
+
+
+        select sub.*, (select MAX(sub.no) from sub) as full_count
+        from sub
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+</mapper>

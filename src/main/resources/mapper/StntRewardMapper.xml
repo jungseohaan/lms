@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.user.mapper.StntRewardMapper">
+    <insert id="insertRwdEarnHist" parameterType="map" useGeneratedKeys="true" keyProperty="rwdHistId" keyColumn="id">
+        INSERT INTO aidt_lms.rwd_earn_hist
+        (
+            id
+            ,user_id
+            ,cla_id
+            ,se_cd
+            ,menu_se_cd
+            ,sve_se_cd
+            ,trgt_id
+            ,rwd_se_cd
+            ,rwd_amt
+            ,rwd_use_amt
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{claId}
+            ,#{seCd}
+            ,#{menuSeCd}
+            ,#{sveSeCd}
+            ,IFNULL(#{trgtId}, 0)
+            ,#{rwdSeCd}
+            ,#{rwdAmt}
+            ,#{rwdUseAmt}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <delete id="deleteRwdEarnHist" parameterType="map">
+        DELETE
+          FROM aidt_lms.rwd_earn_hist
+         WHERE 1=1
+           AND user_id = #{userId}
+           AND cla_id = #{claId}
+           AND se_cd = #{seCd}
+           AND rwd_se_cd = #{rwdSeCd}
+           AND menu_se_cd = #{menuSeCd}
+           AND sve_se_cd = #{sveSeCd}
+           AND trgt_id = #{trgtId}
+    </delete>
+
+    <select id="selectRwdEarnInfo" parameterType="map" resultType="camelHashMap">
+        /* StntRewardMapper.selectRwdEarnInfo */
+        SELECT
+            id
+            ,user_id
+            ,cla_id
+            ,ht_earn_gramt
+            ,st_earn_gramt
+            ,ht_blnc
+            ,st_blnc
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        FROM aidt_lms.rwd_earn_info
+        WHERE user_id = #{userId}
+        AND cla_id = #{claId}
+    </select>
+
+    <insert id="insertRwdEarnInfo" parameterType="map" useGeneratedKeys="true" keyProperty="rwdId" keyColumn="id">
+        INSERT INTO aidt_lms.rwd_earn_info
+        (
+            id
+            ,user_id
+            ,cla_id
+            ,ht_earn_gramt
+            ,st_earn_gramt
+            ,ht_blnc
+            ,st_blnc
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{claId}
+            ,#{htEarnGramt}
+            ,#{stEarnGramt}
+            ,#{htBlnc}
+            ,#{stBlnc}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            ht_earn_gramt = values(ht_earn_gramt),
+            st_earn_gramt = values(st_earn_gramt),
+            ht_blnc = values(ht_blnc),
+            st_blnc = values(st_blnc),
+            mdfy_dt = values(mdfy_dt)
+    </insert>
+
+    <select id="selectRwdEarnHistHtStSum" parameterType="map" resultType="camelHashMap">
+        /* StntRewardMapper.selectRwdEarnHistHtStSum */
+        SELECT
+            a.rwd_se_cd
+            ,a.rwd_amt_sum
+            ,a.rwd_use_amt_sum
+            ,(a.rwd_amt_sum - a.rwd_use_amt_sum) as rwd_remain_sum
+        FROM (
+            SELECT
+                1 as rwd_se_cd
+                ,IFNULL(SUM(rwd_amt), 0)  as rwd_amt_sum
+                ,IFNULL(SUM(rwd_use_amt), 0) as rwd_use_amt_sum
+            FROM aidt_lms.rwd_earn_hist
+            WHERE user_id = #{userId}
+              AND cla_id = #{claId}
+              AND rwd_se_cd = 1
+
+            UNION ALL
+
+            SELECT
+                2 as rwd_se_cd
+                ,IFNULL(SUM(rwd_amt), 0)  as rwd_amt_sum
+                ,IFNULL(SUM(rwd_use_amt), 0) as rwd_use_amt_sum
+            FROM aidt_lms.rwd_earn_hist
+            WHERE user_id = #{userId}
+            AND cla_id = #{claId}
+            AND rwd_se_cd = 2
+        ) a
+    </select>
+
+    <update id="updateRwdEarnInfo" parameterType="map">
+        UPDATE aidt_lms.rwd_earn_info
+        SET ht_blnc = #{htBlnc}
+        ,ht_earn_gramt = #{htEarnGramt}
+        ,st_blnc = #{stBlnc}
+        ,st_earn_gramt = #{stEarnGramt}
+        ,mdfr = #{userId}
+        ,mdfy_dt = NOW()
+        WHERE user_id = #{userId}
+        AND cla_id = #{claId}
+    </update>
+
+    <select id="findRewardStatusInfo" parameterType="map" resultType="camelHashMap">
+        /* StntRewardMapper.findRewardStatusInfo */
+        select
+             r.user_id
+            , um.flnm
+            , sum(case when tc.smt = 1 then if(r.reg_dt BETWEEN CONCAT(tc.this_year, "-03-01") and CONCAT(tc.this_year, "-08-31"), rwd_amt, 0)
+                       when tc.smt = 2 then if(r.reg_dt BETWEEN CONCAT(tc.this_year, "-09-01") and CONCAT(tc.this_year + 1, "-02-28"), rwd_amt, 0)
+                end) as smt_ht_earn_gramt
+            , sum(if(tc.this_month = DATE_FORMAT(r.reg_dt, '%Y%m'), rwd_amt, 0)) as mon_ht_earn_gramt
+            , (select ht_blnc FROM aidt_lms.rwd_earn_info where user_id = #{userId} and cla_id = #{claId}) as ht_blnc
+        from aidt_lms.rwd_earn_hist r
+        LEFT JOIN aidt_lms.user um ON um.user_id = r.user_id
+        LEFT JOIN
+                (select
+                    stdt_id
+                    , cla_id
+                    , smt
+            <choose>
+                <when test="searchDt != null and searchDt != '' ">
+                    , DATE_FORMAT(str_to_date(#{searchDt},'%Y%m%d'),'%Y') as this_year
+                    , DATE_FORMAT(str_to_date(#{searchDt},'%Y%m%d'),'%Y%m') as this_month
+                </when>
+                <otherwise>
+                    , DATE_FORMAT(NOW(),'%Y') as this_year
+                    , DATE_FORMAT(NOW(),'%Y%m') as this_month
+                </otherwise>
+            </choose>
+                 from aidt_lms.tc_cla_mb_info
+                 where 1=1
+                    and stdt_id = #{userId}
+                    and cla_id = #{claId}
+                    and actvtn_at = 'Y'
+                ) tc on r.user_id = tc.stdt_id and r.cla_id =tc.cla_id
+        where r.user_id = #{userId}
+            and r.cla_id = #{claId}
+            and r.rwd_se_cd = "1"
+            and r.se_cd = "1"
+        <if test="menuSeCd != null and menuSeCd != '' ">
+            AND r.menu_se_cd = #{menuSeCd}
+        </if>
+        <if test="sveSeCd != null and sveSeCd != '' ">
+            AND r.sve_se_cd = #{sveSeCd}
+        </if>
+    </select>
+
+
+    <select id="findStntMyRewardInfoList" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntRewardMapper.findStntMyRewardInfoList */
+        SELECT
+            COUNT(*) over () AS full_count
+            , TMP.stdDt
+            , TMP.menuSeCd
+            , TMP.sveSeCd
+            , TMP.seCd
+            , TMP.rwdSeCd
+            , TMP.stdId
+            , TMP.flnm
+            , TMP.rwd_amt
+            , TMP.stdNm
+        FROM (
+        SELECT
+            COUNT(*) over () AS full_count
+        	, Z.stdDt
+        	, Z.menuSeCd
+        	, Z.sveSeCd
+        	, Z.seCd
+            , Z.rwdSeCd
+        	, Z.stdId
+        	, max(Z.flnm) as flnm
+        	, sum(Z.rwd_amt) as rwd_amt
+        	, max(Z.stdNm) as stdNm
+            , MAX(Z.reg_dt) AS reg_dt
+        FROM (
+            select
+            COUNT(*) over () AS full_count
+            , r.reg_dt
+            , DATE_FORMAT(r.reg_dt, "%Y-%m-%d") as stdDt
+            , aidt_lms.F_CODE_NM('menu_se_cd', menu_se_cd) as menuSeCd
+            , menu_se_cd as menuSeCdCode
+            , aidt_lms.F_CODE_NM('sve_se_cd', sve_se_cd) as sveSeCd
+            , aidt_lms.F_CODE_NM('se_cd', se_cd) as seCd
+            , aidt_lms.F_CODE_NM('rwd_se_cd', rwd_se_cd) as rwdSeCd
+            , sve_se_cd as sveSeCode
+            , um.flnm
+            , if(r.se_cd = 1,r.rwd_amt, r.rwd_use_amt) as rwd_amt
+            , case menu_se_cd
+            when 1 then
+            ( SELECT CONCAT(IFNULL(tc2.text, ''), ' > ', IFNULL(tc.text, ''))
+                FROM aidt_lms.std_dta_result_detail a
+                inner join aidt_lms.std_dta_result_info b
+                    on b.id = a.dta_result_id
+                inner join  aidt_lms.tab_info t
+                    on b.textbk_tab_id = t.id
+                inner join  aidt_lms.tc_curriculum tc
+                    on tc.textbk_id = t.textbk_id
+                        and tc.cla_id = t.cla_id
+                        and tc.key = t.crcul_id
+                left join aidt_lms.tc_curriculum tc2
+                    on tc2.textbk_id = t.textbk_id
+                        and tc2.cla_id = t.cla_id
+                        and tc2.key = tc.parent
+                WHERE a.id = r.trgt_id
+            ) /* 교과서 */
+            when 2 then /* 과제 */
+            (select task_nm from aidt_lms.task_info where id =r.trgt_id )
+            when 3 then /* 평가 */
+            (select evl_nm from aidt_lms.evl_info where id =r.trgt_id )
+            WHEN 4 THEN
+                CASE
+                    WHEN r.sve_se_cd = '5' THEN
+                        COALESCE(
+                            (SELECT std_nm FROM aidt_lms.slf_std_info WHERE id = (SELECT std_id FROM aidt_lms.slf_std_result_info WHERE id = r.trgt_id)),
+                            (SELECT std_nm FROM aidt_lms.slf_ai_std_info WHERE id = (SELECT std_ai_id FROM aidt_lms.slf_ai_std_result_info WHERE id = r.trgt_id))
+                        )
+                    WHEN r.sve_se_cd = '12' THEN
+                        (SELECT CONCAT('[노트정리] ', won_anw_nm)
+                           FROM aidt_lms.won_asw_note
+                          WHERE trgt_id = r.trgt_id
+                            AND wrter_id = r.user_id
+                          ORDER BY reg_dt DESC LIMIT 1)
+                    WHEN r.sve_se_cd = '13' THEN
+                        (SELECT CONCAT('[다시풀기] ', a.won_anw_nm)
+                           FROM aidt_lms.won_asw_note a
+                          WHERE a.trgt_id = r.trgt_id
+                            AND a.wrter_id = r.user_id
+                          ORDER BY a.reg_dt DESC LIMIT 1)
+                ELSE
+                    (SELECT std_nm FROM aidt_lms.slf_std_info WHERE id = (SELECT std_id FROM aidt_lms.slf_std_result_info WHERE id = r.trgt_id))
+                END
+            WHEN 5 THEN
+                    ( SELECT s.`name`
+                        FROM aidt_lms.tab_info t
+                        	inner join aidt_lcms.sets s
+                        		on t.sets_id = s.id
+                        WHERE t.id = r.trgt_id
+            ) /* 게임 */
+            WHEN 6 THEN '상점 아이템 구매'
+            ELSE
+                (SELECT std_nm FROM aidt_lms.slf_std_info WHERE id = (SELECT std_id FROM aidt_lms.slf_std_result_info WHERE id = r.trgt_id))
+            END AS stdNm
+            ,ifnull((
+                CASE MENU_SE_CD
+                   WHEN 1 THEN
+                   ( SELECT t.id
+                       FROM aidt_lms.std_dta_result_detail a
+                          inner join aidt_lms.std_dta_result_info b
+                                     on b.id = a.dta_result_id
+                          inner join aidt_lms.tab_info t
+                               on b.textbk_tab_id = t.id
+                       WHERE a.id = r.trgt_id
+                   ) /* 교과서 */
+                   WHEN 2 THEN /* 과제 */
+                   (select id from aidt_lms.task_info where id =r.trgt_id )
+                   WHEN 3 THEN /* 평가 */
+                   (select id from aidt_lms.evl_info where id =r.trgt_id )
+                   WHEN 4 THEN
+                       CASE
+                           WHEN r.sve_se_cd = '5' THEN
+                               COALESCE(
+                                   (SELECT id FROM aidt_lms.slf_std_info WHERE id = (SELECT std_id FROM aidt_lms.slf_std_result_info WHERE id = r.trgt_id)),
+                                   (SELECT id FROM aidt_lms.slf_ai_std_info WHERE id = (SELECT std_ai_id FROM aidt_lms.slf_ai_std_result_info WHERE id = r.trgt_id))
+                               )
+                           ELSE
+                               (SELECT id FROM aidt_lms.slf_std_info WHERE id = (SELECT std_id FROM aidt_lms.slf_std_result_info WHERE id = r.trgt_id))
+                       END
+       			   WHEN 5 THEN r.trgt_id /* 게임 */
+                   WHEN 6 THEN 0 /* 사용, 상점 */
+                   WHEN 7 THEN 0 /* 교사 */
+                END
+            ),0) AS stdId
+            from aidt_lms.rwd_earn_hist r
+            LEFT JOIN aidt_lms.user um
+                ON um.user_id = r.user_id
+            where 1=1
+            and r.user_id = #{param.userId}
+            and r.cla_id = #{param.claId}
+            AND NOT (r.menu_se_cd = 7 AND r.sve_se_cd = '11') /* 리워드 조정건 제외 */
+            <if test="param.menuSeCd != null and param.menuSeCd != '' ">
+                AND r.menu_se_cd = #{param.menuSeCd}
+            </if>
+            <if test="param.sveSeCd != null and param.sveSeCd != '' ">
+                AND r.sve_se_cd = #{param.sveSeCd}
+            </if>
+            order by r.reg_dt desc
+        ) Z
+        GROUP BY
+            stdDt,
+             CASE
+                WHEN Z.menuSeCdCode = '1' THEN Z.reg_dt
+                WHEN Z.menuSeCdCode = '4' and Z.sveSeCd IN (aidt_lms.F_CODE_NM('sve_se_cd','12') , aidt_lms.F_CODE_NM('sve_se_cd','13'))  then Z.reg_dt
+                ELSE Z.menuSeCdCode
+             END
+             , sveSeCd, seCd, rwdSeCd, stdId
+
+        UNION ALL
+
+        /* 리워드 조정 건: 개별 행으로 출력 (그룹바이 없이) */
+        SELECT
+            COUNT(*) OVER () AS full_count,
+            DATE_FORMAT(r.reg_dt, '%Y-%m-%d') AS stdDt,
+            aidt_lms.F_CODE_NM('menu_se_cd', r.menu_se_cd) AS menuSeCd,
+            aidt_lms.F_CODE_NM('sve_se_cd', r.sve_se_cd) AS sveSeCd,
+            aidt_lms.F_CODE_NM('se_cd', r.se_cd) AS seCd,
+            aidt_lms.F_CODE_NM('rwd_se_cd', r.rwd_se_cd) AS rwdSeCd,
+            r.id AS stdId,
+            um.flnm,
+            IF(r.se_cd = 1, r.rwd_amt, r.rwd_use_amt) AS rwd_amt,
+            '리워드 조정' AS stdNm,
+            r.reg_dt AS reg_dt
+        FROM aidt_lms.rwd_earn_hist r
+        LEFT JOIN aidt_lms.user um ON um.user_id = r.user_id
+        WHERE 1=1
+            AND r.user_id = #{param.userId}
+            AND r.cla_id = #{param.claId}
+            AND r.menu_se_cd = 7
+            AND r.sve_se_cd = '11'
+            <if test="param.menuSeCd != null and param.menuSeCd != '' ">
+                AND r.menu_se_cd = #{param.menuSeCd}
+            </if>
+            <if test="param.sveSeCd != null and param.sveSeCd != '' ">
+                AND r.sve_se_cd = #{param.sveSeCd}
+            </if>
+        ) TMP
+        ORDER BY
+        <choose>
+            <when test="param.sortGbCd != null and param.sortGbCd != '' ">
+                <choose>
+                    <when test='param.sortGbCd == "1"'>
+                        rwd_amt
+                    </when>
+                    <otherwise>
+                        rwd_amt
+                    </otherwise>
+                </choose>
+                <choose>
+                    <when test="param.sortOrder != null and param.sortOrder != '' ">
+                        <if test = '"asc".equalsIgnoreCase(param.sortOrder)'>asc, reg_dt desc</if>
+                        <if test = '"desc".equalsIgnoreCase(param.sortOrder)'>desc, reg_dt desc</if>
+                    </when>
+                    <otherwise>
+                        desc, reg_dt desc
+                    </otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                reg_dt desc
+            </otherwise>
+        </choose>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="selectRwdEarnPcy" parameterType="map" resultType="camelHashMap">
+        SELECT
+            id
+            ,menu_se_cd
+            ,sve_se_cd
+            ,rwd_se_cd
+            ,IFNULL(rwd_point, 0) as rwd_point
+            ,IFNULL(rwd_point, 0) * IFNULL(#{correctAnwNum}, 1) as rwd_point_multiply
+            ,use_at
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        FROM aidt_lms.rwd_earn_pcy
+        WHERE menu_se_cd = #{menuSeCd}
+        AND sve_se_cd = #{sveSeCd}
+        AND rwd_se_cd = #{rwdSeCd}
+        AND use_at = 'Y'
+    </select>
+
+    <select id="findRewardSendInfo" parameterType="map" resultType="camelHashMap">
+        /* StntRewardMapper.findRewardSendInfo */
+        select
+            tc.user_id as wrter_id
+             , tc.stdt_id as stnt_id
+             , um.flnm
+            , tc.cla_id as cla_id
+        from aidt_lms.tc_cla_mb_info tc
+                 left JOIN aidt_lms.user um ON tc.stdt_id = um.user_id
+        where tc.stdt_id = #{userId} and tc.cla_id = #{claId} and actvtn_at = 'Y'
+    </select>
+
+</mapper>

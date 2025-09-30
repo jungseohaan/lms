@@ -1,0 +1,1868 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.selflrn.mapper.SelfLrnReportMapper">
+
+    <select id="findReportSelfLrnStatis_totModuleCnt" parameterType="map" resultType="camelHashMap">
+        /* SelfLrnReportMapper.findReportSelfLrnStatis_totModuleCnt */
+        select count(1) as totModuleCnt
+        from aidt_lms.slf_std_info ssi
+        join aidt_lms.slf_std_result_info ssri on ssi.id = ssri.std_id
+        join aidt_lms.tc_cla_mb_info tcmi
+                 on tcmi.cla_id = ssi.cla_id
+                 and tcmi.stdt_id = ssi.stdt_id
+                 and tcmi.actvtn_at = 'Y'
+        where ssi.cla_id = #{claId}
+        and ssi.textbk_id = #{textbkId}
+        and ssi.ed_at = 'Y'
+        <if test="stntId != null and stntId != '' ">
+          and ssi.stdt_id = #{stntId}
+        </if>
+        <choose>
+            <when test='"w".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+            </when>
+            <when test='"m".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+            </when>
+            <when test='"d".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+            </when>
+        </choose>
+    </select>
+
+    <select id="findReportSelfLrnStatis_learnedStudents" parameterType="map" resultType="camelHashMap">
+        /* SelfLrnReportMapper.findReportSelfLrnStatis_learnedStudents */
+        SELECT
+            (af - be) AS changePercent,
+            a.af AS learnedStudents,
+            a.totalStudents
+        FROM (
+            SELECT
+                (
+                    SELECT COUNT(DISTINCT ssi.stdt_id) AS learnedStudents
+                    FROM aidt_lms.tc_cla_mb_info tcmi
+                    LEFT JOIN aidt_lms.slf_std_info ssi
+                           ON tcmi.cla_id = ssi.cla_id
+                          AND tcmi.stdt_id = ssi.stdt_id
+                          and ssi.textbk_id = #{textbkId}
+                          AND ssi.ed_at = 'Y'
+                          <choose>
+                            <when test='"w".equals(dwm)'>
+                                and date_format(ssi.reg_dt, '%Y%m%d') between
+                                        DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{wDateSt}, '%Y%m%d'), INTERVAL 7 DAY), '%Y%m%d')
+                                    and DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{wDateEd}, '%Y%m%d'), INTERVAL 7 DAY), '%Y%m%d')
+                            </when>
+                            <when test='"m".equals(dwm)'>
+                                AND DATE_FORMAT(ssi.reg_dt, '%Y%m') = DATE_FORMAT(DATE_SUB(STR_TO_DATE(CONCAT(#{mDate}, '01'), '%Y%m%d'), INTERVAL 1 MONTH), '%Y%m')
+                            </when>
+                            <when test='"d".equals(dwm)'>
+                                and date_format(ssi.reg_dt, '%Y%m%d') = DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{dDate}, '%Y%m%d'), INTERVAL 1 DAY), '%Y%m%d')
+                            </when>
+                        </choose>
+                    where tcmi.cla_id = #{claId}
+                      AND tcmi.actvtn_at = 'Y'
+                ) AS be,
+                COUNT(DISTINCT ssi.stdt_id) AS af,
+                COUNT(DISTINCT tcmi.stdt_id) AS totalStudents
+            FROM aidt_lms.tc_cla_mb_info tcmi
+            LEFT JOIN aidt_lms.slf_std_info ssi
+                   ON tcmi.cla_id = ssi.cla_id
+                  AND tcmi.stdt_id = ssi.stdt_id
+                  and ssi.textbk_id = #{textbkId}
+                  AND ssi.ed_at = 'Y'
+                  <choose>
+                    <when test='"w".equals(dwm)'>
+                        and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                    </when>
+                    <when test='"m".equals(dwm)'>
+                        and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                    </when>
+                    <when test='"d".equals(dwm)'>
+                        and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                    </when>
+                </choose>
+            where tcmi.cla_id = #{claId}
+              AND tcmi.actvtn_at = 'Y'
+        ) a
+    </select>
+
+    <select id="findReportSelfLrnStatis_avgStdTime" parameterType="map" resultType="camelHashMap">
+        /* SelfLrnReportMapper.findReportSelfLrnStatis_avgStdTime */
+        SELECT
+            ROUND(((af - be) / be) * 100, 0) AS changePercent_back
+          , TIME_FORMAT(SEC_TO_TIME(((af - be))), '%H:%i:%s') AS changePercent_back2
+          , TRUNCATE((af - be) / 60, 0) AS changePercent  /* 이슈 수정을 위해 FLOOR() 에서 truncate()로 변경. 추후 사이드이펙트 발생 시, 해당 부분 원복(05/12) */
+          , TIME_FORMAT(SEC_TO_TIME(af), '%H:%i:%s') AS avgStdTime
+        FROM (SELECT (SELECT IFNULL(AVG(a.stdTime),0) AS be
+                      FROM (SELECT SUM(TIME_TO_SEC(TIMEDIFF(ssri.std_ed_dt, ssri.std_st_dt))) AS stdTime
+                                 , ssi.stdt_id
+                            FROM aidt_lms.slf_std_info ssi
+                            JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+                            join aidt_lms.tc_cla_mb_info tcmi
+                                 on tcmi.cla_id = ssi.cla_id
+                                 and tcmi.stdt_id = ssi.stdt_id
+                                 and tcmi.actvtn_at = 'Y'
+                            where ssi.cla_id = #{claId}
+                              and ssi.textbk_id = #{textbkId}
+                              AND ssi.ed_at = 'Y'
+                              <if test="stntId != null and stntId != '' ">
+                                  and ssi.stdt_id = #{stntId}
+                              </if>
+                              <choose>
+                                <when test='"w".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') between
+                                            DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{wDateSt}, '%Y%m%d'), INTERVAL 7 DAY), '%Y%m%d')
+                                        and DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{wDateEd}, '%Y%m%d'), INTERVAL 7 DAY), '%Y%m%d')
+                                </when>
+                                <when test='"m".equals(dwm)'>
+                                    AND DATE_FORMAT(ssi.reg_dt, '%Y%m') = DATE_FORMAT(DATE_SUB(STR_TO_DATE(CONCAT(#{mDate}, '01'), '%Y%m%d'), INTERVAL 1 MONTH), '%Y%m')
+                                </when>
+                                <when test='"d".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') = DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{dDate}, '%Y%m%d'), INTERVAL 1 DAY), '%Y%m%d')
+                                </when>
+                            </choose>
+                            GROUP BY ssi.stdt_id) AS a) AS be
+                   , (SELECT IFNULL(AVG(a.stdTime),0) AS af
+                      FROM (SELECT SUM(TIME_TO_SEC(TIMEDIFF(ssri.std_ed_dt, ssri.std_st_dt))) AS stdTime
+                                 , ssi.stdt_id
+                            FROM aidt_lms.slf_std_info ssi
+                            JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+                            join aidt_lms.tc_cla_mb_info tcmi
+                                 on tcmi.cla_id = ssi.cla_id
+                                 and tcmi.stdt_id = ssi.stdt_id
+                                 and tcmi.actvtn_at = 'Y'
+                            where ssi.cla_id = #{claId}
+                              and ssi.textbk_id = #{textbkId}
+                              AND ssi.ed_at = 'Y'
+                              <if test="stntId != null and stntId != '' ">
+                                  and ssi.stdt_id = #{stntId}
+                              </if>
+                              <choose>
+                                <when test='"w".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                                </when>
+                                <when test='"m".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                                </when>
+                                <when test='"d".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                                </when>
+                              </choose>
+                            GROUP BY ssi.stdt_id) AS a) AS af
+              ) a
+    </select>
+
+    <select id="findReportSelfLrnStatis_avgCorrectRate" parameterType="map" resultType="camelHashMap">
+        /* SelfLrnReportMapper.findReportSelfLrnStatis_avgCorrectRate */
+        SELECT
+            ROUND(((af - be) / be) * 100, 0) AS changePercent_back
+            , (af - be) AS changePercent
+            , af as avgCorrectRate
+        from
+        (SELECT (SELECT IFNULL(ROUND(AVG(a.rate), 0),0)
+                  FROM (SELECT ssi.stdt_id,
+                               ROUND(COUNT(CASE WHEN ssri.errata = 1 THEN 1 END) /
+                                     COUNT(CASE WHEN ssri.errata IS NOT NULL THEN 1 END) * 100, 0) AS rate
+                        FROM aidt_lms.slf_std_info ssi
+                        JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+                        join aidt_lcms.article_meta_map amm
+                            on amm.article_id = ssri.module_id
+                            and amm.sub_id = ssri.sub_id
+                            and amm.meta_name = 'articleType'
+                        join aidt_lcms.meta m
+                            on m.id = amm.meta_id
+                            and (m.id != 20 and m.id != 22)
+                        join aidt_lms.tc_cla_mb_info tcmi
+                                 on tcmi.cla_id = ssi.cla_id
+                                 and tcmi.stdt_id = ssi.stdt_id
+                                 and tcmi.actvtn_at = 'Y'
+                        where ssi.cla_id = #{claId}
+                          and ssi.textbk_id = #{textbkId}
+                          AND ssi.ed_at = 'Y'
+                          <if test="stntId != null and stntId != '' ">
+                                  and ssi.stdt_id = #{stntId}
+                              </if>
+                              <choose>
+                                <when test='"w".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') between
+                                            DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{wDateSt}, '%Y%m%d'), INTERVAL 7 DAY), '%Y%m%d')
+                                        and DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{wDateEd}, '%Y%m%d'), INTERVAL 7 DAY), '%Y%m%d')
+                                </when>
+                                <when test='"m".equals(dwm)'>
+                                    AND DATE_FORMAT(ssi.reg_dt, '%Y%m') = DATE_FORMAT(DATE_SUB(STR_TO_DATE(CONCAT(#{mDate}, '01'), '%Y%m%d'), INTERVAL 1 MONTH), '%Y%m')
+                                </when>
+                                <when test='"d".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') = DATE_FORMAT(DATE_SUB(STR_TO_DATE(#{dDate}, '%Y%m%d'), INTERVAL 1 DAY), '%Y%m%d')
+                                </when>
+                            </choose>
+                        GROUP BY ssi.stdt_id) a) AS be
+                  ,
+                 (SELECT IFNULL(ROUND(AVG(a.rate), 0),0)
+                  FROM (SELECT ssi.stdt_id,
+                               ROUND(COUNT(CASE WHEN ssri.errata = 1 THEN 1 END) /
+                                     COUNT(CASE WHEN ssri.errata IS NOT NULL THEN 1 END) * 100, 0) AS rate
+                        FROM aidt_lms.slf_std_info ssi
+                        JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+                        join aidt_lcms.article_meta_map amm
+                            on amm.article_id = ssri.module_id
+                            and amm.sub_id = ssri.sub_id
+                            and amm.meta_name = 'articleType'
+                        join aidt_lcms.meta m
+                            on m.id = amm.meta_id
+                            and (m.id != 20 and m.id != 22)
+                        join aidt_lms.tc_cla_mb_info tcmi
+                                 on tcmi.cla_id = ssi.cla_id
+                                 and tcmi.stdt_id = ssi.stdt_id
+                                 and tcmi.actvtn_at = 'Y'
+                        where ssi.cla_id = #{claId}
+                          and ssi.textbk_id = #{textbkId}
+                          AND ssi.ed_at = 'Y'
+                          <if test="stntId != null and stntId != '' ">
+                                  and ssi.stdt_id = #{stntId}
+                              </if>
+                              <choose>
+                                <when test='"w".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                                </when>
+                                <when test='"m".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                                </when>
+                                <when test='"d".equals(dwm)'>
+                                    and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                                </when>
+                              </choose>
+                        GROUP BY ssi.stdt_id) a) AS af
+          ) a
+    </select>
+
+    <select id="fidnReportSelfLrnList_statis" parameterType="map" resultType="camelHashMap">
+        /* SelfLrnReportMapper.fidnReportSelfLrnList_statis */
+        select tcmi.stdt_id
+             , a.totModuleCnt
+             , b.stdTime
+             , c.rate
+             , c.newAt
+             , (select num from aidt_lms.stdt_reg_info sri where tcmi.stdt_id = sri.user_id) as num
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join (
+            /* 문항 수 */
+            select ssi.stdt_id, count(1) as totModuleCnt
+            from aidt_lms.slf_std_info ssi
+            join aidt_lms.slf_std_result_info ssri on ssi.id = ssri.std_id
+            join aidt_lms.tc_cla_mb_info tcmi
+                     on tcmi.cla_id = ssi.cla_id
+                     and tcmi.stdt_id = ssi.stdt_id
+                     and tcmi.actvtn_at = 'Y'
+            where ssi.cla_id = #{claId}
+            and ssi.textbk_id = #{textbkId}
+            and ssi.ed_at = 'Y'
+              <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+            group by ssi.stdt_id
+        ) as a on tcmi.stdt_id = a.stdt_id
+        left join (
+            /* 학습 시간 */
+            select TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(ssri.std_ed_dt, ssri.std_st_dt)))), '%H:%i:%s') AS stdTime
+                   , ssi.stdt_id
+              FROM aidt_lms.slf_std_info ssi
+                       JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+              WHERE 1 = 1
+                AND ssi.textbk_id = #{textbkId}
+                AND ssi.cla_id = #{claId}
+                AND ssi.ed_at = 'Y'
+              <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+              GROUP BY ssi.stdt_id
+        ) as b on tcmi.stdt_id = b.stdt_id
+        left join (
+            /* 정답률, newAt */
+            select ssi.stdt_id,
+                   round(count(CASE WHEN ssri.errata = 1 THEN 1 END)/ count(CASE WHEN ssri.errata is not null THEN 1 END) * 100,0) as rate
+                    ,if (sum(if (ssi.tch_rpt_chk_at = 'Y',1,0)) >0, 'Y','N') as newAt  /* newAt = 'Y' -> 신규, newAt = 'N' -> 읽음 처리 (히스토리 겸 작성, 05/08) */
+            From aidt_lms.slf_std_info ssi
+            join aidt_lms.slf_std_result_info ssri on ssi.id = ssri.std_id
+            inner join aidt_lcms.article_meta_map amm on amm.article_id = ssri.module_id and amm.meta_name = 'articleType'
+            where ssi.cla_id = #{claId}
+            AND ssi.textbk_id = #{textbkId}
+            and ssi.ed_at = 'Y'
+            and amm.meta_id = 21
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+            group by ssi.stdt_id
+        ) as c on tcmi.stdt_id = c.stdt_id
+        where tcmi.cla_id = #{claId}
+        and tcmi.actvtn_at = 'Y'
+        order by num
+    </select>
+
+    <select id="fidnReportSelfLrnList_stntListHighEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.fidnReportSelfLrnList_stntListHighEng */
+        select tcmi.stdt_id
+             , a.cnt as slfStdInfoCnt
+             , b.cnt as aiSpeakingCnt
+             , c.cnt as aiWritingCnt
+        from aidt_lms.tc_cla_mb_info tcmi
+        left join (
+            #ai 추천 학습
+            SELECT stdt_id, COUNT(1) cnt
+            FROM aidt_lms.slf_std_info ssi
+            WHERE ssi.cla_id = #{claId}
+              AND ssi.textbk_id = #{textbkId}
+              AND ssi.ed_at = 'Y'
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+            GROUP BY stdt_id
+        ) as a on tcmi.stdt_id = a.stdt_id
+        left join (
+            SELECT aep.stdt_id
+                , aep.ai_std_cd
+                , aidt_lms.F_CODE_NM('ai_std_cd', aep.ai_std_cd) AS evl_stts_nm
+                , COUNT(1) as cnt
+            FROM aidt_lms.ai_edit_prgrm aep
+                    JOIN aidt_lms.tc_cla_mb_info tcmi ON aep.stdt_id = tcmi.stdt_id
+            WHERE tcmi.cla_id = #{claId}
+             AND aep.ai_std_cd = 1
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(aep.std_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(aep.std_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(aep.std_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+            GROUP BY aep.stdt_id
+        ) as b on tcmi.stdt_id = b.stdt_id
+        left join (
+            SELECT aep.stdt_id
+                , aep.ai_std_cd
+                , aidt_lms.F_CODE_NM('ai_std_cd', aep.ai_std_cd) AS evl_stts_nm
+                , COUNT(1) as cnt
+            FROM aidt_lms.ai_edit_prgrm aep
+                    JOIN aidt_lms.tc_cla_mb_info tcmi ON aep.stdt_id = tcmi.stdt_id
+            WHERE tcmi.cla_id = #{claId}
+             AND aep.ai_std_cd = 2
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(aep.std_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(aep.std_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(aep.std_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+            GROUP BY aep.stdt_id
+        ) as c on tcmi.stdt_id = c.stdt_id
+        where tcmi.cla_id = #{claId}
+        and tcmi.actvtn_at = 'Y'
+    </select>
+
+    <select id="fidnReportSelfLrnList_stntListElementaryEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.fidnReportSelfLrnList_stntListElementaryEng */
+        select a.*, b.cnt, (select num from aidt_lms.stdt_reg_info sri where a.stdt_id = sri.user_id) as num from (
+            select tcmi.stdt_id, ssesm.evaluation_area_idx, ssesm.evaluation_area_nm
+            from aidt_lms.slf_std_elementary_eng_sets_map ssesm
+            cross join aidt_lms.tc_cla_mb_info tcmi
+            where ssesm.textbk_id = #{textbkId}
+            and tcmi.cla_id = #{claId}
+            and tcmi.actvtn_at = 'Y'
+            group by tcmi.stdt_id, ssesm.evaluation_area_idx
+        ) a
+        left JOIN (
+            select tcmi.stdt_id
+                 , a.evaluation_area_idx
+                 , a.cnt
+            from aidt_lms.tc_cla_mb_info tcmi
+            left join (
+                /* select ssi.stdt_id, ssi.evaluation_area_idx, sum(ssi.std_cnt) cnt from */
+                select ssi.stdt_id, ssi.evaluation_area_idx, count(ssi.std_cnt) cnt from
+                aidt_lms.slf_std_info ssi
+                where ssi.cla_id = #{claId}
+                and ssi.textbk_id = #{textbkId}
+                and ssi.evaluation_area_idx is not null
+                and ssi.ed_at = 'Y'
+                  <choose>
+                    <when test='"w".equals(dwm)'>
+                        and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                    </when>
+                    <when test='"m".equals(dwm)'>
+                        and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+                    </when>
+                    <when test='"d".equals(dwm)'>
+                        and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+                    </when>
+                  </choose>
+                group by ssi.stdt_id, evaluation_area_idx
+            ) a on a.stdt_id = tcmi.stdt_id
+            where tcmi.cla_id = #{claId}
+            and tcmi.actvtn_at = 'Y'
+        ) b on a.evaluation_area_idx = b.evaluation_area_idx and a.stdt_id = b.stdt_id
+        order by num, a.evaluation_area_idx
+    </select>
+
+    <select id="findStntReportSelfLrnStatis_unitList" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnStatis_unitList */
+    select concat('단원 ', unit_num) as unitNm
+        , ssi.unit_num
+        , count(1) cnt
+    from aidt_lms.slf_std_info ssi
+    JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+    where ssi.cla_id = #{claId}
+      and ssi.textbk_id = #{textbkId}
+      AND ssi.ed_at = 'Y'
+      and ssi.stdt_id = #{stntId}
+        <choose>
+            <when test='"w".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+            </when>
+            <when test='"m".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+            </when>
+            <when test='"d".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+            </when>
+          </choose>
+    group by unit_num
+    order by cnt desc, unit_num
+    limit 3
+    </select>
+
+    <select id="findStntReportSelfLrnStatis_unitListElementaryEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnStatis_unitListElementaryEng */
+    select concat('Lesson ', unit_num) as unitNm
+        , ssi.unit_num
+        , count(1) cnt
+    from aidt_lms.slf_std_info ssi
+    JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+    where ssi.cla_id = #{claId}
+      and ssi.textbk_id = #{textbkId}
+      AND ssi.ed_at = 'Y'
+      and ssi.stdt_id = #{stntId}
+    <choose>
+        <when test='"w".equals(dwm)'>
+            and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+        </when>
+        <when test='"m".equals(dwm)'>
+            and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+        </when>
+        <when test='"d".equals(dwm)'>
+            and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+        </when>
+      </choose>
+    group by unit_num
+    order by cnt desc, unit_num
+    limit 3
+    </select>
+
+    <select id="findStntReportSelfLrnStatis_unitListHighEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnStatis_unitListHighEng */
+    select
+        concat((
+            select
+                if(INSTR(LOWER(b.val),'lesson') > 0,'Lesson','Unit') as meta_val
+            from aidt_lcms.meta a
+                     inner join aidt_lcms.meta b
+                                on a.`code` = b.description
+                                    and b.is_active = 1
+                                    and b.name = 'studyMap1'
+                     inner join aidt_lcms.meta c
+                                on c.id = b.parent_id
+                                    and c.is_active = 1
+                     left join aidt_lcms.meta_extension d
+                               on b.meta_extension_id = d.meta_extension_id
+            where 1=1
+              and a.parent_id = (select curriBook from aidt_lcms.textbook where id = ssi.textbk_id)
+              and a.is_active = 1
+              and ifnull(d.val1,'1') = '1'
+            limit 1
+        ), ' ', ssi.unit_num) as unitNm
+     , ssi.unit_num
+     ,count(1) cnt
+    from aidt_lms.slf_std_info ssi
+    JOIN aidt_lms.slf_std_result_info ssri ON ssi.id = ssri.std_id
+    where ssi.cla_id = #{claId}
+      and ssi.textbk_id = #{textbkId}
+      AND ssi.ed_at = 'Y'
+      and ssi.stdt_id = #{stntId}
+    <choose>
+        <when test='"w".equals(dwm)'>
+            and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+        </when>
+        <when test='"m".equals(dwm)'>
+            and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+        </when>
+        <when test='"d".equals(dwm)'>
+            and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+        </when>
+      </choose>
+    group by unit_num
+    order by cnt desc, unit_num
+    limit 3
+    </select>
+
+    <select id="findStntReportSelfLrnUnitStatis" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnUnitStatis */
+    select
+        B.meta_id,
+        B.unit_num,
+        B.kwg_main_id,
+        LTRIM(SUBSTRING(B.kwg_nm, LOCATE('.', B.kwg_nm) + 1)) AS kwg_nm ,
+        B.id,
+        round(B.usd_scr,2) as usd_scr,
+        B.std_at,
+        case
+        when C.id is not null then 'Y'
+        else 'N'
+        end as slfAt
+    from
+    (
+        select
+            meta_id,
+            unit_num,
+            kwg_main_id,
+            kwg_nm,
+            sum(id) as id,
+            sum(usd_scr) as usd_scr,
+            case when sum(val) > 0 then 'Y' else 'N' end as std_at
+        from
+        (
+            select
+                0 as id,
+                0 as val,
+                X.meta_id,
+                X.unit_num,
+                Y.id as kwg_main_id,
+                Y.val as kwg_nm,
+                0 as usd_scr
+            from
+            (
+                select
+                    b.id as meta_id,
+                    row_number() over () as unit_num,
+                    b.parent_id,
+                    b.`code`
+                from aidt_lcms.meta a
+                    inner join aidt_lcms.meta b
+                        on a.`code` = b.description
+                            and b.is_active = 1
+                            and b.name = 'studyMap1'
+                    inner join aidt_lcms.meta c
+                        on c.id = b.parent_id
+                            and c.is_active = 1
+                where 1=1
+                    and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                    and a.is_active = 1
+            ) X
+            inner join aidt_lcms.meta Y
+                on Y.`code` like concat(X.`code`,'-%')
+                    and Y.name = 'studyMap_1'
+                    and Y.is_active = 1
+            union all
+            select
+                a.id,
+                IF(a.std_at = 'Y', 1, 0) as val,
+                a.meta_id,
+                a.unit_num,
+                a.kwg_main_id,
+                (select val from aidt_lcms.meta where name = 'studyMap_1' and id = a.kwg_main_id) as kwg_nm,
+                a.usd_scr
+            from
+                aidt_lms.std_usd_day_hist a
+            where
+                1=1
+                and a.stdt_id = #{stntId}
+                and a.textbk_id = #{textbkId}
+                and a.cla_id = #{claId}
+                <choose>
+                    <when test='"w".equals(dwm)'>
+                        and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{wDateEd}
+                    </when>
+                    <when test='"m".equals(dwm)'>
+                        and date_format(a.std_dt, '%Y%m') <![CDATA[ <= ]]> #{mDate}
+                    </when>
+                    <when test='"d".equals(dwm)'>
+                        and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{dDate}
+                    </when>
+                </choose>
+            group by a.kwg_main_id
+        ) A
+        group by
+            meta_id,
+            kwg_main_id,
+            kwg_nm
+    ) B
+    left join
+    (
+        SELECT
+            x.id
+            , x.unit_num
+            , (select kwg_main_id from aidt_lms.std_usd_info where id = x.std_usd_id) as kwg_main_id
+        FROM
+            aidt_lms.slf_std_info x
+        WHERE 1=1
+            and x.textbk_id = #{textbkId}
+            and x.cla_id = #{claId}
+            and x.stdt_id = #{stntId}
+            and x.lvl_nm != '모아 풀기'
+            and x.ed_at = 'Y'
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(x.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(x.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(x.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+          </choose>
+
+        group by kwg_main_id
+
+    ) C on B.unit_num = C.unit_num and B.kwg_main_id = C.kwg_main_id
+    where 1=1
+    and b.unit_num = #{unitNum}
+
+    <choose>
+        <when test=' status == 1 '>
+            and c.id is not null
+        </when>
+        <when test=' status == 2 '>
+            and b.std_at = 'Y'
+            and c.id is null
+        </when>
+        <when test=' status == 3 '>
+            and b.std_at = 'N'
+        </when>
+      </choose>
+
+    order by
+     /*   usd_scr desc, */
+        meta_id,
+        kwg_main_id
+    </select>
+
+    <select id="findStntReportSelfLrnUnitStatisHighEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnUnitStatisHighEng */
+    select aa.id as stdMetaId
+         , aa.code as stdNm
+         , aa.unit_num
+         , case
+            when bb.id is not null then 'Y'
+            else 'N'
+            end as stdAt
+         , case
+            when cc.id is not null then 'Y'
+            else 'N'
+            end as slfAt
+    from (
+        (select a.id
+         , a.code
+         , b.unit_num
+        from
+        (SELECT *
+         FROM aidt_lcms.meta
+         WHERE code IN ('vocabulary', 'grammar', 'listening', 'reading', 'pronunciation')
+         ) a
+        join (
+        select
+            row_number() over () as unit_num,
+            b.id as meta_id,
+            b.val as meta_val,
+            0 as val
+        from aidt_lcms.meta a
+                 inner join aidt_lcms.meta b
+                            on a.`code` = b.description
+                                and b.is_active = 1
+                                and b.name = 'studyMap1'
+                 inner join aidt_lcms.meta c
+                            on c.id = b.parent_id
+                                and c.is_active = 1
+                 left join aidt_lcms.meta_extension d
+                           on b.meta_extension_id = d.meta_extension_id
+        where 1=1
+          and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+          and a.is_active = 1
+          and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+          ) b
+        ) aa
+    left join (
+        SELECT max(a.id) as id
+            , a.unit_num
+            , (select mt.id from aidt_lcms.meta mt where mt.code = a.usd_ach_id) as meta_id
+        FROM
+        aidt_lms.usd_ach_src2_info a
+        WHERE 1=1
+        AND a.cla_id = #{claId}
+        AND a.stdt_id = #{stntId}
+        AND a.textbk_id = #{textbkId}
+        <choose>
+            <when test='"w".equals(dwm)'>
+                and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{wDateEd}
+            </when>
+            <when test='"m".equals(dwm)'>
+                and date_format(a.std_dt, '%Y%m') <![CDATA[ <= ]]> #{mDate}
+            </when>
+            <when test='"d".equals(dwm)'>
+                and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{dDate}
+            </when>
+          </choose>
+        group by a.unit_num, a.usd_ach_id
+        ) bb on aa.id = bb.meta_id and aa.unit_num = bb.unit_num
+    left join (
+        select max(id)as id,a.unit_num, a.code  from (
+            select a.id, a.unit_num
+                   , LOWER(TRIM(SUBSTRING_INDEX(
+                         SUBSTRING_INDEX(a.std_nm,  '>', 2),
+                         '>',-1)
+                    )) as code
+            from
+            aidt_lms.slf_std_info a
+            where 1=1
+            AND a.cla_id = #{claId}
+            AND a.stdt_id = #{stntId}
+            AND a.textbk_id = #{textbkId}
+            and a.ed_at = 'Y'
+
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(a.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(a.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(a.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+
+        ) a
+        group by a.unit_num, a.code
+        order by unit_num
+        ) cc on aa.code = cc.code and aa.unit_num = cc.unit_num
+    )
+    where 1=1
+      and aa.unit_num = #{unitNum}
+
+      <choose>
+        <when test=' status == 1 '>
+            and cc.id is not null
+        </when>
+        <when test=' status == 2 '>
+            and bb.id is not null
+            and cc.id is null
+        </when>
+        <when test=' status == 3 '>
+            and bb.id is null
+        </when>
+      </choose>
+
+    order by aa.unit_num, FIELD(stdNm, 'vocabulary','pronunciation','grammar','listening','reading')
+    </select>
+
+    <select id="findStntReportSelfLrnUnitStatisElementaryEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnUnitStatisElementaryEng */
+        select aa.unit_num, aa.evaluation_area_idx, aa.evaluation_area_nm
+        , case
+        when bb.id is not null then 'Y'
+        else 'N'
+        end as stdAt
+        , case
+        when cc.id is not null then 'Y'
+        else 'N'
+        end as slfAt
+        From
+        aidt_lms.slf_std_elementary_eng_sets_map aa
+        left join (
+            SELECT max(a.id) as id
+                , a.unit_num
+            FROM
+            aidt_lms.usd_ach_src2_info a
+            WHERE 1=1
+            AND a.cla_id = #{claId}
+            AND a.stdt_id = #{stntId}
+            AND a.textbk_id = #{textbkId}
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(a.std_dt, '%Y%m') <![CDATA[ <= ]]> #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{dDate}
+                </when>
+              </choose>
+            group by a.unit_num
+        ) bb on aa.unit_num = bb.unit_num
+        left join (
+            SELECT a.id, a.unit_num, a.evaluation_area_idx
+            FROM aidt_lms.slf_std_info a
+            WHERE 1 = 1
+            AND a.cla_id = #{claId}
+            AND a.stdt_id = #{stntId}
+            AND a.textbk_id = #{textbkId}
+            and a.ed_at = 'Y'
+            <choose>
+                <when test='"w".equals(dwm)'>
+                    and date_format(a.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+                </when>
+                <when test='"m".equals(dwm)'>
+                    and date_format(a.reg_dt, '%Y%m') = #{mDate}
+                </when>
+                <when test='"d".equals(dwm)'>
+                    and date_format(a.reg_dt, '%Y%m%d') = #{dDate}
+                </when>
+              </choose>
+        ) cc on aa.unit_num = cc.unit_num and aa.evaluation_area_idx = cc.evaluation_area_idx
+        where aa.textbk_id = #{textbkId}
+        and aa.unit_num = #{unitNum}
+
+          <choose>
+            <when test=' status == 1 '>
+                and cc.id is not null
+            </when>
+            <when test=' status == 2 '>
+                and bb.id is not null
+                and cc.id is null
+            </when>
+            <when test=' status == 3 '>
+                and bb.id is null
+            </when>
+          </choose>
+
+        order by aa.unit_num, aa.evaluation_area_idx
+    </select>
+
+    <select id="findStntReportSelfLrnList_bak" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnList_bak */
+    select COUNT(*) OVER () AS fullCount, bb.*  from (
+        select
+            B.meta_id,
+            B.unit_num,
+            B.kwg_main_id,
+            LTRIM(SUBSTRING(B.kwg_nm, LOCATE('.', B.kwg_nm) + 1)) AS kwg_nm ,
+            B.std_usd_info_id,
+            round(B.usd_scr,2) as usd_scr,
+            B.std_at,
+            case
+            when C.id is not null then 'Y'
+            else 'N'
+            end as slfAt,
+            D.*
+        from
+        (
+            select
+                meta_id,
+                unit_num,
+                kwg_main_id,
+                kwg_nm,
+                sum(id) as std_usd_info_id,
+                sum(usd_scr) as usd_scr,
+                case when sum(val) > 0 then 'Y' else 'N' end as std_at
+            from
+            (
+                select
+                    0 as id,
+                    0 as val,
+                    X.meta_id,
+                    X.unit_num,
+                    Y.id as kwg_main_id,
+                    Y.val as kwg_nm,
+                    0 as usd_scr
+                from
+                (
+                    select
+                        b.id as meta_id,
+                        row_number() over () as unit_num,
+                        b.parent_id,
+                        b.`code`
+                    from aidt_lcms.meta a
+                        inner join aidt_lcms.meta b
+                            on a.`code` = b.description
+                                and b.is_active = 1
+                                and b.name = 'studyMap1'
+                        inner join aidt_lcms.meta c
+                            on c.id = b.parent_id
+                                and c.is_active = 1
+                    where 1=1
+                        and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{param.textbkId})
+                        and a.is_active = 1
+                ) X
+                inner join aidt_lcms.meta Y
+                    on Y.`code` like concat(X.`code`,'-%')
+                        and Y.name = 'studyMap_1'
+                        and Y.is_active = 1
+                union all
+                select
+                    a.id,
+                    IF(a.std_at = 'Y', 1, 0) as val,
+                    a.meta_id,
+                    a.unit_num,
+                    a.kwg_main_id,
+                    (select val from aidt_lcms.meta where name = 'studyMap_1' and id = a.kwg_main_id) as kwg_nm,
+                    a.usd_scr
+                from
+                    aidt_lms.std_usd_info a
+                where
+                    1=1
+                    and a.stdt_id = #{param.stntId}
+                    and a.textbk_id = #{param.textbkId}
+                    and a.cla_id = #{param.claId}
+                    <choose>
+                        <when test='"w".equals(param.dwm)'>
+                            and date_format(a.reg_dt, '%Y%m%d') <![CDATA[ <= ]]> #{param.wDateEd}
+                        </when>
+                        <when test='"m".equals(param.dwm)'>
+                            and date_format(a.reg_dt, '%Y%m') <![CDATA[ <= ]]> #{param.mDate}
+                        </when>
+                        <when test='"d".equals(param.dwm)'>
+                            and date_format(a.reg_dt, '%Y%m%d') <![CDATA[ <= ]]> #{param.dDate}
+                        </when>
+                    </choose>
+            ) A
+            group by
+                meta_id,
+                kwg_main_id,
+                kwg_nm
+        ) B
+        left join
+        (
+            SELECT
+                max(x.id) as id
+                , x.unit_num
+                , (select kwg_main_id from aidt_lms.std_usd_info where id = max(x.std_usd_id)) as kwg_main_id
+            FROM
+                aidt_lms.slf_std_info x
+            WHERE 1=1
+                and x.textbk_id = #{param.textbkId}
+                and x.cla_id = #{param.claId}
+                and x.stdt_id = #{param.stntId}
+                and x.lvl_nm != '모아 풀기'
+                and x.ed_at = 'Y'
+                    <choose>
+                        <when test='"w".equals(param.dwm)'>
+                            and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                        </when>
+                        <when test='"m".equals(param.dwm)'>
+                            and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                        </when>
+                        <when test='"d".equals(param.dwm)'>
+                            and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                        </when>
+                      </choose>
+            GROUP BY x.unit_num
+        ) C on B.unit_num = C.unit_num and B.kwg_main_id = C.kwg_main_id
+        left join
+        (
+                    select
+                      id as id
+                    , std_cd
+                    , IF(std_cd_nm = '선택학습', '스스로 학습', std_cd_nm) as std_cd_nm
+                    , std_nm
+                    , std_dt
+                    , totMdulCnt
+                    , stdMdulCnt
+                    , stdTime
+                    , std_st_dt
+                    , aiTutAt
+                    , unit_num as unit_num2
+                    , kwg_main_id as kwg_main_id2
+                    , reg_dt
+            from
+            (
+                SELECT
+                          A.id
+                        , A.std_cd
+                        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                        , A.std_nm
+                        , A.textbk_id as textbkId /* 추가 */
+                        , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                        , B.stdTime
+                        , B.std_st_dt
+                        , B.ai_tut_use_at as aiTutAt
+                        , a.unit_num
+                        , (select kwg_main_id from aidt_lms.std_usd_info where id = a.std_usd_id) as kwg_main_id
+                        , A.reg_dt
+                FROM
+                        aidt_lms.slf_std_info A
+                        INNER JOIN (
+                            SELECT
+                                y.std_id,
+                                TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                                DATE_FORMAT(x.reg_dt, "%Y-%m-%d") as std_st_dt,
+                                if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+                            FROM
+                                aidt_lms.slf_std_info x
+                                inner join aidt_lms.slf_std_result_info y
+                                    on x.id = y.std_id
+                            WHERE 1=1
+                                and x.textbk_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+                                and x.stdt_id = #{param.stntId}
+                                and x.lvl_nm != '모아 풀기'
+                                and x.ed_at = 'Y'
+                                <choose>
+                                    <when test='"w".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                                    </when>
+                                    <when test='"m".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                                    </when>
+                                    <when test='"d".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                                    </when>
+                                  </choose>
+                            GROUP BY y.std_id
+                        ) B
+                    ON A.id = B.std_id
+                WHERE A.stdt_id = #{param.stntId}
+                    /* AND A.std_cd = 2 */
+
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+
+            ) aa  where aa.brandId =  1
+        ) D on B.unit_num = D.unit_num2 and B.kwg_main_id = D.kwg_main_id2
+
+        union all
+
+
+            select
+                        null,unit_num,null,null,
+                        null,null,null,null,
+                      id as id
+                    , std_cd
+                    , IF(std_cd_nm = '선택학습', '스스로 학습', std_cd_nm) as std_cd_nm
+                    , std_nm
+                    , std_dt
+                    , totMdulCnt
+                    , stdMdulCnt
+                    , stdTime
+                    , std_st_dt
+                    , aiTutAt
+                    , unit_num as unit_num2
+                    , kwg_main_id as kwg_main_id2
+                    , reg_dt
+            from
+            (
+                SELECT
+                          A.id
+                        , A.std_cd
+                        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                        , A.std_nm
+                        , A.textbk_id as textbkId /* 추가 */
+                        , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                        , B.stdTime
+                        , B.std_st_dt
+                        , B.ai_tut_use_at as aiTutAt
+                        , a.unit_num
+                        , (select kwg_main_id from aidt_lms.std_usd_info where id = a.std_usd_id) as kwg_main_id
+                        , A.reg_dt
+                FROM
+                        aidt_lms.slf_std_info A
+                        INNER JOIN (
+                            SELECT
+                                y.std_id,
+                                TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                                DATE_FORMAT(x.reg_dt, "%Y-%m-%d") as std_st_dt,
+                                if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+                            FROM
+                                aidt_lms.slf_std_info x
+                                inner join aidt_lms.slf_std_result_info y
+                                    on x.id = y.std_id
+                            WHERE 1=1
+                                and x.textbk_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+                                and x.stdt_id = #{param.stntId}
+                                and x.lvl_nm = '모아 풀기'
+                                and x.ed_at = 'Y'
+
+                                  <choose>
+                                    <when test='"w".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                                    </when>
+                                    <when test='"m".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                                    </when>
+                                    <when test='"d".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                                    </when>
+                                  </choose>
+
+                            GROUP BY y.std_id
+                        ) B
+                    ON A.id = B.std_id
+                WHERE A.stdt_id = #{param.stntId}
+                    /* AND A.std_cd = 2 */
+
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+
+            ) aa  where aa.brandId =  1
+
+
+
+    ) bb
+    where 1=1
+        <if test="param.slfAt != null and param.slfAt != '' ">
+          and bb.slfAt = #{param.slfAt}
+        </if>
+and id is not null
+        order by
+        bb.reg_dt desc
+         /*   usd_scr desc, */
+        /*
+            bb.slfAt desc,
+            bb.meta_id,
+            bb.kwg_main_id
+         */
+
+    LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+<select id="findStntReportSelfLrnList" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnList */
+    select COUNT(*) OVER () AS fullCount, bb.*  from (
+            select
+                      id as id
+                    , std_cd
+                    , IF(std_cd_nm = '선택학습', '스스로 학습', std_cd_nm) as std_cd_nm
+                    , std_nm
+                    , std_dt
+                    , totMdulCnt
+                    , stdMdulCnt
+                    , stdTime
+                    , std_st_dt
+                    , aiTutAt
+                    , unit_num as unit_num2
+                    , kwg_main_id as kwg_main_id2
+                    , reg_dt
+            from
+            (
+                SELECT
+                          A.id
+                        , A.std_cd
+                        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                        , A.std_nm
+                        , A.textbk_id as textbkId /* 추가 */
+                        , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                        , B.stdTime
+                        , B.std_st_dt
+                        , B.ai_tut_use_at as aiTutAt
+                        , a.unit_num
+                        , (select kwg_main_id from aidt_lms.std_usd_info where id = a.std_usd_id) as kwg_main_id
+                        , A.reg_dt
+                FROM
+                        aidt_lms.slf_std_info A
+                        INNER JOIN (
+                            SELECT
+                                y.std_id,
+                                TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                                DATE_FORMAT(x.reg_dt, "%Y-%m-%d") as std_st_dt,
+                                if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+                            FROM
+                                aidt_lms.slf_std_info x
+                                inner join aidt_lms.slf_std_result_info y
+                                    on x.id = y.std_id
+                            WHERE 1=1
+                                and x.textbk_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+                                and x.stdt_id = #{param.stntId}
+                                and x.lvl_nm != '모아 풀기'
+                                and x.ed_at = 'Y'
+                                <choose>
+                                    <when test='"w".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                                    </when>
+                                    <when test='"m".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                                    </when>
+                                    <when test='"d".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                                    </when>
+                                  </choose>
+                            GROUP BY y.std_id
+                        ) B
+                    ON A.id = B.std_id
+                WHERE A.stdt_id = #{param.stntId}
+                    /* AND A.std_cd = 2 */
+
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+
+            ) aa  where aa.brandId =  1
+
+        union all
+
+            select
+                      id as id
+                    , std_cd
+                    , IF(std_cd_nm = '선택학습', '스스로 학습', std_cd_nm) as std_cd_nm
+                    , std_nm
+                    , std_dt
+                    , totMdulCnt
+                    , stdMdulCnt
+                    , stdTime
+                    , std_st_dt
+                    , aiTutAt
+                    , unit_num as unit_num2
+                    , kwg_main_id as kwg_main_id2
+                    , reg_dt
+            from
+            (
+                SELECT
+                          A.id
+                        , A.std_cd
+                        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                        , A.std_nm
+                        , A.textbk_id as textbkId /* 추가 */
+                        , (select brand_id from aidt_lcms.textbook where id = A.textbk_id) as brandId  /* 추가 */
+                        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                        , B.stdTime
+                        , B.std_st_dt
+                        , B.ai_tut_use_at as aiTutAt
+                        , a.unit_num
+                        , (select kwg_main_id from aidt_lms.std_usd_info where id = a.std_usd_id) as kwg_main_id
+                        , A.reg_dt
+                FROM
+                        aidt_lms.slf_std_info A
+                        INNER JOIN (
+                            SELECT
+                                y.std_id,
+                                TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                                DATE_FORMAT(x.reg_dt, "%Y-%m-%d") as std_st_dt,
+                                if(count(case when y.ai_tut_use_at = 'Y' then 1 end)>0,'Y','N') as 'ai_tut_use_at'
+                            FROM
+                                aidt_lms.slf_std_info x
+                                inner join aidt_lms.slf_std_result_info y
+                                    on x.id = y.std_id
+                            WHERE 1=1
+                                and x.textbk_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+                                and x.stdt_id = #{param.stntId}
+                                and x.lvl_nm = '모아 풀기'
+                                and x.ed_at = 'Y'
+
+                                  <choose>
+                                    <when test='"w".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                                    </when>
+                                    <when test='"m".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                                    </when>
+                                    <when test='"d".equals(param.dwm)'>
+                                        and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                                    </when>
+                                  </choose>
+
+                            GROUP BY y.std_id
+                        ) B
+                    ON A.id = B.std_id
+                WHERE A.stdt_id = #{param.stntId}
+                    /* AND A.std_cd = 2 */
+
+                GROUP BY A.id
+                , A.std_cd
+                , A.std_nm
+                , B.std_id
+
+            ) aa  where aa.brandId =  1
+
+
+
+    ) bb
+    where 1=1
+
+and id is not null
+  <if test="param.unitNum != null and param.unitNum != '' and param.unitNum != -1">
+    AND bb.unit_num2 = #{param.unitNum}
+  </if>
+        order by
+    bb.std_dt desc, bb.reg_dt desc
+    /*   usd_scr desc, */
+        /*
+            bb.slfAt desc,
+            bb.meta_id,
+            bb.kwg_main_id
+         */
+
+    LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findStntReportSelfLrnListHighEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnListHighEng */
+    select COUNT(*) OVER () AS fullCount, bb.* from (
+        select aa.id as stdMetaId
+                 , aa.code as stdMetaNm
+                 , aa.unit_num
+                 , case
+                    when bb.id is not null then 'Y'
+                    else 'N'
+                    end as stdAt
+                 , case
+                    when cc.id is not null then 'Y'
+                    else 'N'
+                    end as slfAt
+            , dd.*
+            from (
+                (select a.id
+                 , a.code
+                 , b.unit_num
+                from
+                (SELECT *
+                 FROM aidt_lcms.meta
+                 WHERE code IN ('vocabulary', 'grammar', 'listening', 'reading', 'pronunciation')
+                 ) a
+                join (
+                select
+                    row_number() over () as unit_num,
+                    b.id as meta_id,
+                    b.val as meta_val,
+                    0 as val
+                from aidt_lcms.meta a
+                         inner join aidt_lcms.meta b
+                                    on a.`code` = b.description
+                                        and b.is_active = 1
+                                        and b.name = 'studyMap1'
+                         inner join aidt_lcms.meta c
+                                    on c.id = b.parent_id
+                                        and c.is_active = 1
+                         left join aidt_lcms.meta_extension d
+                                   on b.meta_extension_id = d.meta_extension_id
+                where 1=1
+                  and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{param.textbkId})
+                  and a.is_active = 1
+                  and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+                  ) b
+                ) aa
+            left join (
+                SELECT max(a.id) as id
+                    , a.unit_num
+                    , (select mt.id from aidt_lcms.meta mt where mt.code = a.usd_ach_id) as meta_id
+                FROM
+                aidt_lms.usd_ach_src2_info a
+                WHERE 1=1
+                AND a.cla_id = #{param.claId}
+                AND a.stdt_id = #{param.stntId}
+                AND a.textbk_id = #{param.textbkId}
+                <choose>
+                    <when test='"w".equals(param.dwm)'>
+                        and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{param.wDateEd}
+                    </when>
+                    <when test='"m".equals(param.dwm)'>
+                        and date_format(a.std_dt, '%Y%m') <![CDATA[ <= ]]> #{param.mDate}
+                    </when>
+                    <when test='"d".equals(param.dwm)'>
+                        and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{param.dDate}
+                    </when>
+                  </choose>
+                group by a.unit_num, a.usd_ach_id
+                ) bb on aa.id = bb.meta_id and aa.unit_num = bb.unit_num
+            left join (
+                select max(id)as id,a.unit_num, a.code  from (
+                    select a.id, a.unit_num
+                           , LOWER(TRIM(SUBSTRING_INDEX(
+                                 SUBSTRING_INDEX(a.std_nm, '>', 2),
+                                 '>',-1)
+                            )) as code
+                    from
+                    aidt_lms.slf_std_info a
+                    where 1=1
+                    AND a.cla_id = #{param.claId}
+                    AND a.stdt_id = #{param.stntId}
+                    AND a.textbk_id = #{param.textbkId}
+                    and a.ed_at = 'Y'
+
+                      <choose>
+                        <when test='"w".equals(param.dwm)'>
+                            and date_format(a.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                        </when>
+                        <when test='"m".equals(param.dwm)'>
+                            and date_format(a.reg_dt, '%Y%m') = #{param.mDate}
+                        </when>
+                        <when test='"d".equals(param.dwm)'>
+                            and date_format(a.reg_dt, '%Y%m%d') = #{param.dDate}
+                        </when>
+                      </choose>
+                ) a
+                group by a.unit_num, a.code
+                order by unit_num
+                ) cc on aa.code = cc.code and aa.unit_num = cc.unit_num
+            left join (
+                SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEng */
+                     aa.id
+                    , aa.std_cd
+                    , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+                    , aa.std_nm
+                    , aa.std_dt
+                    , aa.totMdulCnt
+                    , aa.stdMdulCnt
+                    , ifnull(aa.stdTime,'00:00:00') as stdTime
+                    , aa.std_st_dt
+                    , aa.aiTutAt /* 추가 */
+                    , aa.unit_num as unit_num2
+                    , aa.code
+                    , reg_dt
+                from (
+                        select
+                            A.id
+                            , A.std_cd
+                            , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                            , convert (A.std_nm USING 'UTF8MB4') as std_nm
+                            , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                            , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                            , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                            , B.stdTime
+                            , B.std_st_dt
+                            , IF(LOWER(convert (A.std_nm USING 'UTF8MB4')) LIKE '%pronunciation%', '', B.ai_tut_use_at) AS aiTutAt  /* 추가 */
+                            , A.unit_num
+                            , CASE
+                                WHEN LOWER(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(A.std_nm, '>', 2), '>', -1))) = '진단하기'
+                                THEN (
+                                        SELECT MAX(m.code)
+                                          FROM aidt_lms.slf_std_result_info ssri
+                                        JOIN aidt_lcms.meta m ON m.code IN ('vocabulary', 'grammar', 'listening', 'reading')
+                                         WHERE ssri.std_id = A.id
+                                      )
+                                ELSE LOWER(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(A.std_nm, '>', 2), '>', -1)))
+                                END as code
+                            , A.reg_dt
+                        FROM
+                            aidt_lms.slf_std_info A
+                        INNER JOIN
+                        (
+                            SELECT
+                                y.std_id,
+                                TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                                DATE_FORMAT(x.reg_dt, "%Y-%m-%d") as std_st_dt,
+                                if(count(case when y.ai_tut_use_at = 'Y' then 1 end) > 0,'Y','N') as 'ai_tut_use_at'
+                            FROM
+                                aidt_lms.slf_std_info x
+                            inner join aidt_lms.slf_std_result_info y
+                                on x.id = y.std_id
+                            WHERE 1=1
+                            and x.textbk_id = #{param.textbkId}
+                            and x.cla_id = #{param.claId}
+                            and x.stdt_id = #{param.stntId}
+                            and x.ed_at = 'Y'
+
+                            <choose>
+                                <when test='"w".equals(param.dwm)'>
+                                    and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                                </when>
+                                <when test='"m".equals(param.dwm)'>
+                                    and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                                </when>
+                                <when test='"d".equals(param.dwm)'>
+                                    and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                                </when>
+                              </choose>
+
+                            GROUP BY y.std_id
+                        ) B
+                        ON A.id = B.std_id
+                        WHERE A.stdt_id = #{param.stntId}
+                        AND (select brand_id from aidt_lms.tc_curriculum where textbk_id = A.textbk_id and brand_id is not null limit 1) = 3
+
+                        GROUP BY A.id
+                        , A.std_cd
+                        , A.std_nm
+                        , B.std_id
+
+
+                    ) aa
+                ) dd on aa.code = dd.code and aa.unit_num = dd.unit_num2
+            )
+            where 1=1
+
+            union ALL
+
+            SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEng */
+                null,null,
+                9999, -- AI Speaking, AI Writing 구분을 위한 unit_num, 초등학교에서도 9999로 이미 사용되고 있음
+                null,'Y'
+                /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+                , aa.id
+                , aa.std_cd
+                , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+                , aa.std_nm
+                , aa.std_dt
+                , aa.totMdulCnt
+                , aa.stdMdulCnt
+                , ifnull(aa.stdTime,'00:00:00') as stdTime
+                , aa.std_st_dt
+                , aa.aiTutAt /* 추가 */
+            ,9999,null
+                , reg_dt
+            from (
+                    select
+                        id
+                        , ai_std_cd as std_cd
+                        , aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd) AS std_cd_nm
+                        , CONVERT( if (COUNT(1) OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d")) = 1 ,
+                        aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd),
+                        CONCAT(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd), '(',ROW_NUMBER() OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d") ORDER BY std_dt asc) , ')'))
+                        USING 'UTF8MB4')  as std_nm
+                        , DATE_FORMAT(std_dt, "%Y-%m-%d") AS std_dt
+                        , null as totMdulCnt
+                        , null as stdMdulCnt
+                        , null as stdTime
+                        , std_dt as std_st_dt
+                        , 'N' AS aiTutAt  /* 추가 */
+                        , a.reg_dt
+                    from aidt_lms.ai_edit_prgrm a
+                    where 1=1
+                    AND stdt_id = #{param.stntId}
+
+                    <choose>
+                        <when test='"w".equals(param.dwm)'>
+                            and date_format(a.std_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                        </when>
+                        <when test='"m".equals(param.dwm)'>
+                            and date_format(a.std_dt, '%Y%m') = #{param.mDate}
+                        </when>
+                        <when test='"d".equals(param.dwm)'>
+                            and date_format(a.std_dt, '%Y%m%d') = #{param.dDate}
+                        </when>
+                      </choose>
+
+                    ) aa
+        ) bb
+    where 1=1
+        <if test="param.slfAt != null and param.slfAt != '' ">
+          and bb.slfAt = #{param.slfAt}
+        </if>
+      <if test="param.unitNum != null and param.unitNum != '' and param.unitNum != -1">
+        AND bb.unit_num = #{param.unitNum}
+      </if>
+      <if test="param.unitNum != null and param.unitNum != '' and param.unitNum == 9999">
+        AND bb.std_cd = #{param.aiStdCd}
+      </if>
+        and id is not null
+       order by
+        bb.std_dt desc, bb.reg_dt desc
+        /*
+           bb.slfAt desc, bb.unit_num2
+        , bb.unit_num, FIELD(stdMetaNm, 'vocabulary','pronunciation','grammar','listening','reading')
+            */
+    LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findStntReportSelfLrnListElementaryEng" parameterType="map" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntReportSelfLrnListElementaryEng */
+    select COUNT(*) OVER () AS fullCount, bb.* from (
+        select aa.unit_num, aa.evaluation_area_idx, aa.evaluation_area_nm
+        , case
+        when bb.id is not null then 'Y'
+        else 'N'
+        end as stdAt
+        , case
+        when cc.id is not null then 'Y'
+        else 'N'
+        end as slfAt
+        , dd.*
+        From
+        aidt_lms.slf_std_elementary_eng_sets_map aa
+        left join (
+            SELECT max(a.id) as id
+                , a.unit_num
+            FROM
+            aidt_lms.usd_ach_src2_info a
+            WHERE 1=1
+            AND a.cla_id = #{param.claId}
+            AND a.stdt_id = #{param.stntId}
+            AND a.textbk_id = #{param.textbkId}
+            <choose>
+                <when test='"w".equals(param.dwm)'>
+                    and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{param.wDateEd}
+                </when>
+                <when test='"m".equals(param.dwm)'>
+                    and date_format(a.std_dt, '%Y%m') <![CDATA[ <= ]]> #{param.mDate}
+                </when>
+                <when test='"d".equals(param.dwm)'>
+                    and date_format(a.std_dt, '%Y%m%d') <![CDATA[ <= ]]> #{param.dDate}
+                </when>
+              </choose>
+            group by a.unit_num
+        ) bb on aa.unit_num = bb.unit_num
+        left join (
+            SELECT a.id, a.unit_num, a.evaluation_area_idx
+            FROM aidt_lms.slf_std_info a
+            WHERE 1 = 1
+            AND a.cla_id = #{param.claId}
+            AND a.stdt_id = #{param.stntId}
+            AND a.textbk_id = #{param.textbkId}
+            and a.ed_at = 'Y'
+                <choose>
+                    <when test='"w".equals(param.dwm)'>
+                        and date_format(a.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                    </when>
+                    <when test='"m".equals(param.dwm)'>
+                        and date_format(a.reg_dt, '%Y%m') = #{param.mDate}
+                    </when>
+                    <when test='"d".equals(param.dwm)'>
+                        and date_format(a.reg_dt, '%Y%m%d') = #{param.dDate}
+                    </when>
+                  </choose>
+        ) cc on aa.unit_num = cc.unit_num and aa.evaluation_area_idx = cc.evaluation_area_idx
+        left join (
+                SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEng */
+                 aa.id
+                , aa.std_cd
+                , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+                , aa.std_nm
+                , aa.std_dt
+                , aa.totMdulCnt
+                , aa.stdMdulCnt
+                , ifnull(aa.stdTime,'00:00:00') as stdTime
+                , aa.std_st_dt
+                , aa.aiTutAt /* 추가 */
+                , aa.unit_num as unit_num2
+                , aa.evaluation_area_idx as evaluation_area_idx2
+                , reg_dt
+            from (
+                    select
+                        A.id
+                        , A.std_cd
+                        , aidt_lms.F_CODE_NM('std_cd', A.std_cd) COLLATE utf8mb4_general_ci AS std_cd_nm
+                        , convert (A.std_nm USING 'UTF8MB4') as std_nm
+                        , DATE_FORMAT(reg_dt, "%Y-%m-%d") AS std_dt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id) AS totMdulCnt
+                        , (SELECT COUNT(*) FROM aidt_lms.slf_std_result_info WHERE std_id = A.id AND std_at = 'Y') AS stdMdulCnt
+                        , B.stdTime
+                        , B.std_st_dt
+                        , IF(LOWER(convert (A.std_nm USING 'UTF8MB4')) LIKE '%pronunciation%', '', B.ai_tut_use_at) AS aiTutAt  /* 추가 */
+                        , A.unit_num
+                        , A.evaluation_area_idx
+                        , A.reg_dt
+                    FROM
+                        aidt_lms.slf_std_info A
+                    INNER JOIN
+                    (
+                        SELECT
+                            y.std_id,
+                            TIME_FORMAT(SEC_TO_TIME(SUM(TIME_TO_SEC(TIMEDIFF(y.std_ed_dt, y.std_st_dt)))), '%H:%i:%s') AS stdTime,
+                            DATE_FORMAT(x.reg_dt, "%Y-%m-%d") as std_st_dt,
+                            if(count(case when y.ai_tut_use_at = 'Y' then 1 end) > 0,'Y','N') as 'ai_tut_use_at'
+                        FROM
+                            aidt_lms.slf_std_info x
+                        inner join aidt_lms.slf_std_result_info y
+                            on x.id = y.std_id
+                        WHERE 1=1
+                        and x.textbk_id = #{param.textbkId}
+                        and x.cla_id = #{param.claId}
+                        and x.stdt_id = #{param.stntId}
+                        and x.ed_at = 'Y'
+                        <choose>
+                            <when test='"w".equals(param.dwm)'>
+                                and date_format(x.reg_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                            </when>
+                            <when test='"m".equals(param.dwm)'>
+                                and date_format(x.reg_dt, '%Y%m') = #{param.mDate}
+                            </when>
+                            <when test='"d".equals(param.dwm)'>
+                                and date_format(x.reg_dt, '%Y%m%d') = #{param.dDate}
+                            </when>
+                          </choose>
+                        GROUP BY y.std_id
+                    ) B
+                    ON A.id = B.std_id
+                    WHERE A.stdt_id = #{param.stntId}
+                    AND (select brand_id from aidt_lms.tc_curriculum where textbk_id = A.textbk_id and brand_id is not null limit 1) = 3
+
+                    GROUP BY A.id
+                    , A.std_cd
+                    , A.std_nm
+                    , B.std_id
+
+                ) aa
+        ) dd on aa.unit_num = dd.unit_num2 and aa.evaluation_area_idx = dd.evaluation_area_idx2
+        where aa.textbk_id = #{param.textbkId}
+        union ALL
+        SELECT /* StntSelfLrnMapper.findStntSelfLrnListForEng */
+            9999,null,null,null,'Y'
+            /* , ROW_NUMBER() OVER ( ORDER BY id DESC) AS num */
+            , aa.id
+            , aa.std_cd
+            , IF(aa.std_cd_nm = '선택학습','AI추천학습',aa.std_cd_nm) as std_cd_nm
+            , aa.std_nm
+            , aa.std_dt
+            , aa.totMdulCnt
+            , aa.stdMdulCnt
+            , ifnull(aa.stdTime,'00:00:00') as stdTime
+            , aa.std_st_dt
+            , aa.aiTutAt /* 추가 */
+        ,null,null
+            , reg_dt
+        from (
+                select
+                    id
+                    , ai_std_cd as std_cd
+                    , aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd) AS std_cd_nm
+                    , CONVERT( if (COUNT(1) OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d")) = 1 ,
+                    aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd),
+                    CONCAT(aidt_lms.F_CODE_NM('ai_std_cd', a.ai_std_cd), '(',ROW_NUMBER() OVER(PARTITION BY stdt_id, ai_std_cd, DATE_FORMAT(std_dt, "%Y-%m-%d") ORDER BY std_dt asc) , ')'))
+                    USING 'UTF8MB4')  as std_nm
+                    , DATE_FORMAT(std_dt, "%Y-%m-%d") AS std_dt
+                    , null as totMdulCnt
+                    , null as stdMdulCnt
+                    , null as stdTime
+                    , std_dt as std_st_dt
+                    , 'N' AS aiTutAt  /* 추가 */
+                    , a.reg_dt
+                from aidt_lms.ai_edit_prgrm a
+                where 1=1
+                AND stdt_id = #{param.stntId}
+
+                    <choose>
+                        <when test='"w".equals(param.dwm)'>
+                            and date_format(a.std_dt, '%Y%m%d') between #{param.wDateSt} and #{param.wDateEd}
+                        </when>
+                        <when test='"m".equals(param.dwm)'>
+                            and date_format(a.std_dt, '%Y%m') = #{param.mDate}
+                        </when>
+                        <when test='"d".equals(param.dwm)'>
+                            and date_format(a.std_dt, '%Y%m%d') = #{param.dDate}
+                        </when>
+                      </choose>
+                ) aa
+
+    ) bb
+         where 1=1
+             and id is not null
+        <if test="param.slfAt != null and param.slfAt != '' ">
+          and bb.slfAt = #{param.slfAt}
+        </if>
+      <if test="param.unitNum != null and param.unitNum != '' and param.unitNum != -1">
+         AND bb.unit_num = #{param.unitNum}
+      </if>
+      <if test="param.unitNum != null and param.unitNum != '' and param.unitNum == 9999">
+        AND bb.std_cd = #{param.aiStdCd}
+      </if>
+        order by
+            bb.std_st_dt desc /* 기획측 요청으로 이렇게 변경(05/29) */
+           /* bb.unit_num, reg_dt desc */
+            /* bb.slfAt desc, bb.unit_num, bb.evaluation_area_idx */
+    LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+
+    <update id="modifyTchReportSelfLrnNewAt" parameterType="map" >
+        /* SelfLrnReportMapper.modifyTchReportSelfLrnNewAt */
+        update
+        aidt_lms.slf_std_info ssi
+        set ssi.tch_rpt_chk_at = 'N'
+        where ssi.stdt_id = #{stntId}
+        AND ssi.textbk_id = #{textbkId}
+        and ssi.cla_id = #{claId}
+        <choose>
+            <when test='"w".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') between #{wDateSt} and #{wDateEd}
+            </when>
+            <when test='"m".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m') = #{mDate}
+            </when>
+            <when test='"d".equals(dwm)'>
+                and date_format(ssi.reg_dt, '%Y%m%d') = #{dDate}
+            </when>
+        </choose>
+    </update>
+
+  <select id="findStntSelfLrnReportChapterList" parameterType="string" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntSelfLrnReportChapterList */
+    select
+      ROW_NUMBER() OVER () AS unit_num,
+      IF(INSTR(LOWER(b.val),'lesson') > 0,'Lesson','Unit') AS meta_val,
+      b.val
+    from aidt_lcms.meta a
+           inner join aidt_lcms.meta b
+                      on a.`code` = b.description
+                        and b.is_active = 1
+                        and b.name = 'studyMap1'
+           inner join aidt_lcms.meta c
+                      on c.id = b.parent_id
+                        and c.is_active = 1
+           left join aidt_lcms.meta_extension d
+                     on b.meta_extension_id = d.meta_extension_id
+    where 1=1
+      and a.parent_id = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+      and a.is_active = 1
+      and ifnull(d.val1,'1') = '1' /* Project 노출여부가 1인 것만 노출 */
+  </select>
+  <select id="findStntSelfLrnReportAiChapterList" resultType="camelHashMap">
+    /* SelfLrnReportMapper.findStntSelfLrnReportChapterList */
+    SELECT
+      9999 AS unit_num, -- findStntReportSelfLrnListElementaryEng 쿼리에서 9999로 unit_num을 사용중
+      sc.code_nm AS meta_val,
+      sc.code_cd AS ai_std_cd
+    FROM se_code sc
+    WHERE sc.code_gb_cd = 'ai_std_cd'
+      AND sc.use_at = 'Y'
+  </select>
+
+  <select id="getBrandIdByTextbkId" parameterType="int" resultType="int">
+    /* StntSelfLrnMapper.getBrandIdByTextbkId */
+    select brand_id as brandId from aidt_lcms.textbook where id = #{textbkId}
+  </select>
+</mapper>

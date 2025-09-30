@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.openApi.user.mapper.UserMapper2">
+
+    <!--유저 정보-->
+    <select id="userInfo" parameterType="map" resultType="map">
+        /* UserMapper.userInfo */
+        SELECT id
+             , user_id AS userId
+             , sso_tk AS ssoTk
+        FROM `aidt_lms`.`user`
+        WHERE user_id = #{userId}
+          AND user_se_cd = #{userType}
+        LIMIT 1
+    </select>
+
+    <!--파트너 정보-->
+    <select id="partnerInfo" parameterType="map" resultType="map">
+        /* UserMapper.partnerInfo */
+        SELECT ptn_id AS ptnId
+             , api_domain AS apiDomain
+             , tc_main_url AS tcMainUrl
+             , stdt_main_url AS stdtMainUrl
+             , pa_main_url AS paMainUrl
+             , curri_school AS curriSchool
+             , curri_grade AS curriGrade
+             , curri_semester AS curriSemester
+             , curri_subject AS curriSubject
+        FROM `aidt_lms`.`aidt_ptn_info`
+        WHERE curri_school = #{curriSchool}
+          AND curri_subject = #{curriSubject}
+          AND curri_grade = #{curriGrade}
+          AND curri_semester = #{curriSemester}
+          AND curri_book = #{curriBook}
+        LIMIT 1
+    </select>
+
+    <!-- 교사 클래스 정보-->
+    <select id="teacherClassInfo" parameterType="map" resultType="map">
+        /* UserMapper.teacherClassInfo */
+        SELECT id AS id
+             , cla_id AS claId
+             , user_id AS userId
+        FROM aidt_lms.tc_cla_info
+        WHERE cla_id = #{claId}
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+    </select>
+
+    <!-- 교사 클래스 멤버 정보-->
+    <select id="teacherClassMemberInfo" parameterType="map" resultType="map">
+        /* UserMapper.teacherClassMemberInfo */
+        SELECT id AS id
+             , cla_id AS claId
+             , user_id AS userId
+        FROM `aidt_lms`.`tc_cla_mb_info`
+        WHERE stdt_id = #{userId}
+          AND cla_id = #{claId}
+        LIMIT 1
+    </select>
+
+    <!-- 유저 정보 저장-->
+    <insert id="saveUserInfo" parameterType="map">
+        /* UserMapper.saveUserInfo */
+        <if test="userList != null">
+            INSERT INTO `aidt_lms`.`user` (
+                   user_id
+                 , sso_tk
+                 , flnm
+                 , user_se_cd
+                 , eml_addr
+                 , mbl_telno
+                 , ptn_id
+                 , sex
+                 , brth
+                 , eml_rcptn_agre_yn
+                 , sms_rcptn_agre_yn
+                 , rcptn_agre_ymd
+                 , dmt_chg_ymd
+                 , rgtr
+                 , reg_dt
+                 , mdfr
+                 , mdfy_dt
+            ) VALUES
+            <foreach collection="userList" item="item" index="index" separator=",">
+                (
+                    #{item.userId}
+                    , ''
+                    , '-'
+                    , #{item.userType}
+                    , '-'
+                    , '-'
+                    , #{item.partnerId}
+                    , '0'
+                    , '-'
+                    , '-'
+                    , '-'
+                    , '-'
+                    , '-'
+                    , 'VDT'
+                    , now()
+                    , 'VDT'
+                    , now()
+                )
+            </foreach>
+        </if>
+    </insert>
+
+    <insert id="saveTeacherReg" parameterType="map">
+        /* UserMapper.saveTeacherReg */
+        <if test="tcRegInfo != null">
+            INSERT INTO `aidt_lms`.`tc_reg_info` (
+                  user_id
+                , flnm
+                , user_stts_cd
+                , schl_cd
+                , schl_nm
+                , brth
+                , yr
+                , csr_cd
+                , grade_cd
+                , day_night_cd
+                , affil_cd
+                , scsbj_cd
+                , cla_cd
+                , cla_nm
+                , num
+                , rgtr
+                , reg_dt
+                , mdfr
+                , mdfy_dt
+            ) VALUES (
+                #{tcRegInfo.userId}
+                , ''
+                , #{tcRegInfo.userStatus}
+                , #{tcRegInfo.schlCd}
+                , #{tcRegInfo.schlNm}
+                , ''
+                , #{tcRegInfo.year}
+                , ''
+                , ''
+                , ''
+                , ''
+                , ''
+                , ''
+                , ''
+                , 1
+                , 'VDT'
+                , NOW()
+                , 'VDT'
+                , NOW()
+            )
+        </if>
+    </insert>
+
+    <insert id="saveTeacherClass" parameterType="map">
+        /* UserMapper.saveTeacherClass */
+        <if test="tcClaInfo != null">
+            INSERT INTO `aidt_lms`.`tc_cla_info` (
+                cla_id
+                , user_id
+                , yr
+                , smt
+                , schl_nm
+                , grade_cd
+                , cla_cd
+                , cla_nm
+                , rgtr
+                , reg_dt
+                , mdfr
+                , mdfy_dt
+                , estbl_sbjct_cd
+                , course_rm_cd
+                , cla_sub_id
+            ) VALUES (
+                #{tcClaInfo.claId}
+                , #{tcClaInfo.userId}
+                , #{tcClaInfo.year}
+                , #{tcClaInfo.smt}
+                , #{tcClaInfo.schlNm}
+                , #{tcClaInfo.gradeCd}
+                , ''
+                , #{tcClaInfo.claNm}
+                , 'VDT'
+                , NOW()
+                , 'VDT'
+                , NOW()
+                , ''
+                , ''
+                , ''
+            )
+        </if>
+    </insert>
+
+    <insert id="saveTeacherClassMember" parameterType="map">
+        /* UserMapper.saveTeacherClassMember */
+        <if test="tcClaMbList != null">
+            INSERT INTO `aidt_lms`.tc_cla_mb_info (
+                cla_id
+                , user_id
+                , stdt_id
+                , yr
+                , smt
+                , schl_nm
+                , grade_cd
+                , cla_cd
+                , cla_nm
+                , rgtr
+                , mdfr
+            ) VALUES
+            <foreach collection="tcClaMbList" item="item" index="index" separator=",">
+                (
+                    #{item.claId}
+                    , #{item.userId}
+                    , #{item.stdtId}
+                    , #{item.year}
+                    , #{item.smt}
+                    , #{item.schlNm}
+                    , #{item.gradeCd}
+                    , ''
+                    , #{item.claNm}
+                    , 'VDT'
+                    , 'VDT'
+                )
+            </foreach>
+        </if>
+    </insert>
+
+    <insert id="saveStudentReg" parameterType="map">
+        /* UserMapper.saveStudentReg */
+        <if test="stdtRegList != null">
+            INSERT INTO `aidt_lms`.`stdt_reg_info` (
+                user_id
+                , flnm
+                , user_stts_cd
+                , schl_id
+                , schl_cd
+                , schl_nm
+                , brth
+                , yr
+                , csr_cd
+                , grade_cd
+                , day_night_cd
+                , affil_cd
+                , scsbj_cd
+                , cla_cd
+                , num
+                , rgtr
+                , reg_dt
+                , mdfr
+                , mdfy_dt
+            ) VALUES
+            <foreach collection="stdtRegList" item="item" index="index" separator=",">
+                (
+                    #{item.userId}
+                    , ''
+                    , #{item.userStatus}
+                    , '0'
+                    , #{item.schlCd}
+                    , #{item.schlNm}
+                    , ''
+                    , #{item.year}
+                    , ''
+                    , #{item.gradeCd}
+                    , ''
+                    , ''
+                    , ''
+                    , ''
+                    , 0
+                    , 'VDT'
+                    , NOW()
+                    , 'VDT'
+                    , NOW()
+                )
+            </foreach>
+        </if>
+    </insert>
+
+    <update id="updateUserLogOut">
+        UPDATE aidt_lms.user
+        SET lgn_stts_at = 2
+    </update>
+
+</mapper>

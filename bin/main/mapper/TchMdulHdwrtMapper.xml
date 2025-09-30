@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchMdulHdwrtMapper">
+    <insert id="createTchEvalMdulHdwrtSave" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchMdulHdwrtMapper.createTchEvalMdulHdwrtSave */
+        INSERT INTO aidt_lms.hdwrt_info
+        values
+        (
+            null
+            ,3
+            ,#{evlId}
+            ,#{moduleId}
+            ,#{subId}
+            ,#{hdwrtCn}
+            ,'system'
+            ,now()
+            ,'system'
+            ,now()
+        )
+    </insert>
+
+    <select id="findTchEvalMdulHdwrtView" parameterType="map" resultType="camelHashMap">
+        /* TchMdulHdwrtMapper.findTchEvalMdulHdwrtView */
+        select
+        id as hdwrt_id
+        ,trgt_id as evl_id
+        ,module_id
+        ,sub_id
+        ,hdwrt_Cn
+        from aidt_lms.hdwrt_info
+        where trgt_se_cd = 3
+        and trgt_id = #{evlId}
+        and module_id = #{moduleId}
+        and sub_id = #{subId}
+        order by reg_dt desc
+        limit 1
+    </select>
+
+    <insert id="createTchEvalMdulHdwrtShare" parameterType="map" useGeneratedKeys="true">
+        /* TchMdulHdwrtMapper.createTchEvalMdulHdwrtShare */
+        <selectKey keyProperty="hdwrtDetailCnt" resultType="integer" order="BEFORE">
+            select count(1) + 1 hdwrtDetailCnt
+            from aidt_lms.hdwrt_detail
+            where hdwrt_id = #{hdwrtId}
+        </selectKey>
+        INSERT INTO aidt_lms.hdwrt_detail
+        values
+        (
+            null
+            ,3
+            ,#{hdwrtId}
+            ,#{hdwrtDetailCnt}
+            ,#{hdwrtImgUrl}
+            ,'system'
+            ,now()
+            ,'system'
+            ,now()
+        )
+    </insert>
+
+    <insert id="createTchHomewkMdulHdwrtSave" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchMdulHdwrtMapper.createTchHomewkMdulHdwrtSave */
+        INSERT INTO aidt_lms.hdwrt_info
+        values
+        (
+            null
+            ,2
+            ,#{taskId}
+            ,#{moduleId}
+            ,#{subId}
+            ,#{hdwrtCn}
+            ,'system'
+            ,now()
+            ,'system'
+            ,now()
+        )
+    </insert>
+
+    <select id="findTchHomewkMdulHdwrtView" parameterType="map" resultType="camelHashMap">
+        /* TchMdulHdwrtMapper.findTchHomewkMdulHdwrtView */
+        select
+        id as hdwrt_id
+        ,trgt_id as task_id
+        ,module_id
+        ,sub_id
+        ,hdwrt_Cn
+        from aidt_lms.hdwrt_info
+        where trgt_se_cd = 2
+        and trgt_id = #{taskId}
+        and module_id = #{moduleId}
+        and sub_id = #{subId}
+        order by reg_dt desc
+        limit 1
+    </select>
+
+    <insert id="createTchHomewkMdulHdwrtShare" parameterType="map" useGeneratedKeys="true">
+        /* TchMdulHdwrtMapper.createTchHomewkMdulHdwrtShare */
+        <selectKey keyProperty="hdwrtDetailCnt" resultType="integer" order="BEFORE">
+            select count(1) + 1 hdwrtDetailCnt
+            from aidt_lms.hdwrt_detail
+            where hdwrt_id = #{hdwrtId}
+        </selectKey>
+        INSERT INTO aidt_lms.hdwrt_detail
+        values
+        (
+            null
+            ,2
+            ,#{hdwrtId}
+            ,#{hdwrtDetailCnt}
+            ,#{hdwrtImgUrl}
+            ,'system'
+            ,now()
+            ,'system'
+            ,now()
+        )
+    </insert>
+</mapper>

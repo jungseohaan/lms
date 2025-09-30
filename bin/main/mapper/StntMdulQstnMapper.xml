@@ -1,0 +1,788 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.StntMdulQstnMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <select id="findStntMdulQstnRecheck" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnRecheck */
+        select sdri.id as infoId
+             , sdrd.id as detailId
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where sdri.mamoym_id = #{userId}
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.sets_id = #{setsId}
+          and sdrd.dta_iem_id = #{articleId}
+          and sdrd.sub_id = #{subId}
+        limit 1
+    </select>
+
+
+    <update id="modifyStntMdulQstnSave" parameterType="map" >
+        /* StntMdulQstnMapper.modifyStntMdulQstnSave */
+        update aidt_lms.std_dta_result_detail
+        set eak_stts_cd = IF(mrk_ty = 1, 5, 3)
+        ,eak_at = 'Y'
+        ,eak_st_dt = if(eak_st_dt is null, now(), eak_st_dt)
+        ,eak_ed_dt = if(eak_ed_dt is null, now(), eak_ed_dt)
+        ,sub_mit_anw = #{subMitAnw}
+        ,sub_mit_anw_url = #{subMitAnwUrl}
+        ,anw_chg_cnt = ifnull(anw_chg_cnt,0)+1
+        ,errata = #{errata}
+        ,mrk_cp_at = IF (mrk_ty in (1, 2) and #{errata} <![CDATA[<>]]> 4, 'Y', 'N')
+        ,mdfr = '/stnt/lecture/mdul/qstn/save'
+        ,mdfy_dt = now()
+        <if test="hntUseAt != null and hntUseAt != '' ">
+            , hnt_use_at = #{hntUseAt}
+        </if>
+        where
+        id = #{resultDetailId}
+    </update>
+
+    <update id="modifyStntMdulQstnResetSDRI" parameterType="map" >
+        /* StntMdulQstnMapper.modifyStntMdulQstnResetSDRI */
+        update aidt_lms.std_dta_result_info
+        set eak_stts_cd =2
+          , eak_st_dt = now()
+          /* mdfr */
+          , mdfy_dt = now()
+        where mamoym_id = #{userId}
+          and textbk_tab_id = #{textbkTabId}
+          and sets_id = #{setsId}
+    </update>
+
+    <select id="findStntMdulQstnResetSDRI" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnResetSDRI */
+        select *
+        from aidt_lms.std_dta_result_info
+        where mamoym_id = #{userId}
+          and textbk_tab_id = #{textbkTabId}
+          and sets_id = #{setsId}
+    </select>
+
+    <select id="findStntMdulQstnResetSetsId" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnResetSetsId */
+        select
+            sets_id, tab_add_at
+        from
+            aidt_lms.tab_info
+        where id = #{textbkTabId}
+          /*and setCategory <![CDATA[<>]]> 2177  */ /* AI 맞춤 학습 제외 */
+    </select>
+
+    <insert id="createStntMdulQstnResetSDRI" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnResetSDRI */
+        INSERT INTO aidt_lms.std_dta_result_info (mamoym_id, textbk_tab_id, sets_id, eak_stts_cd, eak_st_dt, rgtr, mdfr)
+        values (#{userId}, #{textbkTabId}, #{setsId}, 2, now(), 'system', 'system')
+    </insert>
+
+    <select id="findStntMdulQstnResetSDRD" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnResetSDRD */
+        select sdrd.*
+        from aidt_lms.std_dta_result_detail sdrd
+        join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+        where sdri.mamoym_id = #{userId}
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.sets_id = #{setsId}
+          and sdrd.dta_iem_id = #{articleId}
+          and sdrd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <update id="modifyStntMdulQstnResetSDRD" parameterType="map" >
+        /* StntMdulQstnMapper.modifyStntMdulQstnResetSDRD */
+        update aidt_lms.std_dta_result_detail sdrd
+               join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+               LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = sdrd.dta_iem_id)
+               LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = sdrd.dta_iem_id and sub_id = sdrd.sub_id and meta_name = 'articleType')
+           set sdrd.re_idf_cnt = sdrd.re_idf_cnt + 1
+             , sdrd.eak_at = (CASE COALESCE(m2.code, m1.code)
+                              when 'concept' then sdrd.eak_at
+                              else 'Y'
+                              end)
+             , sdrd.eak_st_dt = (CASE COALESCE(m2.code, m1.code)
+                                 when 'concept' then sdrd.eak_st_dt
+                                 else (if(sdrd.eak_stts_cd = 1,now(),sdrd.eak_st_dt))
+                                 end)
+             , sdrd.eak_stts_cd  = (CASE COALESCE(m2.code, m1.code)
+                                    when 'concept' then sdrd.eak_stts_cd
+                                    else (if(sdrd.eak_stts_cd = 1,2,sdrd.eak_stts_cd))
+                                    end)
+        where sdri.mamoym_id = #{userId}
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.sets_id = #{setsId}
+          and sdrd.dta_iem_id = #{articleId}
+          and sdrd.sub_id = #{subId}
+          and sdrd.eak_stts_cd <![CDATA[<>]]> 3
+    </update>
+
+    <insert id="createStntMdulQstnResetSDRD" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnResetSDRD */
+        INSERT INTO aidt_lms.std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, eak_at, mrk_cp_at, eak_st_dt, errata, re_idf_cnt, rgtr, mdfr, src_detail_id)
+        select sdri.id
+             , s.article_id
+             , s.sub_id
+             , CASE COALESCE(m2.code, m1.code)
+               when 'question' then 1
+               when 'concept' then 3
+               else 2
+               end as mrk_ty
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 5
+               else 2
+               end as eak_stts_cd
+             , 'Y' as eak_at
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 'Y'
+               else 'N'
+               end as mrk_cp_at
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then null
+               else now()
+               end as eak_st_dt
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 4
+               else null
+               end as errata
+             , 1
+             , 'system'
+             , 'system'
+             , 0
+        FROM aidt_lms.std_dta_result_info sdri
+          join aidt_lcms.setsummary s on s.set_id = sdri.sets_id
+          LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+          LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id and meta_name = 'articleType')
+         where sdri.mamoym_id = #{userId}
+           and sdri.textbk_tab_id = #{textbkTabId}
+           and sdri.sets_id = #{setsId}
+           and s.article_id = #{articleId}
+           and s.sub_id = #{subId}
+    </insert>
+
+    <insert id="createStntMdulQstnResetSDRD2" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnResetSDRD2 */
+        INSERT INTO aidt_lms.std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, eak_at, mrk_cp_at, eak_st_dt, errata, re_idf_cnt, rgtr, mdfr, src_detail_id)
+        select sdri.id
+             , s.article_id
+             , s.sub_id
+             , CASE COALESCE(m2.code, m1.code)
+               when 'question' then 1
+               when 'concept' then 3
+               else 2
+               end as mrk_ty
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 5
+               else 2
+               end as eak_stts_cd
+             , 'Y' as eak_at
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 'Y'
+               else 'N'
+               end as mrk_cp_at
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then null
+               else now()
+               end as eak_st_dt
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 4
+               else null
+               end as errata
+             , 1
+             , 'system'
+             , 'system'
+             , 0
+        FROM aidt_lms.std_dta_result_info sdri
+          join aidt_lcms.setsummary s on s.set_id = sdri.sets_id
+          LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+          LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id and meta_name = 'articleType')
+         where sdri.mamoym_id = #{userId}
+           and sdri.textbk_tab_id = #{textbkTabId}
+           and sdri.sets_id = #{setsId}
+           and s.article_id = #{articleId}
+           and s.sub_id = #{subId}
+    </insert>
+
+    <insert id="createStntMdulQstnResetSDRDsetsId" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnResetSDRDsetsId */
+        INSERT INTO aidt_lms.std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, eak_at, mrk_cp_at, eak_st_dt, errata, re_idf_cnt, rgtr, mdfr, src_detail_id)
+        select sdri.id
+             , s.article_id
+             , s.sub_id
+             , CASE COALESCE(m2.code, m1.code)
+               when 'question' then 1
+               when 'concept' then 3
+               else 2
+               end as mrk_ty
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 5
+               else 2
+               end as eak_stts_cd
+             , 'Y' as eak_at
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 'Y'
+               else 'N'
+               end as mrk_cp_at
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then null
+               else now()
+               end as eak_st_dt
+             , CASE COALESCE(m2.code, m1.code)
+               when 'concept' then 4
+               else null
+               end as errata
+             , 1
+             , 'report'
+             , 'report'
+             , 0
+        FROM aidt_lms.std_dta_result_info sdri
+          join aidt_lcms.setsummary s on s.set_id = sdri.sets_id
+          LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+          LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id and meta_name = 'articleType')
+         where sdri.mamoym_id = #{userId}
+           and sdri.textbk_tab_id = #{textbkTabId}
+           and sdri.sets_id = #{setsId}
+        order by s.id
+    </insert>
+
+    <select id="findStntMdulQstnView" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnView */
+        select
+        sdrd.id as detailId
+        ,sdrd.dta_result_id
+        ,sdrd.dta_iem_id
+        ,sdrd.sub_id
+        ,sdrd.mrk_ty
+        ,sdrd.eak_stts_cd
+        ,sdrd.eak_at
+        ,sdrd.mrk_cp_at
+        ,sdrd.eak_st_dt
+        ,sdrd.eak_ed_dt
+        ,sdrd.sub_mit_anw
+        ,sdrd.sub_mit_anw_url
+        ,sdrd.errata
+        ,sdrd.re_idf_cnt
+        ,sdrd.anw_chg_cnt
+        ,sdrd.sm_exm_at
+        ,sdrd.textbk_dta_iem_id
+        ,sdrd.re_exm_cnt
+        , if ((sdrd.std_fdb_dc is not null), 'Y', 'N') stdFdbAt
+        , sdrd.std_fdb_dc
+        ,fdb_url
+        ,fdb_exp_at
+        ,hdwrt_cn
+        , dft_ques_beffat_chk_at as preCheckAt
+        ,sdrd.hnt_use_at
+        ,sdrd.tch_errata_chg_at
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where sdri.textbk_tab_id = #{tabId}
+        and sdri.mamoym_id = #{userId}
+
+
+    </select>
+
+    <select id="findStntMdulQstnViewHist" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnViewHist */
+        select sdrh.dta_result_detail_id, sdrh.errata
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        join aidt_lms.std_dta_result_hist sdrh on sdrh.dta_result_detail_id = sdrd.id
+        where sdri.textbk_tab_id = #{tabId}
+        and sdri.mamoym_id = #{stntId}
+        order by sdrh.mdfy_dt asc, sdrh.id desc
+    </select>
+
+    <select id="findStntMdulQstnViewHistBak" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnViewHistBak */
+        select dta_result_detail_id, errata
+        from aidt_lms.std_dta_result_hist a
+        where dta_result_detail_id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.detailId}
+        </foreach>
+    </select>
+
+    <!--
+    <update id="createStntMdulQstnOther" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnOther */
+        update aidt_lms.std_dta_result_detail
+        set hdwrt_cn = #{hdwrtCn}
+        where id = #{resultDetailId}
+    </update>
+    -->
+    <select id="findStntMdulQstnAnsw" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnAnsw */
+        select fdb_dc, fdb_url, exlt_anw_at, fdb_exp_at
+        from aidt_lms.std_dta_result_detail
+        where id = #{resultDetailId}
+        union all
+        select fdb_dc, fdb_url, exlt_anw_at, fdb_exp_at
+        from aidt_lms.std_dta_result_hist
+        where dta_result_detail_id = #{resultDetailId}
+    </select>
+
+    <insert id="createStntMdulQstnOther" parameterType="map" useGeneratedKeys="true">
+        /* StntMdulQstnMapper.createStntMdulQstnOther */
+
+        /* update aidt_lms.std_dta_result_detail
+        set hdwrt_cn = hdwrtCn
+        where id = resultDetailId */
+
+        INSERT INTO aidt_lms.std_dta_result_detail (
+        id
+        ,dta_result_id
+        ,dta_iem_id
+        ,sub_id
+        ,src_detail_id
+        ,mrk_ty
+        ,eak_stts_cd
+        ,eak_at
+        ,mrk_cp_at
+        ,eak_st_dt
+        ,eak_ed_dt
+        ,sub_mit_anw
+        ,sub_mit_anw_url
+        ,errata
+        ,re_idf_cnt
+        ,anw_chg_cnt
+        ,sm_exm_at
+        ,textbk_dta_iem_id
+        ,re_exm_cnt
+        ,fdb_dc
+        ,fdb_url
+        ,exlt_anw_at
+        ,fdb_exp_at
+        ,hdwrt_cn
+        ,hnt_use_at
+        ,rgtr
+        ,reg_dt
+        ,mdfr
+        ,mdfy_dt)
+        SELECT null
+        ,dta_result_id
+        ,#{dtaIemId}
+        ,sub_id
+        ,#{detailId}    /* src_detail_id */
+        ,1              /* 문항유형 */
+        ,'1'            /* eak_stts_cd */
+        ,'N'            /* eak_at */
+        ,'N'            /* mrk_cp_at */
+        ,null
+        ,null
+        ,null
+        ,null
+        ,null
+        ,null
+        ,null
+        ,'Y'            /* sm_exm_at */
+        ,textbk_dta_iem_id
+        ,1              /* re_exm_cnt */
+        ,null
+        ,null
+        ,'N'
+        ,'N'
+        ,null
+        ,'N'            /* hnt_use_at */
+        ,'system'
+        ,NOW()
+        ,'system'
+        ,NOW()
+        FROM  aidt_lms.std_dta_result_detail
+        WHERE  id = #{detailId}
+    </insert>
+
+    <select id="findStntMdulQstnOther" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnOther */
+        SELECT id    AS  detailId
+        ,dta_iem_id
+        FROM aidt_lms.std_dta_result_detail
+        WHERE src_detail_id = #{detailId}
+    </select>
+
+    <select id="findStntMdulQstnViewOtherList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnViewOtherList */
+        select sdrd.id as resultDetailId
+             , sdrd.dta_iem_id
+             , sdrd.sub_id
+             , sdrd.eak_stts_cd
+             , sdrd.eak_at
+             , sdrd.sub_mit_anw
+             , sdrd.sub_mit_anw_url
+             , sdrd.errata
+             , sdrd.src_detail_id
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        where sdri.textbk_tab_id = #{tabId}
+        and sdri.mamoym_id = #{stntId}
+        and sm_exm_at ='Y'
+    </select>
+
+    <select id="findStntMdulQstnViewOtherListBak" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnViewOtherListBak */
+        select
+          id as resultDetailId
+          , dta_iem_id
+          , sub_id
+          , eak_stts_cd
+          , eak_at
+          , sub_mit_anw
+          , sub_mit_anw_url
+          , errata
+        ,src_detail_id
+        from
+        aidt_lms.std_dta_result_detail
+        where src_detail_id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.detailId}
+        </foreach>
+        and sm_exm_at ='Y'
+
+    </select>
+
+
+    <select id="stntMdulQstnResultinfo" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.stntMdulQstnResultinfo */
+        select
+        id as detailId
+        , (SELECT sets_id FROM aidt_lms.std_dta_result_info WHERE id=sdrd.dta_result_id) as sets_id
+        , dta_iem_id
+        , sub_id
+        , eak_at
+        , sub_mit_anw
+        , sub_mit_anw_url
+        , errata
+        , aidt_lms.F_CODE_NM('errata', errata) AS errata_nm
+        , hdwrt_cn
+        , (SELECT questionStr FROM aidt_lcms.article WHERE id = sdrd.dta_iem_id) as questionStr
+        from aidt_lms.std_dta_result_detail sdrd
+        where sdrd.id = #{detailId}
+    </select>
+
+    <select id="findStntMdulQstnInfo" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStntMdulQstnInfo */
+        select i.mamoym_id as user_id
+             , (select cla_id from aidt_lms.tab_info where id = i.textbk_tab_id) as cla_id
+             /* , ifnull(i.dta_id, 0) as trgt_id */
+             , ifnull(d.id, 0) as trgt_id /* d.id 값으로 설정하면 추후 해당 위치까지 조회 가능 */
+             , (select textbk_id from aidt_lms.tab_info where id = i.textbk_tab_id) as textbk_id
+             , d.mrk_ty
+             , d.src_detail_id
+             , d.sm_exm_at
+             , d.errata
+             , (select y.`code` from aidt_lcms.article x inner join aidt_lcms.meta y on x.questionType = y.id
+                    where x.id = d.dta_iem_id
+             ) as questionType
+        from aidt_lms.std_dta_result_detail d
+                 left join aidt_lms.std_dta_result_info i on i.id= d.dta_result_id
+        where d.id = #{resultDetailId}
+    </select>
+
+    <update id="modifyStntMdulQstnOther" parameterType="map" >
+        /* StntMdulQstnMapper.modifyStntMdulQstnOther */
+        update aidt_lms.std_dta_result_detail
+        set dft_ques_beffat_chk_at = #{dftQuesBeffatChkAt}
+        /*, mdfr */
+        , mdfy_dt = now()
+        where id = #{detailId}
+    </update>
+
+    <select id="findStdDtaResultDetail" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findStdDtaResultDetail */
+        select
+        ti.textbk_id
+        , dri.mamoym_id as wrterId
+        , date_format(now(),'%Y%m%d') as wrtYmd
+        , ti.id as tabId
+        , drd.dta_iem_id as moduleId
+        , drd.sub_id
+        , ti.id as trgtId
+        , drd.id as wonAnwTgId
+        , ti.crcul_id
+        , ti.wrter_id as userId
+        , ti.cla_id
+        , ti.textbk_id as textbookId
+        , drd.errata
+        , drd.sub_mit_anw
+        , drd.sub_mit_anw_url
+        from aidt_lms.std_dta_result_detail drd
+        join aidt_lms.std_dta_result_info dri on drd.dta_result_id = dri.id
+        join aidt_lms.tab_info ti on dri.textbk_tab_id = ti.id
+        where drd.id = #{resultDetailId}
+        and drd.mrk_ty = 1
+    </select>
+
+    <select id="findTchSlfperEvlSlfSetList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findTchSlfperEvlSlfSetList */
+        select si.id
+             , si.module_id
+             , si.sub_id
+             , slSdi.id as slfPerEvlSetId
+             , slSdi.tmplt_itm_seq
+             , slSdi.evl_dmi
+             , slSdi.evl_iem
+             , slSdi.evl_stdr_cd
+             , slSdi.evl_stdr_dc
+             , slSdi.evl_result
+             , (select evl_asw
+                  from aidt_lms.slf_per_evl_result_info
+                 where slf_per_evl_detail_id = slSdi.id
+                   and apraser_id = #{stntId}
+                 limit 1
+               )  as evl_asw
+             , si.st_expos_at
+        from aidt_lms.slf_per_evl_set_info si
+        join aidt_lms.slf_per_evl_set_detail_info slSdi on si.id = slSdi.slf_per_evl_set_id
+        where si.gb_cd = 1
+          and si.slf_per_evl_clsf_cd = 1
+          AND si.textbk_id = #{textbkId}
+          AND si.tab_id = #{tabId}
+    </select>
+
+    <!-- 사용하지 않음 -->
+    <select id="findTchSlfperEvlSlfSetListBak" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findTchSlfperEvlSlfSetListBak */
+        select
+            si.id
+            , si.module_id
+            , si.sub_id
+            , slSdi.id as slfPerEvlSetId
+            , slSdi.tmplt_itm_seq
+            , slSdi.evl_dmi
+            , slSdi.evl_iem
+            , slSdi.evl_stdr_cd
+            , slSdi.evl_stdr_dc
+            , slSdi.evl_result
+            , (select evl_asw
+                 from aidt_lms.slf_per_evl_result_info
+                where slf_per_evl_detail_id = slSdi.id
+                  and apraser_id = #{stntId}
+                    limit 1
+               )  as evl_asw
+            ,si.st_expos_at
+          from aidt_lms.slf_per_evl_set_info si
+          join aidt_lms.slf_per_evl_set_detail_info slSdi on si.id = slSdi.slf_per_evl_set_id
+         where si.gb_cd = #{gbCd}
+           and si.slf_per_evl_clsf_cd = 1
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test=" (setsId != null and setsId != '') or (moduleId != null and moduleId != '') or (dtaIemId != null and dtaIemId != '')  ">
+                <if test="setsId != null and setsId != '' ">
+                    AND si.sets_id = #{setsId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <foreach collection="mdulList" item="map" open=" AND si.module_id in (" close=")" separator=",">
+                    #{map.dtaIemId}
+                </foreach>
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+                AND si.module_id is null
+            </otherwise>
+        </choose>
+        <foreach collection="mdulList" item="map" open=" AND si.sub_id in (" close=")" separator=",">
+            #{map.subId}
+        </foreach>
+        order by slSdi.tmplt_itm_seq
+    </select>
+
+    <select id="findTchSlfperEvlPerSetList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findTchSlfperEvlPerSetList */
+        select si.id
+             , si.module_id
+             , si.sub_id
+             , sdi.id as slfPerEvlDetailId
+             , sdi.tmplt_itm_seq
+             , sdi.evl_dmi
+             , sdi.evl_iem
+             , sdi.evl_stdr_cd
+             , sdi.evl_stdr_dc
+             , sdi.evl_result
+             , eri.per_apraser_id
+             , u.flnm
+             , eri.evl_asw
+             , si.st_expos_at
+        from aidt_lms.slf_per_evl_set_info si
+        join aidt_lms.slf_per_evl_set_detail_info sdi on si.id = sdi.slf_per_evl_set_id
+        left join aidt_lms.slf_per_evl_result_info eri on eri.slf_per_evl_detail_id = sdi.id and eri.per_apraser_id is not null and eri.apraser_id = #{stntId}
+        left outer join aidt_lms.user u on u.user_id = eri.per_apraser_id
+        where si.gb_cd = 1
+        and si.slf_per_evl_clsf_cd = 2
+        AND si.textbk_id = #{textbkId}
+        AND si.tab_id = #{tabId}
+    </select>
+
+    <!-- 사용하지 않음 -->
+    <select id="findTchSlfperEvlPerSetListBak" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findTchSlfperEvlPerSetListBak */
+        select
+             si.id
+            ,si.module_id
+            ,si.sub_id
+            ,sdi.id as slfPerEvlDetailId
+            ,sdi.tmplt_itm_seq
+            ,sdi.evl_dmi
+            ,sdi.evl_iem
+            ,sdi.evl_stdr_cd
+            ,sdi.evl_stdr_dc
+            ,sdi.evl_result
+            ,eri.per_apraser_id
+            ,u.flnm
+            ,eri.evl_asw
+            ,si.st_expos_at
+          from aidt_lms.slf_per_evl_set_info si
+          join aidt_lms.slf_per_evl_set_detail_info sdi on si.id = sdi.slf_per_evl_set_id
+        left join aidt_lms.slf_per_evl_result_info eri on eri.slf_per_evl_detail_id = sdi.id and eri.per_apraser_id is not null and eri.apraser_id = #{stntId}
+        left outer join aidt_lms.user u on u.user_id = eri.per_apraser_id
+         where si.gb_cd = #{gbCd}
+           and si.slf_per_evl_clsf_cd = 2
+        <choose>
+            <when test="gbCd == 1 ">
+                <if test="textbkId != null and textbkId != '' ">
+                    AND si.textbk_id = #{textbkId}
+                </if>
+                <if test="tabId != null and tabId != '' ">
+                    AND si.tab_id = #{tabId}
+                </if>
+            </when>
+            <when test="gbCd == 2 ">
+                <if test="taskId != null and taskId != '' ">
+                    AND si.task_id = #{taskId}
+                </if>
+            </when>
+            <when test="gbCd == 3 ">
+                <if test="evlId != null and evlId != '' ">
+                    AND si.evl_id = #{evlId}
+                </if>
+            </when>
+        </choose>
+        <choose>
+            <when test=" (setsId != null and setsId != '') or (moduleId != null and moduleId != '') or (dtaIemId != null and dtaIemId != '')  ">
+                <if test="setsId != null and setsId != '' ">
+                    AND si.sets_id = #{setsId}
+                </if>
+                <if test="moduleId != null and moduleId != '' ">
+                    AND si.module_id = #{moduleId}
+                </if>
+                <foreach collection="mdulList" item="map" open=" AND si.module_id in (" close=")" separator=",">
+                    #{map.dtaIemId}
+                </foreach>
+            </when>
+            <otherwise>
+                AND si.sets_id is null
+                AND si.module_id is null
+            </otherwise>
+        </choose>
+        <foreach collection="mdulList" item="map" open=" AND si.sub_id in (" close=")" separator=",">
+            #{map.subId}
+        </foreach>
+        order by eri.per_apraser_id, si.module_id, sdi.tmplt_itm_seq
+    </select>
+
+    <select id="findMdulSlfPerEvlAt" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findMdulSlfPerEvlAt */
+        select a.id as moduleId
+             , if(a.use_evaluation > 0 ,'Y','N') as mdulSlfPerEvlAt
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        join aidt_lcms.article a on sdrd.dta_iem_id = a.id
+        where sdri.textbk_tab_id = #{tabId}
+        and sdri.mamoym_id = #{stntId}
+    </select>
+
+    <select id="findMdulSlfPerEvlAtBak" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findMdulSlfPerEvlAtBak */
+        select
+            id as moduleId
+            , if(use_evaluation > 0 ,'Y','N') as mdulSlfPerEvlAt
+        from aidt_lcms.article
+        where id in
+        <foreach collection="list" item="map" open="(" close=")" separator=",">
+            #{map.dtaIemId}
+        </foreach>
+    </select>
+
+    <select id="findBkmkList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findBkmkList */
+        select id as bmkId
+             , module_id as bmkModuleId
+             , sub_id as bmkSubId
+          from aidt_lms.bkmk_info
+         where tab_id = #{tabId}
+           and trget_id = #{stntId}
+         group by module_id, sub_id
+    </select>
+
+    <select id="findBkmkTchList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findBkmkTchList */
+        select bi_tch.id as bmkTchId
+             , bi_tch.module_id as bmkTchModuleId
+             , bi_tch.sub_id as bmkTchSubId
+          from aidt_lms.bkmk_info bi_tch
+          join tab_info ti on bi_tch.trget_id = ti.wrter_id and bi_tch.tab_id = ti.id
+        where tab_id = #{tabId}
+           and cocnr_at = 'Y'
+         group by module_id, sub_id
+    </select>
+
+    <select id="findExltAnwAtList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findExltAnwAtList */
+        select a.dta_iem_id, a.sub_id, if (count(1) > 0 , 'Y', 'N') as exltAnwAt from (
+        	select sdrd.dta_iem_id, sdrd.sub_id
+        	from aidt_lms.std_dta_result_info sdri
+        	join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+        	where sdri.textbk_tab_id = #{tabId}
+        	and sdrd.exlt_anw_at = 'Y'
+        	union all
+        	select sdrh.dta_iem_id, sdrh.sub_id
+        	from aidt_lms.std_dta_result_info sdri
+        	join aidt_lms.std_dta_result_hist sdrh on sdri.id = sdrh.dta_result_id
+        	where sdri.textbk_tab_id = #{tabId}
+        	and sdrh.exlt_anw_at = 'Y'
+        	) a
+        group by a.dta_iem_id, a.sub_id
+    </select>
+
+    <select id="findNoteYnList" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findNoteYnList */
+        select tni.module_id , tni.sub_id, if (count(1) > 0, 'Y', 'N') as noteYn
+          from aidt_lms.tc_note_conts tnc
+          join aidt_lms.tc_note_info tni on tni.id = tnc.note_id
+         where tab_id = #{tabId}
+           and textbk_id = #{textbkId}
+         group by tni.module_id , tni.sub_id
+    </select>
+
+    <select id="findActYnMap" parameterType="map" resultType="camelHashMap">
+        /* StntMdulQstnMapper.findActYnMap */
+        select if (count(1) > 0, 'Y', 'N') as actYn
+            from aidt_lms.act_result_info ari
+            join aidt_lms.act_tol_info ati on ari.act_id = ati.id
+            and ari.act_stts_cd = 2
+            and ati.textbk_tab_id = #{tabId}
+            and ari.mamoym_id = #{stntId}
+    </select>
+</mapper>

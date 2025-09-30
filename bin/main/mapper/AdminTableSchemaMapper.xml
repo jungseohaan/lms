@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.openApi.admin.mapper.TableSchemaMapper">
+
+	<select id="selectTableColumnGroupList" parameterType="map" resultType="map">
+		select concat(a1.TABLE_SCHEMA, '.', a1.TABLE_NAME) as tableName
+			, group_concat(
+				concat(a1.COLUMN_NAME
+					, ifnull(a1.COLUMN_DEFAULT, '')
+					, a1.IS_NULLABLE
+					, a1.COLUMN_TYPE
+					, ifnull(a1.COLUMN_KEY, '')
+					, ifnull(a1.EXTRA, '') ) order by a1.COLUMN_NAME
+			  ) as columnGroup
+		from  information_schema.`columns` a1
+		where 1=1
+		<choose>
+			<when test="tableSchemaList != null and tableSchemaList.size > 0">
+		and   TABLE_SCHEMA in (<foreach item="tableSchema" collection="tableSchemaList" separator=",">#{tableSchema}</foreach>)
+			</when>
+			<otherwise>
+		and   TABLE_SCHEMA = #{tableSchema}
+			</otherwise>
+		</choose>
+		<if test='tableName != null and tableName != ""'>
+		and   TABLE_NAME like concat('%', #{tableName}, '%')
+		</if>
+		group by a1.TABLE_SCHEMA, a1.TABLE_NAME
+	</select>
+
+    <select id="selectTableColumnInfoList" parameterType="map" resultType="map">
+		select a1.COLUMN_NAME as columnName
+			, ifnull(a1.COLUMN_DEFAULT, '') as columnDefault
+			, a1.IS_NULLABLE as isNullable
+			, a1.COLUMN_TYPE as columnType
+			, ifnull(a1.COLUMN_KEY, '') as columnKey
+			, ifnull(a1.EXTRA, '') as extra
+		from  information_schema.`columns` a1
+		where a1.TABLE_SCHEMA = #{tableSchema}
+		and   a1.TABLE_NAME = #{tableName}
+	</select>
+
+</mapper>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+
+    <!-- 로그 파일 경로 -->
+    <Properties>
+        <Property name="LOG_PATH">/logs/${env:ENV_NAME:-dev}/vlmsapi/${env:HOSTNAME:-localhost}</Property>
+    </Properties>
+
+    <!-- 로그 출력 -->
+    <Appenders>
+        <!-- Console -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36}:%L - %msg%n"/>
+        </Console>
+
+        <!-- JSON File -->
+        <RollingFile name="Json_File" fileName="${LOG_PATH}/vlmsapi.log" filePattern="${LOG_PATH}/vlmsapi.log.%d{yyyyMMdd}-%i">
+            <PatternLayout>
+                <pattern>
+                    {
+                    "timestamp": "%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}",
+                    "level": "%level",
+                    "thread": "%thread",
+                    "logger": "%logger:%L",
+                    "message": "%message",
+                    "http": {
+                        "method": "%method",
+                        "url": "%url"
+                        }
+                    },
+                </pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="1 GB"/>
+            </Policies>
+            <!-- 로그 최대 갯수 및 보관 일자 -->
+            <DefaultRolloverStrategy max="100">
+                    <Delete basePath="${LOG_PATH}">
+                    <IfFileName glob="vlmsapi.log.*"/>
+                    <IfLastModified age="7d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+    </Appenders>
+
+    <!-- 로거 -->
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="Json_File"/>
+        </Root>
+    </Loggers>
+</Configuration>

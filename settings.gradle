@@ -1,0 +1,14 @@
+// 내부
+/*pluginManagement {
+    repositories {
+        maven {
+            credentials {
+                username "${repoUser}"
+                password "${repoPassword}"
+            }
+            url "https://nexus.visang.com/repository/gradle-central-plugin/"
+        }
+    }
+}*/
+
+rootProject.name = 'api'

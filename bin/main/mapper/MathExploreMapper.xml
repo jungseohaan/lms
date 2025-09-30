@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.mathexplore.mapper.MathExploreMapper">
+
+    <select id="selectClaRankList" parameterType="map" resultType="camelHashMap" >
+        /* MathExploreMapper.selectClaRankList */
+        select ROW_NUMBER() OVER (PARTITION BY m.cla_id ORDER BY m.hg_scr DESC, m.reg_dt ASC) AS rankNum -- 랭크 번호
+            , m.stdt_id AS `stdtId` -- 학생 ID
+            , m.hg_scr AS `hgScr` -- 최고 점수
+            , m.game_id AS `gameId` -- 최고 점수
+            , DATE_FORMAT(m.reg_dt, '%Y-%m-%d %H:%i:%s') AS `regDt` -- 등록 일시
+        from (
+            WITH RankedData AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY stdt_id ORDER BY hg_scr DESC, reg_dt ASC) as rn
+                FROM math_expd_hg_scr_info
+            )
+            SELECT *
+            FROM RankedData
+            WHERE rn = 1
+        ) AS m
+        where m.cla_id = #{claId}
+        order by rankNum ASC
+        limit #{cnt}
+    </select>
+
+    <select id="selectGameRankList" parameterType="map" resultType="camelHashMap" >
+        /* MathExploreMapper.selectGameRankList */
+        select ROW_NUMBER() OVER (PARTITION BY m.cla_id ORDER BY m.hg_scr DESC, m.reg_dt ASC) AS rankNum -- 랭크 번호
+            , m.stdt_id AS `stdtId` -- 학생 ID
+            , m.hg_scr AS `hgScr` -- 최고 점수
+            , DATE_FORMAT(m.reg_dt, '%Y-%m-%d %H:%i:%s') AS `regDt` -- 등록 일시
+        from (
+            WITH RankedData AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY stdt_id ORDER BY hg_scr DESC, reg_dt ASC) as rn
+                FROM math_expd_hg_scr_info
+                WHERE game_id = #{gameId}
+                    AND cla_id = #{claId}
+                    <if test="regDt != null and regDt != ''">
+                        AND DATE(reg_dt) = #{regDt}
+                    </if>
+            )
+            SELECT *
+            FROM RankedData
+            WHERE rn = 1
+        ) AS m
+        where m.cla_id = #{claId}
+        order by rankNum ASC
+        limit #{cnt}
+    </select>
+
+    <select id="findClaMyRank" parameterType="map" resultType="camelHashMap" >
+        /* MathExploreMapper.findClaMyRank */
+        select a.rankNum
+        from (
+            select ROW_NUMBER() OVER (PARTITION BY m.cla_id ORDER BY m.hg_scr DESC, m.reg_dt ASC) AS `rankNum` -- 랭크 번호
+            , m.stdt_id AS `stdtId` -- 학생 ID
+            , m.hg_scr AS `hgScr` -- 최고 점수
+            , DATE_FORMAT(m.reg_dt, '%Y-%m-%d %H:%i:%s') AS `regDt` -- 등록 일시
+            from (
+                WITH RankedData AS (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY stdt_id ORDER BY hg_scr DESC, reg_dt ASC) as rn
+                    FROM math_expd_hg_scr_info
+                )
+                SELECT *
+                FROM RankedData
+                WHERE rn = 1
+            ) AS m
+            where m.cla_id = #{claId}
+        ) AS a
+        where a.stdtId = #{stdtId}
+            AND a.rankNum <![CDATA[<]]> #{total}
+        limit #{cnt}
+    </select>
+
+    <select id="findGameMyRank" parameterType="map" resultType="camelHashMap" >
+        /* MathExploreMapper.findGameMyRank */
+        select a.rankNum
+        from (
+            select ROW_NUMBER() OVER (PARTITION BY m.cla_id ORDER BY m.hg_scr DESC, m.reg_dt ASC) AS `rankNum` -- 랭크 번호
+                , m.stdt_id AS `stdtId` -- 학생 ID
+                , m.hg_scr AS `hgScr` -- 최고 점수
+                , DATE_FORMAT(m.reg_dt, '%Y-%m-%d %H:%i:%s') AS `regDt` -- 등록 일시
+            from (
+                WITH RankedData AS (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY stdt_id ORDER BY hg_scr DESC, reg_dt ASC) as rn
+                    FROM math_expd_hg_scr_info
+                    WHERE game_id = #{gameId}
+                )
+                SELECT *
+                FROM RankedData
+                WHERE rn = 1
+            ) AS m
+            where m.cla_id = #{claId} AND m.game_id = #{gameId}
+        ) AS a
+        where a.stdtId = #{stdtId}
+            AND a.rankNum <![CDATA[<]]> #{total}
+        limit #{cnt}
+    </select>
+
+    <select id="findByUserId" parameterType="map" resultType="camelHashMap" >
+        /* MathExploreMapper.findByUserId */
+        select m.id AS `scrId` -- ID
+            , m.stdt_id AS `stdtId` -- 학생 ID
+            , m.cla_id AS `claId` -- 학급 ID
+            , m.game_id AS `gameId` -- 게임 ID
+            , m.hg_scr AS `hgScr` -- 최고 점수
+            , DATE_FORMAT(m.reg_dt, '%Y-%m-%d %H:%i:%s') AS `regDt` -- 등록 일시
+        from math_expd_hg_scr_info m
+        where m.stdt_id = #{stdtId}
+            <if test="gameId != null and gameId != ''">
+                AND m.game_id = #{gameId}
+            </if>
+        order by m.hg_scr DESC
+        limit 1
+    </select>
+
+    <select id="findClaList" parameterType="map">
+        /* MathExploreMapper.findClaList */
+        select DISTINCT m.cla_id AS `claId`
+        from math_expd_hg_scr_info m
+    </select>
+
+    <insert id="insertScr" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* MathExploreMapper.insertBestScr */
+        INSERT INTO math_expd_hg_scr_info
+        (stdt_id, cla_id, game_id, hg_scr, rgtr, reg_dt, mdfr, mdfy_dt)
+        VALUES (#{stdtId}, #{claId}, #{gameId}, #{hgScr}, #{stdtId}, now(), #{stdtId}, now())
+    </insert>
+
+    <update id="updateBestScr" parameterType="map">
+        /* MathExploreMapper.updateBestScr */
+        update math_expd_hg_scr_info
+        set hg_scr = #{nowScr},
+            mdfr = #{stdtId},
+            mdfy_dt = now()
+        where id = #{id}
+    </update>
+
+    <delete id="deleteAll">
+        /* MathExploreMapper.deleteAll */
+        delete from math_expd_hg_scr_info
+    </delete>
+
+</mapper>

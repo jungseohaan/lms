@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.user.mapper.TchRewardMapper">
+
+    <select id="findStntRwdInfo" parameterType="map" resultType="camelHashMap">
+        /* TchRewardMapper.findStntRwdInfo */
+        select
+            row_number() over (order by tc.reg_dt) as no
+            , tc.stdt_id
+            , sri.flnm
+            , sri.num
+            /* , select row_number() over (order by sri.id) as rowNum */
+            , IFNULL((select count(*) from aidt_lms.tc_cla_mb_info where cla_id= #{claId} and actvtn_at = 'Y' ), 0) as stnt_cnt
+            , IFNULL((select sum(CASE WHEN r.se_cd = '1' THEN r.rwd_amt ELSE 0 END) - sum(CASE WHEN r.se_cd = '2' THEN r.rwd_use_amt ELSE 0 END)
+                        from aidt_lms.rwd_earn_hist r
+                        where 1=1
+                            and r.user_id = tc.stdt_id
+                            and r.cla_id = tc.cla_id
+                            and r.rwd_se_cd = 1 /* 하트 리워드만 조회 */
+                        <if test="menuSeCd != null and menuSeCd != '' ">
+                            and r.menu_se_cd = #{menuSeCd}
+                        </if>
+                        <if test="menuSeCd != null and menuSeCd != '' ">
+                            and r.sve_se_cd = #{sveSeCd}
+                        </if>
+                        <if test="smt != null and smt != '' ">
+                            <if test="smt == 1">
+                                and r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-03-01") and  CONCAT(DATE_FORMAT(NOW(),'%Y'), "-08-31")
+                            </if>
+                            <if test="smt == 2">
+                                and r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-09-01") and  CONCAT(DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 1 YEAR), '%Y') , "-02-28")
+                            </if>
+                        </if>
+              ), 0) as htEarnGramt
+            , IFNULL((select sum(rwd_amt) from aidt_lms.rwd_earn_hist r where r.user_id = tc.stdt_id and r.cla_id = tc.cla_id and r.rwd_se_cd = 2 and r.se_cd = 1
+                        <if test="menuSeCd != null and menuSeCd != '' ">
+                            and r.menu_se_cd = #{menuSeCd}
+                        </if>
+                        <if test="menuSeCd != null and menuSeCd != '' ">
+                            and r.sve_se_cd = #{sveSeCd}
+                        </if>
+                        <if test="smt != null and smt != '' ">
+                            <if test="smt == 1">
+                                and r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-03-01") and  CONCAT(DATE_FORMAT(NOW(),'%Y'), "-08-31")
+                            </if>
+                            <if test="smt == 2">
+                                and r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-09-01") and  CONCAT(DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 1 YEAR), '%Y') , "-02-28")
+                            </if>
+                        </if>
+                            /*
+                            and CASE when tc.smt = 1 then r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-03-01") and  CONCAT(DATE_FORMAT(NOW(),'%Y'), "-08-31")
+                            else r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-09-01") and  CONCAT(DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 1 YEAR), '%Y') , "-02-28") END
+                            */
+              ), 0) as stEarnGramt
+        from aidt_lms.tc_cla_mb_info tc
+        left join aidt_lms.stdt_reg_info sri on tc.stdt_id = sri.user_id
+        where
+        1 = 1
+        and tc.cla_id = #{claId}
+         and tc.actvtn_at = 'Y'
+        order by sri.num
+    </select>
+
+    <select id="findStntRewardStatus" parameterType="map" resultType="camelHashMap">
+        /* TchRewardMapperr.findStntRewardStatus */
+        select
+            ifnull(sum(rwd_amt), 0) as smt_ht_earn_gramt,
+            ifnull(a.mon_ht_earn_gramt, 0) as mon_ht_earn_gramt
+        from aidt_lms.rwd_earn_hist r
+        left join aidt_lms.tc_cla_mb_info tc on r.user_id =tc.stdt_id and r.cla_id =tc.cla_id and tc.actvtn_at = 'Y'
+        left join(
+            select
+                r.cla_id ,
+                sum(rwd_amt) as mon_ht_earn_gramt
+            from aidt_lms.rwd_earn_hist r
+            left join aidt_lms.tc_cla_mb_info tc on r.user_id =tc.stdt_id and r.cla_id =tc.cla_id and tc.actvtn_at = 'Y'
+            where
+                r.cla_id = #{claId}
+                and r.rwd_se_cd = "1"
+                and r.se_cd = "1"
+                <if test="menuSeCd != null and menuSeCd != '' ">
+                    AND r.menu_se_cd = #{menuSeCd}
+                </if>
+                <if test="sveSeCd != null and sveSeCd != '' ">
+                    AND r.sve_se_cd = #{sveSeCd}
+                </if>
+                and  DATE_FORMAT(NOW(),'%m') = SUBSTRING(r.reg_dt, 6, 2)
+            group by r.cla_id
+        ) a on a.cla_id = r.cla_id
+        where r.cla_id  = #{claId}
+            and r.rwd_se_cd = "1"
+            and r.se_cd = "1"
+            <if test="menuSeCd != null and menuSeCd != '' ">
+                AND r.menu_se_cd = #{menuSeCd}
+            </if>
+            <if test="sveSeCd != null and sveSeCd != '' ">
+                AND r.sve_se_cd = #{sveSeCd}
+            </if>
+            and CASE when tc.smt = 1 then r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-03-01") and  CONCAT(DATE_FORMAT(NOW(),'%Y'), "-08-31")
+                else r.reg_dt BETWEEN CONCAT(DATE_FORMAT(NOW(),'%Y'), "-09-01") and  CONCAT(DATE_FORMAT(DATE_ADD(NOW(), INTERVAL 1 YEAR), '%Y'), "-02-28")
+                END
+    </select>
+
+
+    <select id="findMyRewardInfoList" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntRewardMapper.findMyRewardInfoList */
+        select
+            COUNT(*) over () AS full_count
+            , DATE_FORMAT(r.reg_dt, "%Y-%m-%d %H:%i:%s") as regDt
+            , aidt_lms.F_CODE_NM('menu_se_cd', menu_se_cd) as menuSeCd
+            , aidt_lms.F_CODE_NM('sve_se_cd', sve_se_cd) as sveSeCd
+            , um.flnm
+            , r.rwd_amt
+        from aidt_lms.rwd_earn_hist r
+        LEFT JOIN aidt_lms.user um ON um.user_id = r.user_id
+        where 1=1
+        and r.cla_id = #{param.claId}
+        and r.rwd_se_cd = "1"
+        and r.se_cd = "1"
+        <if test="param.menuSeCd != null and param.menuSeCd != '' ">
+            AND r.menu_se_cd = #{param.menuSeCd}
+        </if>
+        <if test="param.sveSeCd != null and param.sveSeCd != '' ">
+            AND r.sve_se_cd = #{param.sveSeCd}
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+</mapper>

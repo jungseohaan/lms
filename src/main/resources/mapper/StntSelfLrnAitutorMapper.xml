@@ -1,0 +1,533 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.selflrn.mapper.StntSelfLrnAitutorMapper">
+
+    <select id="selectSlfStdInfoAitutorData" parameterType="map" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectSlfStdInfoAitutorData */
+        select `id` as `stdId`
+        from  slf_std_info a1
+        where a1.`std_cd` = 1
+        and   a1.`stdt_id` = #{userId}
+        and   a1.`textbk_id` = #{textbkId}
+        and   a1.`cla_id` = #{claId}
+        and   a1.`unit_num` = #{unitNum}
+    </select>
+
+    <insert id="insertSlfStdInfoForAitutor" parameterType="map" useGeneratedKeys="true" keyProperty="stdId" keyColumn="id">
+        /* StntSelfLrnAitutorMapper.insertSlfStdInfoForAitutor */
+        INSERT INTO aidt_lms.slf_std_info (
+              std_cd
+            , std_nm
+            , stdt_id
+            , cla_id
+            , textbk_id
+            , std_usd_id
+            , unit_num
+            , lvl_id
+            , lvl_nm
+            , rgtr
+            , reg_dt
+            , mdfr
+            , mdfy_dt
+        ) VALUES (
+               1
+             , #{stdNm}
+             , #{userId}
+             , #{claId}
+             , #{textbkId}
+             , 0
+             , #{unitNum}
+             , 0
+             , ''
+             , #{userId}
+             , NOW()
+             , #{userId}
+             , NOW()
+         )
+    </insert>
+
+    <insert id="insertSlfStdResultInfoForAitutor" parameterType="map" useGeneratedKeys="true" keyProperty="stdResultId" keyColumn="id">
+        /* StntSelfLrnAitutorMapper.insertSlfStdResultInfoForAitutor */
+        INSERT INTO aidt_lms.slf_std_result_info (
+              `std_id`
+            , `module_num`
+            , `module_id`
+            , `libtext_id`
+            , `sm_exm_at`
+            , `src_result_info_id`
+            , `rgtr`
+            , `reg_dt`
+            , `mdfr`
+            , `mdfy_dt`
+        ) VALUES (
+              #{stdId}
+            , ifnull(#{moduleNum}, 0)
+            , ifnull(#{moduleId}, 0)
+            , ifnull(#{libtextId}, 0)
+            , ifnull(#{smExmAt}, 'N')
+            , #{srcResultInfoId}
+            , #{userId}
+            , NOW()
+            , #{userId}
+            , NOW()
+        )
+    </insert>
+
+    <update id="updateFirstSlfResult" parameterType="map">
+        /* StntSelfLrnAitutorMapper.updateFirstSlfResult */
+        update aidt_lms.slf_std_result_info
+        set   module_num = 1
+            , module_id = ifnull(#{moduleId}, 0)
+            , libtext_id = ifnull(#{libtextId}, 0)
+        where `id` = #{stdResultId}
+    </update>
+
+    <update id="updateAitutorLrngInfoPrgrs" parameterType="map">
+        /* StntSelfLrnAitutorMapper.updateAitutorLrngInfoPrgrs */
+        update `aidt_lms`.`slf_std_aitutor_lrng_info`
+        set   cur_prgrs_lrng_at = #{curPrgrsLrngAt}
+            , lrng_stts_cd = ifnull(#{lrngSttsCd}, lrng_stts_cd)
+            , lrng_nmtm = ifnull(#{lrngNmtm}, lrng_nmtm)
+            , `mdfr` = #{userId}
+            , `mdfcn_dt` = NOW()
+        where `id` = #{aitutorLrngInfoId}
+    </update>
+
+    <select id="selectReceiveCompleteYn" parameterType="map" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectReceiveCompleteYn */
+        select case
+                when exists(
+                        select 1
+                        from  `aidt_lms`.`slf_std_aitutor_lrng_info` a1
+                        where a1.low_rank_udstd_rate_at = #{lowRankUdstdRateAt}
+                        and   a1.lrng_stts_cd = #{lrngSttsCd}
+                    ) then 'N'
+                else 'Y'
+    </select>
+
+    <select id="selectEnLrngDivList" parameterType="map" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectEnLrngDivList */
+        select case
+                when name = 'evaluationArea' then '평가영역1'
+                when name = 'contentsItem' then '평가영역2'
+                when name = 'evaluationArea3' then '평가영역3'
+              end `enLrngDivType`
+            , `id` as `enLrngDivId`
+            , `code`, `name`, `val`
+        <if test="enLrngDivIdList != null and enLrngDivIdList.size > 0">
+            , ifnull(b1.`sort`, 999) as `sort`
+            , case
+                when ifnull(b1.`enLrngDivId`, 0) = 0 then 'N'
+                else 'Y'
+              end `lowRankUdstdRateAt`
+        </if>
+        from  `aidt_lcms`.`meta` a1
+        <if test="enLrngDivIdList != null and enLrngDivIdList.size > 0">
+              left outer join (<foreach item="enLrngDivId" collection="enLrngDivIdList" separator="union all" index="idx">select #{enLrngDivId} as `enLrngDivId`, #{idx} + 1 as `sort`</foreach>) b1 on a1.`id` = b1.`enLrngDivId`
+        </if>
+        where name in ('evaluationArea', 'contentsItem', 'evaluationArea3')
+        and   code in ('listening','grammar','vocabulary','reading','speaking','writing','pronunciation')
+        <!-- 테스트용 임시 하드코딩, 수정필요-s -->
+        <!-- and   brand_id = ( select a2_1.`brand_id` from `aidt_lcms`.`textbook` a2_1 where a2_1.`id` = #{textbkId} ) -->
+        and   brand_id = 3
+        <!-- 테스트용 임시 하드코딩, 수정필요-e -->
+        and   is_active = 1
+        order by <if test="enLrngDivIdList != null and enLrngDivIdList.size > 0">`sort`,</if>`enLrngDivType`
+    </select>
+
+    <select id="selectAitutorLibtextIdList" parameterType="int" resultType="int">
+        /* StntSelfLrnAitutorMapper.selectAitutorLibtextIdList */
+        select distinct b2_1.libtext_id
+        from  `aidt_lms`.`slf_std_aitutor_lrng_info` a2_1
+              inner join `aidt_lms`.`slf_std_aitutor_lrng_detail` b2_1 on a2_1.`id` = b2_1.aitutor_lrng_info_id
+        where a2_1.std_id = #{stdId}
+        and   ifnull(b2_1.libtext_id, 0) > 0
+    </select>
+
+    <select id="selectLibtextWord" parameterType="int" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectLibtextWord */
+        select a1.`id` as `libtextId`
+            , a1.contents_audio as `libraryUrl`
+            , a1.contents_entry as `libraryName`
+        from  `aidt_lcms`.`libtext` a1
+        <if test="libtextIdList != null and libtextIdList.size > 0">
+              left outer join (<foreach item="libtextId" collection="libtextIdList" separator="union all">select #{libtextId} as `orgLibtextId`</foreach>
+              ) d1 on a1.`id` = d1.`orgLibtextId`
+        </if>
+        where a1.is_publicOpen = true
+        and   a1.type_1 = '어휘'
+        and   exists(/*단원이 일치해야 한다 - 현재는 반 하드코딩으로 처리*/
+            select 1
+            from  `aidt_lcms`.`meta` a2_1
+            where a2_1.`name` = 'curriUnit1'
+            and   a2_1.`val` like concat(#{unitPrefixValue}, '%')
+            and   a2_1.`id` = a1.`curriUnit1`
+        )
+        <if test="libtextIdList != null and libtextIdList.size > 0">
+        and   ifnull(d1.`orgLibtextId`, 0) = 0
+        </if>
+        limit 1
+    </select>
+
+    <select id="selectLibtextSentence" parameterType="int" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectLibtextSentence */
+        select a1.`id` as `libtextId`
+            , c1.`url` as `libraryUrl`
+            , REGEXP_REPLACE(a1.contents_entry, '\\{([^}]*)\\}', '$1') as `libraryName`
+            , b1.startTime as `libraryStartTime`
+            , b1.endTime as `libraryEndTime`
+            , a1.contents_audioAnalysis as `contentsAudioAnalysis`
+        from  `aidt_lcms`.`libtext` a1
+              inner join aidt_lcms.libtextdialog b1 on a1.id = b1.skey and a1.key_info = b1.libtext_id
+              inner join aidt_lcms.library c1 on a1.key_info = c1.script_id
+        <if test="libtextIdList != null and libtextIdList.size > 0">
+              left outer join (<foreach item="libtextId" collection="libtextIdList" separator="union all">select #{libtextId} as `orgLibtextId`</foreach>
+              ) d1 on a1.`id` = d1.`orgLibtextId`
+        </if>
+        where a1.is_publicOpen = true
+        and   a1.type_1 = '문장'
+        and   exists(/*단원이 일치해야 한다 - 현재는 반 하드코딩으로 처리*/
+            select 1
+            from  `aidt_lcms`.`meta` a2_1
+            where a2_1.`name` = 'curriUnit1'
+            and   a2_1.`val` like concat(#{unitPrefixValue}, '%')
+            and   a2_1.`id` = a1.`curriUnit1`
+        )
+        and   a1.contents_audioAnalysis is not null
+        <if test="libtextIdList != null and libtextIdList.size > 0">
+        and   ifnull(d1.`orgLibtextId`, 0) = 0
+        </if>
+        limit 1
+    </select>
+
+    <select id="selectAitutorArticleIdList" parameterType="int" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectAitutorArticleIdList */
+        select distinct b2_1.article_id
+        from  `aidt_lms`.`slf_std_aitutor_lrng_info` a2_1
+              inner join `aidt_lms`.`slf_std_aitutor_lrng_detail` b2_1 on a2_1.`id` = b2_1.aitutor_lrng_info_id
+        where a2_1.std_id = #{stdId}
+        and   ifnull(b2_1.article_id, 0) > 0
+    </select>
+
+    <select id="selectArticleByDivId" parameterType="int" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectArticleByDivId */
+        select a1.article_id as `articleId`
+        from  `aidt_lcms`.`article_meta_map` a1
+              inner join `aidt_lcms`.`article` b1 on a1.article_id = b1.`id` and a1.sub_id = 0
+        <if test="articleIdList != null and articleIdList.size > 0">
+              left outer join (<foreach item="articleId" collection="articleIdList" separator="union all">select #{articleId} as `orgArticleId`</foreach>
+              ) c1 on b1.`id` = c1.`orgArticleId`
+        </if>
+        where a1.meta_id = #{enLrngDivId}
+        and   b1.is_publicOpen = true
+        and   b1.use_AiTutor = 1
+        and   exists(/*단원이 일치해야 한다 - 현재는 반 하드코딩으로 처리*/
+            select 1
+            from  `aidt_lcms`.article_meta_map a2_2
+		          inner join `aidt_lcms`.`meta` b2_2 on a2_2.meta_id = b2_2.`id`
+            where b2_2.`name` = 'studyMap1'
+            and   b2_2.`val` like concat(#{unitPrefixValue}, '%')
+            and   a2_2.article_id = b1.`id`
+            and   a2_2.sub_id = 0
+        )
+        <if test="articleIdList != null and articleIdList.size > 0">
+        and   ifnull(c1.`orgArticleId`, 0) = 0
+        </if>
+        limit 1
+    </select>
+
+    <select id="selectAitutorLrngInfoByStdId" resultType="com.visang.aidt.lms.api.selflrn.dto.AitutorLrngInfoVO">
+        /* StntSelfLrnAitutorMapper.selectAitutorLrngInfoByStdId */
+        select a1.`id` as `aitutorLrngInfoId`
+            /*, row_number() over(partition by low_rank_udstd_rate_at) as `lrngGroupNo`
+      		, count(*) over(partition by low_rank_udstd_rate_at) as `lrngGroupCnt`*/
+            , lrng_stts_cd as `lrngSttsCd`
+            , low_rank_udstd_rate_at as `lowRankUdstdRateAt`
+            , cur_prgrs_lrng_at as `curPrgrsLrngAt`
+            , a1.`en_lrng_div_id` as `enLrngDivId`
+            , ( select a2_1.code
+                from  aidt_lcms.meta a2_1
+                where a2_1.id = a1.en_lrng_div_id
+              ) as `enLrngDivCode`
+        from  aidt_lms.slf_std_aitutor_lrng_info a1
+        where a1.`std_id` = #{stdId}
+        /*order by a1.`id`*/
+    </select>
+
+    <update id="updateAitutorLrngInfo" parameterType="com.visang.aidt.lms.api.selflrn.dto.AitutorLrngInfoVO">
+        /* StntSelfLrnAitutorMapper.updateAitutorLrngInfo */
+        update `aidt_lms`.`slf_std_aitutor_lrng_info`
+        set   `sort` = #{sort}
+            , low_rank_udstd_rate_at = #{lowRankUdstdRateAt}
+            , cur_prgrs_lrng_at = #{curPrgrsLrngAt}
+            , lrng_stts_cd = #{lrngSttsCd}
+        <if test='curPrgrsLrngAt != null and curPrgrsLrngAt == "Y"'>
+            , `last_lrng_ymd` = date_format(now(), '%Y%m%d')
+        </if>
+            , `mdfcn_dt` = NOW()
+        where `id` = #{aitutorLrngInfoId}
+    </update>
+
+    <update id="updateAitutorLrngSttsCd">
+        /* StntSelfLrnAitutorMapper.updateAitutorLrngSttsCd */
+        update `aidt_lms`.`slf_std_aitutor_lrng_info`
+        set   lrng_stts_cd = #{lrngSttsCd}
+            , `mdfr` = concat('lrngSttsCd-update-', #{lrngSttsCd})
+            , `mdfcn_dt` = NOW()
+        where `id` = #{aitutorLrngInfoId}
+    </update>
+
+    <insert id="insertSlfStdAitutorLrngInfo" parameterType="map" useGeneratedKeys="true" keyProperty="aitutorLrngInfoId" keyColumn="id">
+        /* StntSelfLrnAitutorMapper.insertSlfStdAitutorLrngInfo */
+        INSERT INTO aidt_lms.slf_std_aitutor_lrng_info (
+              `std_id`
+            , `en_lrng_div_id`
+            , `sort`
+            , `low_rank_udstd_rate_at`
+            , `cur_prgrs_lrng_at`
+            , `lrng_stts_cd`
+        <if test='curPrgrsLrngAt != null and curPrgrsLrngAt == "Y"'>
+            , `last_lrng_ymd`
+        </if>
+            , `rgtr`
+            , `reg_dt`
+        ) VALUES (
+              #{stdId}
+            , #{enLrngDivId}
+            , #{sort}
+            , #{lowRankUdstdRateAt}
+            , #{curPrgrsLrngAt}
+            , #{lrngSttsCd}
+        <if test='curPrgrsLrngAt != null and curPrgrsLrngAt == "Y"'>
+            , date_format(now(), '%Y%m%d')
+        </if>
+            , #{userId}
+            , NOW()
+         )
+    </insert>
+
+    <insert id="insertSlfStdAitutorLrngDetail" parameterType="com.visang.aidt.lms.api.selflrn.dto.AitutorQuestionVO" useGeneratedKeys="true" keyProperty="aitutorLrngDetailId" keyColumn="id">
+        /* StntSelfLrnAitutorMapper.insertSlfStdAitutorLrngDetail */
+        INSERT INTO aidt_lms.slf_std_aitutor_lrng_detail (
+              `aitutor_lrng_info_id`
+            , `article_id`
+            , `libtext_id`
+            , `rgtr`
+            , `reg_dt`
+        ) VALUES (
+              #{aitutorLrngInfoId}
+            , ifnull(#{articleId}, 0)
+            , ifnull(#{libtextId}, 0)
+            , #{userId}
+            , NOW()
+         )
+    </insert>
+
+    <select id="selectSlfStdAitutorLastYmd" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectSlfStdAitutorLastYmd */
+        select max(`last_lrng_ymd`)
+        from  aidt_lms.slf_std_aitutor_lrng_info
+        where `std_id` = #{stdId}
+    </select>
+
+    <delete id="deleteSlfStdAitutorLrngDetailInit">
+        /* StntSelfLrnAitutorMapper.deleteSlfStdAitutorLrngDetailInit */
+        delete from aidt_lms.slf_std_aitutor_lrng_detail
+        where aitutor_lrng_info_id = #{aitutorLrngInfoId}
+    </delete>
+
+    <select id="selectAitutorLrngListByStdId" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectAitutorLrngListByStdId */
+        select `id` as `aitutorLrngInfoId`
+            , `en_lrng_div_id` as `enLrngDivId`
+            , ( select a2_1.code
+                from  aidt_lcms.meta a2_1
+                where a2_1.id = a1.en_lrng_div_id
+              ) as `enLrngDivCode`
+            , `sort`
+            , `cur_prgrs_lrng_at` as `curPrgrsLrngAt`
+            , `last_lrng_ymd` as `lastLrngYmd`
+        from `aidt_lms`.`slf_std_aitutor_lrng_info` a1
+        where `std_id` = #{stdId}
+        <if test='lowRankUdstdRateAt != null and lowRankUdstdRateAt != ""'>
+        and   `low_rank_udstd_rate_at` = #{lowRankUdstdRateAt}
+        </if>
+    </select>
+
+    <select id="selectAitutorDivIdByArticle" resultType="int">
+        /* StntSelfLrnAitutorMapper.selectAitutorDivIdByArticle - 운영 상으로 평가 영역 들 간에 문항은 겹칠 수 없음 */
+        select ifnull( (
+            select `en_lrng_div_id`
+            from  `aidt_lms`.`slf_std_aitutor_lrng_info` a1
+                  inner join `aidt_lms`.`slf_std_aitutor_lrng_detail` b1 on a1.`id` = b1.aitutor_lrng_info_id
+            where a1.std_id = #{stdId}
+            and   b1.article_id = #{articleId}
+        ), 0 )
+    </select>
+
+    <select id="selectArticleChainTypeYn" parameterType="int" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectArticleChainTypeYn */
+        select case
+                when a1.questionStr like '%"ch"%' then 'Y'
+                else 'N'
+              end
+        from `aidt_lcms`.`article`
+        where `id` = #{articleId}
+    </select>
+
+    <update id="updateAitutorSubmitAnswer" parameterType="map">
+        /* StntSelfLrnAitutorMapper.updateAitutorSubmitAnswer */
+        update `aidt_lms`.`slf_std_result_info`
+        set   sub_mit_anw = #{subMitAnw}
+            , sub_mit_anw_url = #{subMitAnwUrl}
+            , errata = #{errata}
+            , mdfr = #{userId}
+            , mdfy_dt = NOW()
+        where `id` = #{stdResultId}
+    </update>
+
+    <select id="selectStdInfoById" parameterType="int" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectStdInfoById */
+        select a1.`unit_num` as `unitNum`
+        from `aidt_lms`.`slf_std_info` a1
+        where a1.`id` = #{stdId}
+    </select>
+
+    <select id="selectStdResultInfoByStdId" parameterType="int" resultType="com.visang.aidt.lms.api.selflrn.dto.AitutorResultInfoVO">
+        /* StntSelfLrnAitutorMapper.selectStdResultInfoByStdId */
+        select a1.`id` as `stdResultId`
+            , a1.`std_id` as `stdId`
+            , a1.`module_num` as `moduleNum`
+            , a1.`module_id` as `moduleId`
+            , a1.`libtext_id` as `libtextId`
+            , a1.`ai_tut_cht_cn` as `aiTutChtCn`
+            , a1.`sm_exm_at` as `smExmAt`
+            , a1.`errata` as `errata`
+            , ( select a1.`unit_num` as `unitNum`
+                from `aidt_lms`.`slf_std_info` a1
+                where a1.`id` = #{stdId}
+              ) as `unitNum`
+        from `aidt_lms`.`slf_std_result_info` a1
+        where a1.`std_id` = #{stdId}
+        order by a1.`id` desc
+        limit 1
+    </select>
+
+    <select id="selectStdResultInfoById" parameterType="int" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectStdResultInfoById */
+        select a1.`id` as `stdResultId`
+            , a1.`std_id` as `stdId`
+            , a1.`module_num` as `moduleNum`
+            , a1.`module_id` as `moduleId`
+            , a1.`ai_tut_cht_cn` as `aiTutChtCn`
+            , a1.`ai_tut_result` as `aiTutResult`
+            , a1.`sm_exm_at` as `smExmAt`
+            , a1.`errata` as `errata`
+        from `aidt_lms`.`slf_std_result_info` a1
+        where a1.`id` = #{stdResultId}
+    </select>
+
+    <update id="updateAitutorSubmitChat" parameterType="map">
+        /* StntSelfLrnAitutorMapper.updateAitutorSubmitChat */
+        update `aidt_lms`.`slf_std_result_info`
+        set   ai_tut_use_at = 'Y'
+        <choose>
+          <when test='lrnYn != null and lrnYn == "Y"'>
+              , ai_tut_result = #{aiTutChtCn}
+          </when>
+          <otherwise>
+              , ai_tut_cht_cn = #{aiTutChtCn}
+          </otherwise>
+        </choose>
+        <if test="aiTutId != null and aiTutId > 0">
+            , ai_tut_id = #{aiTutId}
+        </if>
+            , mdfr = #{userId}
+            , mdfy_dt = NOW()
+        where `id` = #{stdResultId}
+    </update>
+
+    <select id="selectTaskAitutorExistDateList" parameterType="map" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectTaskAitutorExistDateList */
+        select date_format(b1.reg_dt, '%Y%m%d') as `stdDt`
+        from  `aidt_lms`.`task_result_info` a1
+              inner join `aidt_lms`.`task_result_detail` b1 on a1.`id` = b1.task_result_id
+        where a1.mamoym_id = #{userId}
+        and   a1.subm_at = 'Y'
+        and   b1.ai_tut_use_at = 'Y'
+    </select>
+
+    <select id="selectSlfStdAitutorExistDateList" parameterType="map" resultType="string">
+        /* StntSelfLrnAitutorMapper.selectSlfStdAitutorExistDateList */
+        select date_format(b1.reg_dt, '%Y%m%d') as `stdDt`
+        from  `aidt_lms`.`slf_std_info` a1
+              inner join `aidt_lms`.`slf_std_result_info` b1 on a1.`id` = b1.std_id
+        where a1.stdt_id = #{userId}
+        and   a1.ed_at = 'Y'
+        and   b1.ai_tut_use_at = 'Y'
+    </select>
+
+    <update id="updateAitutorLrngInfoInitByStdId">
+        /* StntSelfLrnAitutorMapper.updateAitutorLrngInfoInitByStdId */
+        update aidt_lms.slf_std_aitutor_lrng_info
+        set   cur_prgrs_lrng_at = case when `sort` = 1 then 'Y' else 'N' end
+            , lrng_stts_cd = case when `low_rank_udstd_rate_at` = 'Y' then 1 else 0 end
+            , last_lrng_ymd = null
+            , lrng_nmtm = 0
+            , mdfr = null
+            , mdfcn_dt = null
+        where std_id = #{stdId}
+    </update>
+
+    <delete id="deleteSlfStdAitutorLrngDetailInitByStdId">
+        /* StntSelfLrnAitutorMapper.deleteSlfStdAitutorLrngDetailInitByStdId */
+        delete from  aidt_lms.slf_std_aitutor_lrng_detail
+        where aitutor_lrng_info_id in (
+            select `id` from aidt_lms.slf_std_aitutor_lrng_info where std_id = #{stdId}
+        )
+    </delete>
+
+    <select id="selectEnLrngDivIdByStdId" parameterType="int" resultType="int">
+        select a.en_lrng_div_id
+        from   aidt_lms.slf_std_aitutor_lrng_info a
+        where  a.std_id = #{stdId}
+        and    a.cur_prgrs_lrng_at = 'Y'
+    </select>
+
+    <select id="selectCurAitutorLrngInfoByStdId" parameterType="map" resultType="map">
+        /* StntSelfLrnAitutorMapper.selectCurAitutorLrngInfoByStdId */
+        select a.id
+             , a.en_lrng_div_id as enLrngDivId
+        from   aidt_lms.slf_std_aitutor_lrng_info a
+            left outer join aidt_lms.slf_std_aitutor_lrng_detail b
+                on  b.aitutor_lrng_info_id = a.id
+            <if test='moduleId != null'>
+                and b.article_id = #{moduleId}
+            </if>
+            <if test='libtextId != null'>
+                and b.libtext_id = #{libtextId}
+            </if>
+        where a.std_id = #{stdId}
+        and   a.cur_prgrs_lrng_at = 'Y'
+        and   a.lrng_stts_cd = 1
+    </select>
+
+    <select id="selectAitutorLrngDetailCnt" parameterType="map" resultType="int">
+        /* StntSelfLrnAitutorMapper.selectAitutorLrngDetailCnt */
+        select count(1) as detailCnt
+        from   aidt_lms.slf_std_aitutor_lrng_detail a
+        where  a.aitutor_lrng_info_id = #{aitutorLrngInfoId}
+        and    a.article_id = #{moduleId}
+        and    a.libtext_id = #{libtextId}
+    </select>
+
+    <update id="updateLibtextId">
+        update  aidt_lms.slf_std_result_info a
+        set     a.libtext_id = #{libtextId}
+        where   a.id = #{stdResultId}
+    </update>
+
+</mapper>

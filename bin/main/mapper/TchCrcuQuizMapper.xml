@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.TchCrcuQuizMapper">
+
+    <insert id="createTchToolQuizForm_spotQizInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchCrcuQuizMapper.createTchToolQuizForm_spotQizInfo */
+        insert into aidt_lms.spot_qiz_info
+            (wrter_id, cla_id, textbk_id, textbk_nm, qiz_num, qiz_pos_script, result_disp_at, anm_at, qiz_stts_cd, rgtr, mdfr)
+        values (
+            #{userId}, #{claId}, #{textbkId}, #{textbkNm}, #{qizNum}, #{qizPosScript}, #{resultDispAt}, #{anonyAt}, #{qizSttsCd}, 'system', 'system'
+        )
+    </insert>
+
+    <insert id="insertTchToolQuizForm_spotQizInfo" parameterType="map">
+        /* TchCrcuQuizMapper.insertTchToolQuizView_spotQizInfoList */
+        INSERT into aidt_lms.spot_qiz_info
+        SELECT
+            NULL
+            ,wrter_id
+            ,cla_id
+            ,textbk_id
+            ,#{textbkNm}
+            ,#{qizNum}
+            ,#{qizPosScript}
+            ,#{resultDispAt}
+            ,#{anonyAt}
+            ,3
+            ,wrter_id
+            ,now()
+            ,wrter_id
+            ,now()
+        FROM aidt_lms.spot_qiz_info
+        WHERE id = #{qizId}
+            AND qiz_num = 1
+    </insert>
+
+    <update id="updateTchToolQuizForm_spotQizInfo" parameterType="map">
+        /* TchCrcuQuizMapper.updateTchToolQuizForm_spotQizInfo */
+        UPDATE aidt_lms.spot_qiz_info
+        SET textbk_nm       =#{textbkNm},
+            qiz_num         =#{qizNum},
+            qiz_pos_script  =#{qizPosScript},
+            result_disp_at  =#{resultDispAt},
+            anm_at        =#{anonyAt},
+            qiz_stts_cd     =2,
+            mdfr            ='system',
+            mdfy_dt         =now()
+        WHERE id = #{qizId}
+    </update>
+
+    <insert id="createTchToolQuizForm_spotQizDistract" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchCrcuQuizMapper.createTchToolQuizForm_spotQizDistract */
+        insert into aidt_lms.spot_qiz_distract
+            (qiz_id, distr_num, distr_nm, rgtr, mdfr)
+        values (
+            #{qizId}, #{distrNum}, #{distrNm}, 'system', 'system'
+        )
+    </insert>
+
+    <select id="findTchToolQuizView_spotQizInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuQuizMapper.findTchToolQuizView_spotQizInfoList */
+        select sqi.id as qizId, sqi.*
+          from aidt_lms.spot_qiz_info sqi
+         where id in
+        <foreach collection="qizId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </select>
+
+    <select id="findTchToolQuizView_spotQizDistractList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuQuizMapper.findTchToolQuizView_spotQizDistractList */
+        select *
+        from aidt_lms.spot_qiz_distract
+        where qiz_id in
+            (select id
+              from aidt_lms.spot_qiz_info
+             where id in
+            <foreach collection="qizId" item="arr" open="(" close=")" separator=",">
+                #{arr}
+            </foreach>
+            )
+    </select>
+
+    <update id="modifyTchToolQuizStart" parameterType="map" >
+        /* TchCrcuQuizMapper.modifyTchToolQuizStart */
+        update aidt_lms.spot_qiz_info
+           set qiz_stts_cd = 2
+        where id in
+        <foreach collection="qizId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </update>
+
+
+
+    <update id="modifyTchToolQuizEnd" parameterType="map" >
+        /* TchCrcuQuizMapper.modifyTchToolQuizEnd */
+        update aidt_lms.spot_qiz_info
+           set qiz_stts_cd = 3
+        where id in
+        <foreach collection="qizId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </update>
+
+    <select id="findTchToolQuizResult" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuQuizMapper.findTchToolQuizResult */
+        select (select count(*) from aidt_lms.spot_qiz_result where qiz_id = #{qizId}) as apyCnt
+             , (select count(*) from aidt_lms.tc_cla_mb_info where cla_id = #{claId} and actvtn_at = 'Y') as totalCnt
+    </select>
+
+    <select id="findTchToolQuizResult_qizInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuQuizMapper.findTchToolQuizResult_qizInfoList */
+        select submdistr_num
+             , count(*) as submCnt
+          from aidt_lms.spot_qiz_result
+         where qiz_id = #{qizId}
+         group by submdistr_num
+    </select>
+
+    <select id="findTchToolQuizResult_qizStntInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuQuizMapper.findTchToolQuizResult_qizStntInfoList */
+        select sqr.submdistr_num
+             , sqr.introdur_id
+             , u.flnm
+          from aidt_lms.spot_qiz_info sqi
+          join aidt_lms.spot_qiz_result sqr on sqr.qiz_id =sqi.id
+          left outer join aidt_lms.user u on u.user_id = sqr.introdur_id
+         where sqi.id = #{qizId}
+         order by sqr.submdistr_num, u.flnm
+    </select>
+
+    <delete id="removeTchToolQuizDel_spotQizDistract" parameterType="map" >
+        /* TchCrcuQuizMapper.removeTchToolQuizDel_spotQizDistract */
+        delete
+        from aidt_lms.spot_qiz_distract
+        where qiz_id in (select id
+                         from aidt_lms.spot_qiz_info
+                         where 1=1
+                         and cla_id = #{claId}
+                         and textbk_id= #{textbkId}
+                        )
+
+    </delete>
+
+    <delete id="removeTchToolQuizDel_spotQizResult" parameterType="map" >
+        /* TchCrcuQuizMapper.removeTchToolQuizDel_spotQizResult */
+        delete
+        from aidt_lms.spot_qiz_result
+        where qiz_id in (select id
+                         from aidt_lms.spot_qiz_info
+                         where 1=1
+                         and cla_id = #{claId}
+                         and textbk_id= #{textbkId}
+                        )
+
+    </delete>
+
+    <delete id="removeTchToolQuizDel_spotQizInfo" parameterType="map" >
+        /* TchCrcuQuizMapper.removeTchToolQuizDel_spotQizInfo */
+        delete
+        from aidt_lms.spot_qiz_info
+        where 1=1
+            and cla_id = #{claId}
+            and textbk_id= #{textbkId}
+    </delete>
+
+    <select id="findTchToolQuizNav" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuQuizMapper.findTchToolQuizNav */
+        select sqi.id as qizId
+             , aidt_lms.F_CODE_NM('qiz_stts_cd', sqi.qiz_stts_cd) AS qiz_stts_nm
+             , sqi.*
+        from aidt_lms.spot_qiz_info sqi
+        where 1=1
+            and sqi.cla_id = #{claId}
+            and sqi.textbk_id= #{textbkId}
+    </select>
+
+    <delete id="removeTchToolQuizInit_spotQizResult" parameterType="map" >
+        /* TchCrcuQuizMapper.removeTchToolQuizInit_spotQizResult */
+        delete
+        from aidt_lms.spot_qiz_result
+        where qiz_id in
+        <foreach collection="qizId" item="arr" open="(" close=")" separator=",">
+            #{arr}
+        </foreach>
+    </delete>
+
+    <delete id="removeTchToolQuizForm_spotQizDistract" parameterType="map" >
+        /* TchCrcuQuizMapper.removeTchToolQuizForm_spotQizDistract */
+        delete
+        from aidt_lms.spot_qiz_distract
+        where qiz_id in
+        <foreach collection="paramData" item="map" open="(" close=")" separator=",">
+            #{map.qizId}
+        </foreach>
+    </delete>
+
+</mapper>

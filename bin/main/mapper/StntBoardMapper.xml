@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.board.mapper.StntBoardMapper">
+
+    <select id="selectStntBbsProgressList" parameterType="map" resultType="camelHashMap">
+        /* StntBoardMapper.selectStntBbsProgressList (학생)진행중인과제목록조회 */
+        SELECT
+             a.cla_id
+            ,a.textbk_id
+            ,a.wrter_id
+            ,b.ntt_id
+            ,b.bbs_id
+            ,b.ntt_sj
+            ,b.ntt_cn
+            ,DATE_FORMAT(b.ntce_bgnde, '%Y-%m-%d %H:%i') as ntce_bgnde
+            ,DATE_FORMAT(b.ntce_endde, '%Y-%m-%d %H:%i') as ntce_endde
+            ,aidt_lms.F_CODE_NM('task_stts_cd',(CASE WHEN b.progress_at = 'Y' AND now()
+                           BETWEEN b.ntce_bgnde AND b.ntce_endde
+                   THEN '2'
+                WHEN b.progress_at = 'Y'  AND now() <![CDATA[<]]> b.ntce_bgnde
+                   THEN '1'
+               WHEN b.progress_at = 'Y' AND now() <![CDATA[>]]> b.ntce_endde
+                   THEN '3'
+                ELSE '3' END)) as progress_at
+            ,b.atch_id
+            ,b.rgtr
+            ,DATE_FORMAT(b.reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+            ,b.mdfr
+            ,DATE_FORMAT(b.mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+        FROM aidt_lms.cla_bbsmaster a
+            LEFT JOIN aidt_lms.cla_bbs b
+            ON a.bbs_id = b.bbs_id
+            AND a.bbs_ty_code = #{bbsTyCode}
+        WHERE
+            a.cla_id = #{claId}
+            AND a.textbk_id = #{textbkId}
+            AND b.progress_at = 'Y'
+            AND b.use_at <![CDATA[<>]]> 'D'
+            AND DATE_FORMAT(now(), '%Y%m%d')
+            BETWEEN DATE_FORMAT(b.ntce_bgnde, '%Y%m%d') AND DATE_FORMAT(b.ntce_endde, '%Y%m%d')
+        ORDER BY b.reg_dt, b.bbs_id
+    </select>
+
+
+    <select id="selectStntBbsListAll" parameterType="pagingParam" resultType="camelHashMap" >
+        /* StntBoardMapper.selectStntBbsListAll (학생)전체과제목록조회 */
+        select (count(*) over () + 1) - (row_number() over (order by t.rgtr_dt desc, t.ntt_id)) as no
+           , t.cla_id
+            ,t.textbk_id
+            ,t.wrter_id
+            ,t.ntt_id
+            ,t.bbs_id
+            ,t.ntt_sj
+            ,t.ntt_cn
+            ,t.ntce_bgnde
+            ,t.ntce_endde
+            ,aidt_lms.F_CODE_NM('task_stts_cd', t.progress_at) as  progress_at
+            ,t.rgtr
+            ,t.rgtr_dt
+            ,t.mdfr
+            ,t.mdfy_dt
+            ,t.subm_at
+            ,t.assigned_yn
+        ,count(*) over () as full_count
+        from (
+        SELECT
+                 a.cla_id
+                ,a.textbk_id
+                ,a.wrter_id
+                ,b.ntt_id
+                ,b.bbs_id
+                ,b.ntt_sj
+                ,b.ntt_cn
+                ,DATE_FORMAT(b.ntce_bgnde, '%Y-%m-%d %H:%i') as ntce_bgnde
+                ,DATE_FORMAT(b.ntce_endde, '%Y-%m-%d %H:%i') as ntce_endde
+                ,(CASE WHEN b.progress_at = 'Y' AND now()
+                            BETWEEN b.ntce_bgnde AND b.ntce_endde
+                    THEN '2'
+                WHEN b.progress_at = 'Y'  AND now() <![CDATA[<]]> b.ntce_bgnde
+                    THEN '1'
+                WHEN b.progress_at = 'Y' AND now() <![CDATA[>]]> b.ntce_endde
+                    THEN '3'
+                 ELSE '3' END)
+                     as progress_at
+                ,b.atch_id
+                ,b.rgtr
+                ,DATE_FORMAT(b.reg_dt, '%Y-%m-%d %H:%i')     as rgtr_dt
+                ,b.mdfr
+                ,DATE_FORMAT(b.mdfy_dt, '%Y-%m-%d %H:%i')    as mdfy_dt
+                ,(CASE WHEN c.subm_at is null THEN 'N'
+                ELSE c.subm_at END) as subm_at
+                ,(SELECT CASE WHEN EXISTS(SELECT 1 FROM aidt_lms.cla_bbs_stnt WHERE ntt_id = b.ntt_id AND mamoym_id = #{param.userId} AND use_at <![CDATA[<>]]> 'D') THEN 'Y' ELSE 'N' END) as assigned_yn
+            FROM aidt_lms.cla_bbsmaster a
+                LEFT JOIN aidt_lms.cla_bbs b
+                    ON a.bbs_id = b.bbs_id
+                    AND a.bbs_ty_code = #{param.bbsTyCode}
+                    AND a.use_at <![CDATA[<>]]> 'D'
+                    AND b.use_at not in ('I','N','D')
+                LEFT JOIN aidt_lms.cla_bbs_stnt c
+                    ON b.ntt_id = c.ntt_id
+                    AND c.use_at <![CDATA[<>]]> 'D'
+                    AND c.mamoym_id = #{param.userId}
+            WHERE
+                a.cla_id = #{param.claId}
+                AND a.textbk_id = #{param.textbkId}
+            <if test="param.keyword != null and param.keyword != '' ">
+              and b.ntt_sj like concat('%',#{param.keyword},'%')
+            </if>
+        ) t
+        where t.assigned_yn = 'Y'
+        ORDER BY no desc
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="selectStntBbsStntFileInfo" parameterType="map" resultType="camelHashMap">
+        /* StntBoardMapper.selectStntBbsStntFileInfo (학생)학생과제파일목록조회 */
+        SELECT
+            a.ntt_sj    as ntt_sj
+            ,b.stnt_ntt_sj   as stnt_ntt_sj
+            ,b.stnt_ntt_cn    as stnt_ntt_cn
+            ,b.subm_at
+            ,b.atch_id
+            ,DATE_FORMAT(b.subm_dt, '%Y-%m-%d %H:%i') as subm_dt
+        FROM aidt_lms.cla_bbs a
+            LEFT JOIN aidt_lms.cla_bbs_stnt b
+            ON a.ntt_id = b.ntt_id
+                AND b.mamoym_id = #{userId}
+                AND b.use_at <![CDATA[<>]]> 'D'
+            LEFT JOIN aidt_lms.cla_atch_detail c
+            ON b.atch_id = c.atch_id
+        WHERE
+            a.ntt_id = #{nttId}
+        GROUP BY a.ntt_id
+        ORDER BY a.ntt_id
+    </select>
+
+    <select id="selectStntBbsStntFileList" parameterType="map" resultType="camelHashMap">
+            /* StntBoardMapper.selectStntBbsStntFileList (학생)학생과제파일목록조회 */
+            SELECT
+                b.file_id
+                ,b.file_sn
+                ,b.orignl_file_nm as file_nm
+                ,CONCAT(b.file_stre_path, b.stre_file_nm) as file_path
+            FROM aidt_lms.cla_bbs_stnt a
+                JOIN aidt_lms.cla_atch_detail b
+                ON a.atch_id = b.atch_id
+            WHERE
+                a.ntt_id = #{nttId}
+                AND a.mamoym_id = #{userId}
+                AND a.use_at <![CDATA[<>]]> 'D'
+                AND b.del_yn <![CDATA[<>]]> 'Y'
+                AND b.file_sn <![CDATA[<>]]> '0'
+            ORDER BY a.ntt_id
+        </select>
+
+    <update id="stntBoardBbsEnd" parameterType="map">
+       UPDATE aidt_lms.cla_bbs_stnt /* StntBoardMapper.stntBoardBbsEnd (학생)과제종료 */
+       SET  subm_dt = (CASE WHEN subm_at = 'N' THEN NOW() ELSE subm_dt END)
+            , subm_at = 'Y'
+            ,stnt_ntt_sj = #{stntNttSj}
+            ,stnt_ntt_cn = #{stntNttCn}
+            ,atch_id = CASE WHEN #{atchId} = '' THEN null ELSE #{atchId} END
+            ,mdfr = #{userId}
+            ,mdfy_dt = NOW()
+       WHERE ntt_id = #{nttId}
+        AND mamoym_id = #{userId}
+   </update>
+
+
+</mapper>

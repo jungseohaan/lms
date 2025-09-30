@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?> <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.library.dao.FileDao">
+
+    <insert id="insertUploadFile" parameterType="com.visang.aidt.lms.api.library.dto.FileDto">
+        INSERT INTO aidt_file (
+            file_name
+            , save_file_name
+            , file_path
+            , file_extension
+            , file_size
+            , rgtr
+            , request_source
+            , checksum
+            , prsinfo_yn
+        ) VALUES (
+            #{fileName}
+            , #{saveFileName}
+            , #{filePath}
+            , #{fileExtension}
+            , #{fileSize}
+            , #{rgtr}
+            , #{requestSource}
+            , #{checksum}
+            , #{prsInfoYn}
+        )
+    </insert>
+
+    <select id="selectExistsFileUuid" parameterType="com.visang.aidt.lms.api.library.dto.FileDto" resultType="string">
+        select
+            case
+                when
+                    exists (
+                        select 1
+                        from  aidt_lms.aidt_file a2
+                        where rgtr = #{rgtr}
+                        and   a2.file_path = #{filePath}
+                        and   a2.file_name = #{fileName}
+                    ) then uuid()
+                else ''
+            end
+    </select>
+
+
+    <select id="selectFileInfo" parameterType="com.visang.aidt.lms.api.library.dto.FileDto" resultType="com.visang.aidt.lms.api.library.dto.FileDto">
+        SELECT
+            a1.`id` as fileIdx
+            , a1.file_name as fileName
+            , a1.save_file_name as saveFileName
+            , a1.file_path as filePath
+            , a1.file_extension as fileExtension
+            , a1.file_size as fileSize
+            , a1.rgtr
+            , a1.reg_dt as regDt
+            , a1.request_source as requestSource
+            , a1.checksum as checksum
+            , a1.del_yn as delYn
+            , a1.prsinfo_yn as prsInfoYn
+        <choose>
+            <when test='rgtr != null and rgtr != ""'>
+            , case
+                when rgtr = #{rgtr} or (
+                        exists(/*본인이 올린 파일 또는 같은 반 학생이 올린 파일을 교사가 보는 경우*/
+                            select 1
+                            from  tc_cla_mb_info a2_1
+                            where 1=1
+                            and   a2_1.stdt_id = a1.rgtr
+                            and   a2_1.actvtn_at = 'Y'
+                        )
+                     ) then 'Y'
+                else 'N'
+              end downloadAuthYn
+            </when>
+            <otherwise>
+            , 'Y' as downloadAuthYn
+            </otherwise>
+        </choose>
+        FROM aidt_file a1
+        WHERE 1=1
+        <choose>
+            <when test="fileIdx != null and fileIdx > 0">
+        and   file_idx = #{fileidx}
+            </when>
+            <otherwise>
+        and   file_path = #{filePath}
+        and   file_name = #{fileName}
+        order by `id` desc
+        limit 1
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectFileInfoWithPionada" parameterType="com.visang.aidt.lms.api.library.dto.FileDto" resultType="com.visang.aidt.lms.api.library.dto.FileDto">
+        SELECT
+        a1.`id` as fileIdx
+        , a1.file_name as fileName
+        , a1.save_file_name as saveFileName
+        , a1.file_path as filePath
+        , a1.file_extension as fileExtension
+        , a1.file_size as fileSize
+        , a1.rgtr
+        , a1.reg_dt as regDt
+        , a1.request_source as requestSource
+        , a1.checksum as checksum
+        , a1.del_yn as delYn
+        , a1.prsinfo_yn as prsInfoYn
+        FROM aidt_file a1
+        WHERE 1=1
+        <choose>
+            <when test="fileIdx != null and fileIdx > 0">
+                and   file_idx = #{fileIdx}
+            </when>
+            <otherwise>
+                and   file_path = #{filePath}
+                and   file_name = #{fileName}
+                order by `id` desc
+                limit 1
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectFileDgnssFileList" parameterType="map" resultType="map">
+        /* File.selectFileDgnssFileList */
+        SELECT a1.`id` as fileIdx
+             , a1.file_name as fileName
+             , a1.save_file_name as saveFileName
+             , a1.file_path as filePath
+             , a1.file_extension as fileExtension
+             , a1.file_size as fileSize
+             , a1.rgtr
+             , a1.reg_dt as regDt
+             , a1.request_source as requestSource
+             , a1.checksum as checksum
+             , a1.del_yn as delYn
+             , a1.prsinfo_yn as prsInfoYn
+             , tdri.stdt_id AS userId
+             , sri.flnm AS userNm
+             , tdri.file_url AS fileUrl
+             , tdi.paper_idx AS paperIdx
+             , tdi.ord_no AS ordNo
+                <choose>
+                    <when test='rgtr != null and rgtr != ""'>
+                        , case
+                        when a1.rgtr = #{rgtr} or (
+                        exists(/*본인이 올린 파일 또는 같은 반 학생이 올린 파일을 교사가 보는 경우*/
+                        select 1
+                        from  tc_cla_mb_info a2_1
+                        where a2_1.user_id = #{rgtr}
+                        and   a2_1.stdt_id = a1.rgtr
+                        and   a2_1.actvtn_at = 'Y'
+                        )
+                        ) or (
+                        a1.rgtr = (
+                        select a3_1.user_id
+                        from tc_cla_mb_info a3_1
+                        where a3_1.stdt_id = #{rgtr}
+                        and   a3_1.actvtn_at = 'Y'
+                        )
+                        )then 'Y'
+                        else 'N'
+                        end downloadAuthYn
+                    </when>
+                    <otherwise>
+                        , 'Y' as downloadAuthYn
+                    </otherwise>
+                </choose>
+        FROM aidt_lms.aidt_file a1
+             INNER JOIN aidt_diagnosis.tb_dgnss_result_info tdri ON a1.file_name = SUBSTRING_INDEX(tdri.file_url, '/', -1)
+                    AND a1.file_path = CONCAT(SUBSTRING_INDEX(tdri.file_url, '/', LENGTH(tdri.file_url) - LENGTH(REPLACE(tdri.file_url, '/', ''))), '/')
+                    AND tdri.file_url IS NOT NULL
+                    AND tdri.file_url != ''
+            INNER JOIN aidt_diagnosis.tb_dgnss_info tdi ON tdri.dgnss_id = tdi.id
+                    INNER JOIN aidt_lms.stdt_reg_info sri ON tdri.stdt_id = sri.user_id
+        WHERE tdi.id = #{dgnssId}
+          AND a1.file_extension = 'pdf'
+    </select>
+
+    <select id="selectFileInfoWithPartnerActivity" parameterType="com.visang.aidt.lms.api.library.dto.FileDto" resultType="com.visang.aidt.lms.api.library.dto.FileDto">
+        SELECT
+        a1.`id` as fileIdx
+        , a1.file_name as fileName
+        , a1.save_file_name as saveFileName
+        , a1.file_path as filePath
+        , a1.file_extension as fileExtension
+        , a1.file_size as fileSize
+        , a1.rgtr
+        , a1.reg_dt as regDt
+        , a1.request_source as requestSource
+        , a1.checksum as checksum
+        , a1.del_yn as delYn
+        , a1.prsinfo_yn as prsInfoYn
+        <choose>
+            <when test='rgtr != null and rgtr != ""'>
+                , case
+                when rgtr = #{rgtr} or (
+                exists(/*본인이 올린 파일 또는 같은 반 학생이 올린 파일을 교사가 보는 경우*/
+                select 1
+                from  tc_cla_mb_info a2_1
+                where a2_1.cla_id = (select cla_id from tc_cla_mb_info where stdt_id = a1.rgtr and actvtn_at = 'Y')
+                and a2_1.stdt_id = #{rgtr}
+                and a2_1.actvtn_at = 'Y'
+                )
+                ) then 'Y'
+                else 'N'
+                end downloadAuthYn
+            </when>
+            <otherwise>
+                , 'Y' as downloadAuthYn
+            </otherwise>
+        </choose>
+        FROM aidt_file a1
+        WHERE 1=1
+        <choose>
+            <when test="fileIdx != null and fileIdx > 0">
+                and   file_idx = #{fileIdx}
+            </when>
+            <otherwise>
+                and   file_path = #{filePath}
+                and   file_name = #{fileName}
+                order by `id` desc
+                limit 1
+            </otherwise>
+        </choose>
+    </select>
+
+    <insert id="insertDownloadLog" parameterType="com.visang.aidt.lms.api.library.dto.FileLogDto">
+        INSERT INTO aidt_file_download_log (
+            file_idx
+            , file_name
+            , user_id
+            , access_ip
+            , request_source
+        ) VALUES (
+            #{fileIdx}
+            , #{fileName}
+            , #{userId}
+            , #{accessIp}
+            , #{requestSource}
+        );
+    </insert>
+
+    <select id="selectFileInfoList" resultType="com.visang.aidt.lms.api.library.dto.FileDto">
+        SELECT af.id as fileIdx
+             , concat(af.file_path, af.save_file_name) as filePath
+        FROM aidt_lms.aidt_file af
+        WHERE af.prsinfo_yn = 'Y'
+          AND af.del_yn = 'N'
+    </select>
+
+    <update id="updateFileInfoList" parameterType="list">
+        UPDATE aidt_file
+        SET del_yn = CASE id
+            <foreach collection="fileDtoList" item="item">
+                WHEN #{item.fileIdx} THEN #{item.delYn}
+            </foreach>
+            END,
+            del_dt = CASE id
+            <foreach collection="fileDtoList" item="item">
+                WHEN #{item.fileIdx} THEN #{item.delDt}
+            </foreach>
+            END
+        WHERE id IN
+        <foreach collection="fileDtoList" item="item" open="(" separator="," close=")">
+            #{item.fileIdx}
+        </foreach>
+    </update>
+
+    <select id="selectTcListFromCreator" parameterType="map" resultType="string">
+        /* File.selectTcListFromCreator */
+        SELECT tcui.user_id
+        FROM aidt_lms.tc_cla_mb_info tcmi
+             INNER JOIN aidt_lms.tc_cla_user_info tcui ON tcmi.cla_id = tcui.cla_id
+        WHERE tcmi.stdt_id = #{creator}
+          and tcmi.actvtn_at = 'Y'
+    </select>
+
+    <select id="selectFileAuthStudent" parameterType="map" resultType="string">
+        /* File.selectFileAuthStudent */
+        SELECT stdt_id
+        FROM aidt_lms.tc_cla_mb_info
+        WHERE user_id = #{creator}
+        AND stdt_id = #{reader}
+        AND actvtn_at = 'Y'
+    </select>
+
+    <select id="selectTcDgnssInfoWithId" parameterType="map" resultType="map">
+        /* EtcMapper.selectTcDgnssInfoWithId */
+        SELECT cla_id AS claId
+            , paper_idx AS paperIdx
+            , ord_no AS ordNo
+        FROM aidt_diagnosis.tb_dgnss_info
+        WHERE id = #{dgnssId}
+    </select>
+</mapper>

@@ -1,0 +1,947 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.shop.mapper.ShopMapper">
+    <select id="findShopUserInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopUserInfo */
+        SELECT
+        a.user_id           as user_id
+        , a.flnm            as flnm
+        , a.user_se_cd      as user_se_cd
+        , c.prchs_gds_se_cd    as prchs_gds_se_cd
+        , aidt_lms.F_CODE_NM('prchs_gds_se_cd', 'P')     as prchs_gds_se_nm
+        , aidt_lms.F_CODE_NM('prchs_gds_se_cd', #{prchsGdsSeCd})     as prchs_gds_se_nm2
+        , c.rprs_gds_id     as rprs_gds_id
+        , c.rprs_gds_anct   as rprs_gds_anct
+        , IFNULL(b.ht_blnc, 0) as ht_blnc
+        , IFNULL(b.st_blnc, 0) as st_blnc
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.rwd_earn_info b /* 리워드 획득정보 */
+        ON a.user_id = b.user_id
+        AND b.cla_id = #{claId}
+        LEFT JOIN aidt_lms.sp_prchs_info c /* 상점구매정보 */
+        ON a.user_id = c.user_id
+        AND c.prchs_gds_se_cd = 'P' /* 프로필 */
+        AND c.cla_id = #{claId}
+        WHERE
+        a.user_id = #{userId}
+        limit 1
+    </select>
+
+    <select id="findShopItemProfileInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemProfileInfo */
+        SELECT
+        spi.id
+        , spi.korn_img_nm
+        , spi.eng_img_nm
+        , spi.tme
+        , spi.tme as theme
+        , IFNULL(spi.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(spi.st_ntsl_amt, 0) as st_ntsl_amt
+        , spi.gds_indct_img
+        , spi.sp_indct_img
+        , spi.pf_all_img as pf_all_img_196
+        , spi.pf_ct_img
+        , spi.pf_ui_img
+        , spi.mr_sd_img
+        , spi.mr_cp_img
+        , spi.mr_ep_img
+        , spi.tb_st_img
+        , spi.tb_cp_img
+        , spi.tb_ep_img
+        , spi.cp_mk_img
+        , spi.rm_tit_img
+        , spi.rm_wal_img
+        , spi.dc_lf_img
+        , spi.dc_rt_img
+        , spi.dc_dr_img
+        , spi.dc_dr_ani_img
+        FROM    aidt_lms.sp_pf_info spi /* 샵 프로필 이미지정보 */
+        WHERE spi.id = (SELECT spri.rprs_gds_id
+        FROM aidt_lms.sp_prchs_info spri /* 상점구매정보 */
+        WHERE spri.prchs_gds_se_cd = 'P' /* 구분 : 프로필 */
+        AND spri.user_id = #{userId}
+        AND spri.cla_id = #{claId})
+    </select>
+
+    <select id="findShopItemGameInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemGameInfo */
+        SELECT
+        sgi.id
+        , sgi.korn_img_nm
+        , sgi.eng_img_nm
+        , sgi.tme
+        , sgi.tme as theme
+        , IFNULL(sgi.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(sgi.st_ntsl_amt, 0) as st_ntsl_amt
+        , sgi.gds_indct_img
+        , sgi.sp_indct_img
+        , sgi.gm_all_img as gmAllImg196
+        FROM aidt_lms.sp_gm_info sgi /* 샵 게임 이미지정보 */
+        WHERE sgi.id = (SELECT spri.rprs_gds_id
+        FROM aidt_lms.sp_prchs_info spri /* 상점구매정보 */
+        WHERE spri.prchs_gds_se_cd = 'G' /* 구분 : 게임 */
+        AND spri.user_id = #{userId}
+        AND spri.cla_id = #{claId})
+    </select>
+
+    <select id="findShopItemSkinInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemSkinInfo */
+        SELECT
+        ski.id
+        ,ski.korn_img_nm
+        ,ski.eng_img_nm
+        ,ski.tme
+        ,ski.tme as theme
+        , IFNULL(ski.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(ski.st_ntsl_amt, 0) as st_ntsl_amt
+        ,ski.gds_indct_img
+        ,ski.sp_indct_img
+        ,ski.sk_all_img as skAllImg196
+        ,ski.load_img
+        ,ski.alm_img
+        ,ski.tst_start_img
+        ,ski.qz_img
+        ,ski.tst_wait_img
+        ,ski.scr_mv_img
+        ,ski.rwd_img
+        ,ski.lk_ahead_img
+        ,ski.mk_wait_img
+        ,ski.hi_img
+        ,ski.tnk_img
+        ,ski.std_img
+        ,ski.ui_loading
+        ,ski.ui_alarm
+        ,ski.ui_test_start
+        ,ski.ui_quiz
+        ,ski.ui_test_wait
+        ,ski.ui_screen_move
+        ,ski.ui_reward
+        ,ski.ui_look_ahead
+        ,ski.ui_make_wait
+        ,ski.ui_hi
+        ,ski.ui_thankyou
+        ,ski.ui_study
+        FROM aidt_lms.sp_sk_info ski /* 샵 스킨 이미지정보 */
+        WHERE ski.id = (SELECT spri.rprs_gds_id
+        FROM aidt_lms.sp_prchs_info spri /* 상점구매정보 */
+        WHERE spri.prchs_gds_se_cd = 'S'    /* 구분 : 스킨 */
+        AND spri.user_id = #{userId}
+        AND spri.cla_id = #{claId})
+    </select>
+
+    <select id="findSpTmeInfoCtgry" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findSpTmeInfoCtgry */
+        <if test='prchsGdsSeCd != null and ("P").equals(prchsGdsSeCd) '>
+            SELECT pf_tme as category
+            FROM aidt_lms.sp_tme_info
+        </if>
+        <if test='prchsGdsSeCd != null and ("S").equals(prchsGdsSeCd) '>
+            SELECT sk_tme as category
+            FROM aidt_lms.sp_tme_info
+        </if>
+        <if test='prchsGdsSeCd != null and ("G").equals(prchsGdsSeCd) '>
+            SELECT gm_tme as category
+            FROM aidt_lms.sp_tme_info
+        </if>
+
+    </select>
+
+    <select id="findShopItemInfoP" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemInfoP */
+        SELECT
+        a.id
+        , a.korn_img_nm
+        , a.eng_img_nm
+        , IFNULL(a.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(a.st_ntsl_amt, 0) as st_ntsl_amt
+        , a.gds_indct_img
+        , a.pf_all_img as pfAllImg196
+        , a.sp_indct_img
+        , a.pf_all_img as pfAllImg196
+        , (CASE WHEN a.initl_at = 'Y' THEN 'Y'
+            ELSE IF(b.id is not null, 'Y', 'N') END) as own_yn
+        , b.inv_se_cd  as inv_se_cd
+        , a.tme as theme
+        , (CASE WHEN a.initl_at = 'Y' THEN 0
+               	ELSE b.id END) as prchs_id
+        FROM	aidt_lms.sp_pf_info a
+        LEFT JOIN aidt_lms.sp_prchs_hist b /* 상점구매정보 */
+            ON a.id = b.prchs_gds_id
+            AND b.prchs_gds_se_cd = 'P'
+            AND b.user_id = #{userId}
+            AND b.cla_id = #{claId}
+
+    </select>
+
+    <select id="findShopItemInfoS" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemInfoS */
+        SELECT
+        a.id
+        , a.korn_img_nm
+        , a.eng_img_nm
+        , IFNULL(a.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(a.st_ntsl_amt, 0) as st_ntsl_amt
+        , a.gds_indct_img
+        , a.sp_indct_img
+        , a.sk_all_img as skAllImg196
+        , (CASE WHEN a.initl_at = 'Y' THEN 'Y'
+            ELSE IF(b.id is not null, 'Y', 'N') END) as own_yn
+        , b.inv_se_cd  as inv_se_cd
+        , a.tme as theme
+        , (CASE WHEN a.initl_at = 'Y' THEN 0
+            ELSE b.id END) as prchs_id
+        FROM	aidt_lms.sp_sk_info a /* 샵 스킨 이미지정보 */
+        LEFT JOIN aidt_lms.sp_prchs_hist b /* 상점구매이력 */
+        ON a.id = b.prchs_gds_id
+        AND b.prchs_gds_se_cd = 'S'
+        AND b.user_id = #{userId}
+        AND b.cla_id = #{claId}
+    </select>
+
+    <select id="findShopItemInfoG" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemInfoG */
+        SELECT
+        a.id
+        , a.korn_img_nm
+        , a.eng_img_nm
+        , IFNULL(a.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(a.st_ntsl_amt, 0) as st_ntsl_amt
+        , a.gds_indct_img
+        , a.sp_indct_img
+        , a.gm_all_img as gmAllImg196
+        , a.tme
+        , (CASE WHEN a.initl_at = 'Y' THEN 'Y'
+            ELSE IF(b.id is not null, 'Y', 'N') END) as own_yn
+        , b.inv_se_cd  as inv_se_cd
+        , a.tme as theme
+        , (CASE WHEN a.initl_at = 'Y' THEN 0
+            ELSE b.id END) as prchs_id
+        FROM	aidt_lms.sp_gm_info a /* 샵 게임 이미지정보 */
+        LEFT JOIN aidt_lms.sp_prchs_hist b /* 상점구매이력 */
+        ON a.id = b.prchs_gds_id
+        AND b.prchs_gds_se_cd = 'G'
+        AND b.user_id = #{userId}
+        AND b.cla_id = #{claId}
+    </select>
+
+    <select id="findShopItemProfileDetail" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemProfileDetail */
+        SELECT
+            spi.id
+            , spi.korn_img_nm
+            , spi.eng_img_nm
+            , spi.tme
+            , spi.tme as theme
+            , IFNULL(spi.ht_ntsl_amt, 0) as ht_ntsl_amt
+            , IFNULL(spi.st_ntsl_amt, 0) as st_ntsl_amt
+            , spi.gds_indct_img
+            , spi.sp_indct_img
+            , spi.pf_all_img as pf_all_img_196
+            , spi.pf_ct_img
+            , spi.pf_ui_img
+            , spi.mr_sd_img
+            , spi.mr_cp_img
+            , spi.mr_ep_img
+            , spi.tb_st_img
+            , spi.tb_cp_img
+            , spi.tb_ep_img
+            , spi.cp_mk_img
+            , spi.rm_tit_img
+            , spi.rm_wal_img
+            , spi.dc_lf_img
+            , spi.dc_rt_img
+            , spi.dc_dr_img
+            , spi.dc_dr_ani_img
+        FROM    aidt_lms.sp_pf_info spi /* 샵 프로필 이미지정보 */
+        WHERE spi.id = #{itemId}
+    </select>
+
+    <select id="findShopItemGameDetail" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemGameDetail */
+        SELECT
+            sgi.id
+            , sgi.korn_img_nm
+            , sgi.eng_img_nm
+            , sgi.tme
+            , IFNULL(sgi.ht_ntsl_amt, 0) as ht_ntsl_amt
+            , IFNULL(sgi.st_ntsl_amt, 0) as st_ntsl_amt
+            , sgi.gds_indct_img
+            , sgi.sp_indct_img
+            , sgi.tme as theme
+        FROM aidt_lms.sp_gm_info sgi /* 샵 게임 이미지정보 */
+        WHERE sgi.id = #{itemId}
+    </select>
+
+    <select id="findShopItemSkinDetail" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemSkinDetail */
+        SELECT
+            ski.id
+            ,ski.korn_img_nm
+            ,ski.eng_img_nm
+            ,ski.tme
+            ,ski.tme as theme
+            , IFNULL(ski.ht_ntsl_amt, 0) as ht_ntsl_amt
+            , IFNULL(ski.st_ntsl_amt, 0) as st_ntsl_amt
+            ,ski.gds_indct_img
+            ,ski.sp_indct_img
+            ,ski.load_img
+            ,ski.alm_img
+            ,ski.tst_start_img
+            ,ski.qz_img
+            ,ski.tst_wait_img
+            ,ski.scr_mv_img
+            ,ski.rwd_img
+            ,ski.lk_ahead_img
+            ,ski.mk_wait_img
+            ,ski.hi_img
+            ,ski.tnk_img
+            ,ski.std_img
+            ,ski.ui_loading
+            ,ski.ui_alarm
+            ,ski.ui_test_start
+            ,ski.ui_quiz
+            ,ski.ui_test_wait
+            ,ski.ui_screen_move
+            ,ski.ui_reward
+            ,ski.ui_look_ahead
+            ,ski.ui_make_wait
+            ,ski.ui_hi
+            ,ski.ui_thankyou
+            ,ski.ui_study
+        FROM aidt_lms.sp_sk_info ski /* 샵 스킨 이미지정보 */
+        WHERE ski.id = #{itemId}
+    </select>
+
+    <update id="updateSpPrchsInfoRgi" parameterType="map">
+        UPDATE aidt_lms.sp_prchs_info /* 상점구매정보 */
+        SET rprs_gds_id = #{itemId}
+            ,mdfr = #{userId}
+            ,mdfy_dt = NOW()
+        WHERE prchs_gds_se_cd = #{prchsGdsSeCd}
+            AND user_id = #{userId}
+            AND cla_id = #{claId}
+    </update>
+
+    <select id="findShopClassMate" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopClassMate */
+        SELECT
+            a.stdt_id as user_id
+            , b.flnm
+            , b.user_se_cd
+            , c.rprs_gds_anct
+        FROM aidt_lms.tc_cla_mb_info a /* 교사 학급 구성원정보 */
+            JOIN aidt_lms.user b
+                ON a.stdt_id = b.user_id
+                AND a.cla_id = #{claId}
+        LEFT JOIN aidt_lms.sp_prchs_info c /* 상점구매정보 */
+                ON a.stdt_id = c.user_id
+                AND a.cla_id = c.cla_id
+                AND c.prchs_gds_se_cd = 'P'
+        WHERE a.actvtn_at = 'Y'
+    </select>
+
+    <insert id="insertSpPrchsHist" parameterType="map">
+        INSERT INTO aidt_lms.sp_prchs_hist /* 상점구매이력 */
+        (
+            id
+            ,user_id
+            ,user_se_cd
+            ,cla_id
+            ,prchs_gds_se_cd
+            ,inv_se_cd
+            ,rwd_se_cd
+            ,prchs_gds_id
+            ,ntsl_gds_amt
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{userSeCd}
+            ,#{claId}
+            ,#{prchsGdsSeCd}
+            ,'1'
+            ,#{rwdSeCd}
+            ,#{prchsGdsId}
+            ,#{ntslGdsAmt}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+    </insert>
+
+    <select id="findSpPrchsHistHtStSum" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findSpPrchsHistHtStSum */
+        SELECT
+            SUM(ntsl_gds_amt)  as ntsl_gds_amt_sum
+        FROM aidt_lms.sp_prchs_hist /* 상점구매이력 */
+        WHERE user_id = #{userId}
+            AND cla_id = #{claId}
+            AND rwd_se_cd = #{rwdSeCd}
+            AND prchs_gds_se_cd = #{prchsGdsSeCd}
+    </select>
+
+    <update id="updateSpPrchsInfoHt" parameterType="map">
+        UPDATE aidt_lms.sp_prchs_info /* 상점구매정보 */
+        SET ht_prchs_amt = #{ntslGdsAmtSum}
+        ,mdfr = #{userId}
+        ,mdfy_dt = NOW()
+        WHERE prchs_gds_se_cd = #{prchsGdsSeCd}
+        AND user_id = #{userId}
+        AND cla_id = #{claId}
+    </update>
+
+    <update id="updateSpPrchsInfoSt" parameterType="map">
+        UPDATE aidt_lms.sp_prchs_info /* 상점구매정보 */
+        SET st_prchs_amt = #{ntslGdsAmtSum}
+        ,mdfr = #{userId}
+        ,mdfy_dt = NOW()
+        WHERE prchs_gds_se_cd = #{prchsGdsSeCd}
+        AND user_id = #{userId}
+        AND cla_id = #{claId}
+    </update>
+
+
+    <update id="updateSpPrchsHistInvSeCd" parameterType="map">
+        UPDATE aidt_lms.sp_prchs_hist /* 상점구매이력 */
+        SET inv_se_cd = #{invSeCd}
+        ,mdfr = #{userId}
+        ,mdfy_dt = NOW()
+        WHERE id = #{prchsId}
+        AND user_id = #{userId}
+        AND cla_id = #{claId}
+        AND prchs_gds_se_cd = #{prchsGdsSeCd}
+    </update>
+
+    <select id="findShopItemProfileInfoDefault" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemProfileInfoDefault */
+        SELECT
+            spi.id
+            , spi.korn_img_nm
+            , spi.eng_img_nm
+            , spi.tme
+            , IFNULL(spi.ht_ntsl_amt, 0) as ht_ntsl_amt
+            , IFNULL(spi.st_ntsl_amt, 0) as st_ntsl_amt
+            , spi.gds_indct_img
+            , spi.sp_indct_img
+            , spi.pf_all_img as pf_all_img_196
+            , spi.pf_ct_img
+            , spi.pf_ui_img
+            , spi.mr_sd_img
+            , spi.mr_cp_img
+            , spi.mr_ep_img
+            , spi.tb_st_img
+            , spi.tb_cp_img
+            , spi.tb_ep_img
+            , spi.cp_mk_img
+            , spi.rm_tit_img
+            , spi.rm_wal_img
+            , spi.dc_lf_img
+            , spi.dc_rt_img
+            , spi.dc_dr_img
+            , spi.dc_dr_ani_img
+        FROM    aidt_lms.sp_pf_info spi /* 상점구매정보 */
+        WHERE spi.initl_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findShopItemGameInfoDefault" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemGameInfoDefault */
+        SELECT
+        sgi.id
+        , sgi.korn_img_nm
+        , sgi.eng_img_nm
+        , sgi.tme
+        , IFNULL(sgi.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(sgi.st_ntsl_amt, 0) as st_ntsl_amt
+        , sgi.gds_indct_img
+        , sgi.sp_indct_img
+        FROM aidt_lms.sp_gm_info sgi /* 샵 게임 이미지정보 */
+        WHERE sgi.initl_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findShopItemSkinInfoDefault" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopItemSkinInfoDefault */
+        SELECT
+        ski.id
+        ,ski.korn_img_nm
+        ,ski.eng_img_nm
+        ,ski.tme
+        , IFNULL(ski.ht_ntsl_amt, 0) as ht_ntsl_amt
+        , IFNULL(ski.st_ntsl_amt, 0) as st_ntsl_amt
+        ,ski.gds_indct_img
+        ,ski.sp_indct_img
+        ,ski.load_img
+        ,ski.alm_img
+        ,ski.tst_start_img
+        ,ski.qz_img
+        ,ski.tst_wait_img
+        ,ski.scr_mv_img
+        ,ski.rwd_img
+        ,ski.lk_ahead_img
+        ,ski.mk_wait_img
+        ,ski.hi_img
+        ,ski.tnk_img
+        ,ski.std_img
+        ,ski.ui_loading
+        ,ski.ui_alarm
+        ,ski.ui_test_start
+        ,ski.ui_quiz
+        ,ski.ui_test_wait
+        ,ski.ui_screen_move
+        ,ski.ui_reward
+        ,ski.ui_look_ahead
+        ,ski.ui_make_wait
+        ,ski.ui_hi
+        ,ski.ui_thankyou
+        ,ski.ui_study
+        FROM aidt_lms.sp_sk_info ski /* 샵 스킨 이미지정보 */
+        WHERE ski.initl_at = 'Y'
+        limit 1
+    </select>
+
+    <select id="findShopTabSetsInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopTabSetsInfo */
+        SELECT
+            a.id        as tab_id,
+            a.tab_nm,
+            a.sets_id,
+            s.name      as sets_nm
+        FROM tab_info a
+            JOIN aidt_lcms.sets s ON s.id = a.sets_id
+        WHERE 1=1
+            AND a.id = #{tabId}
+    </select>
+
+    <select id="findShopSetsAtcInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findShopSetsAtcInfo */
+        SELECT
+            sam.*,
+            a.id as gm_iem_id,
+            a.hashtags as hashTags,
+            a.is_publicopen as is_public_open,
+            a.*
+        FROM aidt_lcms.sets_article_map sam
+            JOIN aidt_lcms.article a ON a.id = sam.article_id
+        WHERE 1=1
+        AND sets_id = #{setsId}
+    </select>
+
+    <select id="findSpPrchsHistItmChk" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findSpPrchsHistItmChk */
+        SELECT
+            id
+        FROM aidt_lms.sp_prchs_hist
+        WHERE 1=1
+            AND user_id = #{userId}
+            AND cla_id = #{claId}
+            AND prchs_gds_se_cd = #{prchsGdsSeCd}
+            AND prchs_gds_id = #{itemId}
+    </select>
+
+    <select id="findClassMateConnStatus" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.findClassMateConnStatus */
+        SELECT
+            conn_status
+        FROM aidt_lms.class_conn_log /* 클래스 입퇴장 로그 */
+        WHERE 1=1
+        AND user_idx = (SELECT id
+                        FROM aidt_lms.user
+                        WHERE user_id = #{userId})
+        AND class_idx = ( SELECT id
+                        FROM aidt_lms.tc_cla_info
+                        WHERE cla_id = #{claId} )
+        AND DATE(open_date) = CURDATE()
+        ORDER BY open_date DESC
+        LIMIT 1
+    </select>
+
+
+    <select id="selectChkPrchsInfo" parameterType="map" resultType="camelHashMap">
+        /* ShopMapper.selectChkPrchsInfo */
+        SELECT
+            *
+        FROM aidt_lms.sp_prchs_info
+        WHERE  user_id = #{userId}
+        AND cla_id = #{claId}
+        AND prchs_gds_se_cd = #{prchsGdsSeCd}
+    </select>
+
+    <insert id="insertSpPrchsInfo"  parameterType="map">
+        INSERT INTO aidt_lms.sp_prchs_info
+        VALUES (
+            null
+            ,#{userId}
+            ,#{userSeCd}
+            ,#{claId}
+            ,#{prchsGdsSeCd}
+            ,#{htPrchsAmt}
+            ,#{stPrchsAmt}
+            ,#{prchsGdsId}
+            ,#{rprsGdsAnct}
+            ,#{userId}
+            ,now()
+            ,#{userId}
+            ,now()
+        )
+    </insert>
+
+    <update id="updateSpPrchsInfoUserMsg" parameterType="map">
+        UPDATE aidt_lms.sp_prchs_info
+        SET rprs_gds_anct = #{rprsGdsAnct}
+        ,mdfr = #{userId}
+        ,mdfy_dt = NOW()
+        WHERE user_id = #{userId}
+        AND cla_id = #{claId}
+        AND prchs_gds_se_cd = #{prchsGdsSeCd}
+    </update>
+
+    <select id="selectMyroomClassMate" parameterType="map" resultType="camelHashMap">
+        SELECT /* ShopMapper.selectMyroomClassMate 마이룸 */
+            x.user_id
+            , x.flnm
+            , x.user_se_cd
+            , x.rprs_gds_anct
+            , x.rprs_gds_id
+            , (
+                CASE WHEN y.id is null then
+                    (
+                        json_object('id',z.id
+                       ,'kornImgNm' ,z.korn_img_nm
+                       ,'engImgNm', z.eng_img_nm
+                       ,'tme', z.tme
+                       ,'htNtslAmt', IFNULL(z.ht_ntsl_amt, 0)
+                       ,'stNtslAmt', IFNULL(z.st_ntsl_amt, 0)
+                       ,'gdsIndctImg', z.gds_indct_img
+                       ,'spIndctImg', z.sp_indct_img
+                       ,'pfAllImg196', z.pf_all_img
+                       ,'pfCtImg', z.pf_ct_img
+                       ,'pfUiImg', z.pf_ui_img
+                       ,'mrSdImg', z.mr_sd_img
+                       ,'mrCpImg', z.mr_cp_img
+                       ,'mrEpImg', z.mr_ep_img
+                       ,'tbStImg', z.tb_st_img
+                       ,'tbCpImg', z.tb_cp_img
+                       ,'tbEpImg', z.tb_ep_img
+                       ,'cpMkImg', z.cp_mk_img
+                       ,'rmTitImg', z.rm_tit_img
+                       ,'rmWalImg', z.rm_wal_img
+                       ,'dcLfImg', z.dc_lf_img
+                       ,'dcRtImg', z.dc_rt_img
+                       ,'dcDrImg', z.dc_dr_img
+                       ,'dcDrAniImg', z.dc_dr_ani_img)
+                    )
+                ELSE
+                    (
+                        json_object('id',y.id
+                       ,'kornImgNm' ,y.korn_img_nm
+                       ,'engImgNm', y.eng_img_nm
+                       ,'tme', y.tme
+                       ,'htNtslAmt', IFNULL(y.ht_ntsl_amt, 0)
+                       ,'stNtslAmt', IFNULL(y.st_ntsl_amt, 0)
+                       ,'gdsIndctImg', y.gds_indct_img
+                       ,'spIndctImg', y.sp_indct_img
+                       ,'pfAllImg196', y.pf_all_img
+                       ,'pfCtImg', y.pf_ct_img
+                       ,'pfUiImg', y.pf_ui_img
+                       ,'mrSdImg', y.mr_sd_img
+                       ,'mrCpImg', y.mr_cp_img
+                       ,'mrEpImg', y.mr_ep_img
+                       ,'tbStImg', y.tb_st_img
+                       ,'tbCpImg', y.tb_cp_img
+                       ,'tbEpImg', y.tb_ep_img
+                       ,'cpMkImg', y.cp_mk_img
+                       ,'rmTitImg', y.rm_tit_img
+                       ,'rmWalImg', y.rm_wal_img
+                       ,'dcLfImg', y.dc_lf_img
+                       ,'dcRtImg', y.dc_rt_img
+                       ,'dcDrImg', y.dc_dr_img
+                       ,'dcDrAniImg', y.dc_dr_ani_img)
+                            ) END
+                    )  as item_profile_info
+            , (CASE WHEN x.lgn_stts_at = '1' THEN 1
+                    WHEN x.lgn_stts_at = '2' THEN 3
+                    WHEN x.lgn_stts_at = 'Y' THEN 1
+                    WHEN x.lgn_stts_at = 'N' THEN 3
+                    WHEN x.lgn_stts_at = 'y' THEN 1
+                    WHEN x.lgn_stts_at = 'n' THEN 3
+                ELSE 3 END)      as std_stts_cd
+            ,x.num
+        FROM
+        (
+            SELECT
+                a.stdt_id as user_id
+                , b.flnm
+                , b.user_se_cd
+                , b.id as user_idx
+                , c.rprs_gds_anct
+                , c.rprs_gds_id
+                , b.lgn_stts_at
+                , sri.num
+            FROM aidt_lms.tc_cla_mb_info a /* 교사학급구성원정보 */
+                join aidt_lms.user b /* 사용자정보 */
+              ON a.stdt_id = b.user_id
+             AND a.cla_id = #{claId}
+            AND a.actvtn_at = 'Y'
+                join aidt_lms.stdt_reg_info sri
+                  on sri.user_id = a.stdt_id
+             LEFT JOIN aidt_lms.sp_prchs_info c /* 샵구매정보 */
+                            ON a.stdt_id = c.user_id
+                            AND a.cla_id = c.cla_id
+                            AND c.prchs_gds_se_cd = 'P' /* 프로필 */
+            WHERE a.actvtn_at = 'Y'
+        ) x left join  aidt_lms.sp_pf_info y /* 사용자가 지정한 샵 프로필 정보 */
+            on x.rprs_gds_id = y.id
+        left join aidt_lms.sp_pf_info z /* 샵 프로필 정보 없을 시 디폴트값 */
+            on z.initl_at = 'Y'
+        ORDER BY x.num
+    </select>
+
+    <insert id="insertSpPrchsHistBatch">
+        INSERT INTO aidt_lms.sp_prchs_hist
+        SELECT
+            null
+            ,a.user_id
+            ,a.user_se_cd
+            ,( CASE WHEN a.user_se_cd = 'T'
+                        THEN t.cla_id
+                        ELSE tm.cla_id
+                    END) AS cla_id
+            , 'P'
+            ,'1'
+            ,'1'
+            ,IFNULL((SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'), 1)
+            ,0
+            ,'SYSTEM'
+            ,now()
+            ,'SYSTEM'
+            ,now()
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.tc_cla_info t ON t.user_id = a.user_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tm ON tm.stdt_id = a.user_id and tm.actvtn_at ='Y'
+        WHERE (a.user_id, ( CASE WHEN a.user_se_cd = 'T'
+                                   THEN t.cla_id
+                                   ELSE tm.cla_id
+                               END)) NOT IN (SELECT user_id, cla_id
+                                    FROM aidt_lms.sp_prchs_info
+                                    WHERE prchs_gds_se_cd = 'P'
+                                    )
+        AND ( CASE WHEN a.user_se_cd = 'T'
+                               THEN t.cla_id is not null
+                               ELSE tm.cla_id is not null
+                           END)
+                AND a.user_se_cd IN ('T', 'S')
+    </insert>
+
+    <insert id="insertSkPrchsHistBatch">
+        INSERT INTO aidt_lms.sp_prchs_hist
+        SELECT
+            null
+            ,a.user_id
+            ,a.user_se_cd
+            ,( CASE WHEN a.user_se_cd = 'T'
+                        THEN t.cla_id
+                        ELSE tm.cla_id
+                    END) AS cla_id
+            , 'S'
+            ,'1'
+            ,'1'
+            ,IFNULL((SELECT id FROM aidt_lms.sp_sk_info WHERE initl_at = 'Y'), 1)
+            ,0
+            ,'SYSTEM'
+            ,now()
+            ,'SYSTEM'
+            ,now()
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.tc_cla_info t ON t.user_id = a.user_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tm ON tm.stdt_id = a.user_id and tm.actvtn_at ='Y'
+        WHERE (a.user_id, ( CASE WHEN a.user_se_cd = 'T'
+                                   THEN t.cla_id
+                                   ELSE tm.cla_id
+                               END)) NOT IN (SELECT user_id, cla_id
+                                    FROM aidt_lms.sp_prchs_info
+                                    WHERE prchs_gds_se_cd = 'S'
+                                    )
+        AND ( CASE WHEN a.user_se_cd = 'T'
+                               THEN t.cla_id is not null
+                               ELSE tm.cla_id is not null
+                           END)
+                AND a.user_se_cd IN ('T', 'S')
+    </insert>
+
+    <insert id="insertGmPrchsHistBatch">
+        INSERT INTO aidt_lms.sp_prchs_hist
+        SELECT
+            null
+            ,a.user_id
+            ,a.user_se_cd
+            ,( CASE WHEN a.user_se_cd = 'T'
+                        THEN t.cla_id
+                        ELSE tm.cla_id
+                    END) AS cla_id
+            , 'G'
+            ,'1'
+            ,'1'
+            ,IFNULL((SELECT id FROM aidt_lms.sp_gm_info WHERE initl_at = 'Y'), 1)
+            ,0
+            ,'SYSTEM'
+            ,now()
+            ,'SYSTEM'
+            ,now()
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.tc_cla_info t ON t.user_id = a.user_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tm ON tm.stdt_id = a.user_id and tm.actvtn_at ='Y'
+        WHERE (a.user_id, ( CASE WHEN a.user_se_cd = 'T'
+                                       THEN t.cla_id
+                                       ELSE tm.cla_id
+                                   END)) NOT IN (SELECT user_id, cla_id
+                                    FROM aidt_lms.sp_prchs_info
+                                    WHERE prchs_gds_se_cd = 'G'
+                                    )
+        AND ( CASE WHEN a.user_se_cd = 'T'
+                               THEN t.cla_id is not null
+                               ELSE tm.cla_id is not null
+                           END)
+                AND a.user_se_cd IN ('T', 'S')
+    </insert>
+
+    <insert id="insertSpPrchsInfoBatch" parameterType="map">
+        INSERT INTO aidt_lms.sp_prchs_info
+        SELECT
+            null
+            ,a.user_id
+            ,a.user_se_cd
+            ,( CASE WHEN a.user_se_cd = 'T'
+                        THEN t.cla_id
+                        ELSE tm.cla_id
+                    END) AS cla_id
+            , 'P'
+            ,0
+            ,0
+            ,IFNULL((SELECT id FROM aidt_lms.sp_pf_info WHERE initl_at = 'Y'), 1)
+            ,null
+            ,'SYSTEM'
+            ,now()
+            ,'SYSTEM'
+            ,now()
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.tc_cla_info t ON t.user_id = a.user_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tm ON tm.stdt_id = a.user_id and tm.actvtn_at ='Y'
+        WHERE (a.user_id, ( CASE WHEN a.user_se_cd = 'T'
+                                               THEN t.cla_id
+                                               ELSE tm.cla_id
+                                           END)) NOT IN (SELECT user_id, cla_id
+                                    FROM aidt_lms.sp_prchs_info
+                                    WHERE prchs_gds_se_cd = 'P'
+                                    )
+        AND ( CASE WHEN a.user_se_cd = 'T'
+                               THEN t.cla_id is not null
+                               ELSE tm.cla_id is not null
+                           END)
+                AND a.user_se_cd IN ('T', 'S')
+        ON DUPLICATE KEY UPDATE
+            user_id = VALUES(user_id),
+            cla_id = VALUES(cla_id),
+            prchs_gds_se_cd = VALUES(prchs_gds_se_cd)
+    </insert>
+
+
+    <insert id="insertSkPrchsInfoBatch" parameterType="map">
+        INSERT INTO aidt_lms.sp_prchs_info
+        SELECT
+            null
+            ,a.user_id
+            ,a.user_se_cd
+            ,( CASE WHEN a.user_se_cd = 'T'
+                        THEN t.cla_id
+                        ELSE tm.cla_id
+                    END) AS cla_id
+            , 'S'
+            ,0
+            ,0
+            ,IFNULL((SELECT id FROM aidt_lms.sp_sk_info WHERE initl_at = 'Y'), 1)
+            ,null
+            ,'SYSTEM'
+            ,now()
+            ,'SYSTEM'
+            ,now()
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.tc_cla_info t ON t.user_id = a.user_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tm ON tm.stdt_id = a.user_id and tm.actvtn_at ='Y'
+        WHERE (a.user_id, ( CASE WHEN a.user_se_cd = 'T'
+                                   THEN t.cla_id
+                                   ELSE tm.cla_id
+                               END)) NOT IN (SELECT user_id, cla_id
+                                    FROM aidt_lms.sp_prchs_info
+                                    WHERE prchs_gds_se_cd = 'S'
+                                    )
+        AND ( CASE WHEN a.user_se_cd = 'T'
+                               THEN t.cla_id is not null
+                               ELSE tm.cla_id is not null
+                           END)
+                AND a.user_se_cd IN ('T', 'S')
+        ON DUPLICATE KEY UPDATE
+            user_id = VALUES(user_id),
+            cla_id = VALUES(cla_id),
+            prchs_gds_se_cd = VALUES(prchs_gds_se_cd)
+    </insert>
+
+    <insert id="insertGmPrchsInfoBatch" parameterType="map">
+        INSERT INTO aidt_lms.sp_prchs_info
+        SELECT
+            null
+            ,a.user_id
+            ,a.user_se_cd
+            ,( CASE WHEN a.user_se_cd = 'T'
+                THEN t.cla_id
+                ELSE tm.cla_id
+            END) AS cla_id
+            , 'G'
+            ,0
+            ,0
+            ,IFNULL((SELECT id FROM aidt_lms.sp_gm_info WHERE initl_at = 'Y'), 1)
+            ,null
+            ,'SYSTEM'
+            ,now()
+            ,'SYSTEM'
+            ,now()
+        FROM aidt_lms.user a
+        LEFT JOIN aidt_lms.tc_cla_info t ON t.user_id = a.user_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tm ON tm.stdt_id = a.user_id and tm.actvtn_at ='Y'
+        WHERE  (a.user_id, ( CASE WHEN a.user_se_cd = 'T'
+                                       THEN t.cla_id
+                                       ELSE tm.cla_id
+                                   END)) NOT IN (SELECT user_id, cla_id
+                					FROM aidt_lms.sp_prchs_info
+                                    WHERE prchs_gds_se_cd = 'G'
+                					)
+        AND ( CASE WHEN a.user_se_cd = 'T'
+                               THEN t.cla_id is not null
+                               ELSE tm.cla_id is not null
+                           END)
+                AND a.user_se_cd IN ('T', 'S')
+        ON DUPLICATE KEY UPDATE
+            user_id = VALUES(user_id),
+            cla_id = VALUES(cla_id),
+            prchs_gds_se_cd = VALUES(prchs_gds_se_cd)
+
+    </insert>
+
+    <select id="selectSpPrchsInfoCheck" parameterType="map" resultType="int">
+        /* ShopMapper.selectSpPrchsInfoCheck */
+        select
+            COUNT(1)
+        from aidt_lms.sp_prchs_hist
+        WHERE prchs_gds_se_cd = #{prchsGdsSeCd}
+          AND user_id = #{userId}
+          AND cla_id = #{claId}
+          and prchs_gds_id = #{itemId}
+    </select>
+
+</mapper>

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.mq.mapper.bulk.TeachingReorganizedMapper">
+
+    <select id="findReorganizedInfoList" resultType="com.visang.aidt.lms.api.mq.dto.teaching.ReorganizedInfo">
+        /* TeachingReorganizedMapper.findReorganizedInfoList */
+        <![CDATA[
+        WITH RECURSIVE numbers AS (
+            SELECT 1 AS n
+            UNION ALL
+            SELECT n + 1
+            FROM numbers
+            WHERE n < 50
+        ),
+        base_data AS (
+            /* std_dta_info 테이블에서 데이터 추출 */
+            SELECT std.userID, std.standardId, std.timestamp
+            FROM (
+                SELECT
+                    sdi.wrter_id AS userID,
+                    d.val1 AS standardId,
+                    CASE
+                        WHEN sdi.mdfy_dt IS NULL THEN sdi.reg_dt
+                        ELSE sdi.mdfy_dt
+                    END AS timestamp
+                FROM aidt_lms.std_dta_info sdi
+                    INNER JOIN aidt_lcms.setsummary a
+                        ON sdi.sets_id = a.set_id
+                    LEFT JOIN aidt_lcms.article_meta_map b
+                        ON a.article_id = b.article_id
+                               AND a.sub_id = b.sub_id
+                               AND b.meta_name = 'studyMap_1'
+                    LEFT JOIN aidt_lcms.meta c
+                        ON b.meta_id = c.id
+                    LEFT JOIN aidt_lcms.meta_extension d
+                        ON c.meta_extension_id = d.meta_extension_id
+                    INNER JOIN aidt_lms.std_mq_trn_log smtl
+                        ON sdi.textbk_tab_id = smtl.tab_id
+                WHERE sdi.tmpr_strg_at = 'N'
+                  AND smtl.trn_at = 'N'
+            ) std
+            WHERE std.timestamp >= #{startTime}
+              AND std.timestamp < #{endTime}
+
+            UNION ALL
+
+            /* tab_info 테이블에서 데이터 추출 */
+            SELECT tab.userID, tab.standardId, tab.timestamp
+            FROM (
+                SELECT DISTINCT
+                    tab.wrter_id AS userID,
+                    d.val1 AS standardId,
+                    CASE
+                        WHEN tab.mdfy_dt IS NULL THEN tab.reg_dt
+                        ELSE tab.mdfy_dt
+                    END AS timestamp
+                FROM aidt_lms.tab_info tab
+                    INNER JOIN aidt_lcms.setsummary a
+                        ON tab.sets_id = a.set_id
+                    LEFT JOIN aidt_lcms.article_meta_map b
+                        ON a.article_id = b.article_id
+                               AND a.sub_id = b.sub_id
+                               AND b.meta_name = 'studyMap_1'
+                    LEFT JOIN aidt_lcms.meta c
+                        ON b.meta_id = c.id
+                    LEFT JOIN aidt_lcms.meta_extension d
+                        ON c.meta_extension_id = d.meta_extension_id
+                    INNER JOIN aidt_lms.std_mq_trn_log smtl
+                        ON tab.id = smtl.tab_id
+                WHERE tab.sets_id REGEXP '[A-Za-z]'
+                  AND smtl.trn_at = 'N'
+            ) AS tab
+            WHERE tab.timestamp >= #{startTime}
+              AND tab.timestamp < #{endTime}
+        ),
+        non_null_data AS (
+            /* standardId 값이 NULL이 아닌 데이터만 분할 처리 */
+            SELECT
+                A.userID,
+                SUBSTRING_INDEX(SUBSTRING_INDEX(A.standardId, '#^|', n.n), '#^|', -1) AS single_standard,
+                MAX(A.timestamp) AS timestamp
+            FROM (
+                SELECT DISTINCT userID, standardId, timestamp
+                FROM base_data
+                WHERE standardId IS NOT NULL
+            ) A
+            JOIN numbers n
+                ON CHAR_LENGTH(A.standardId) - CHAR_LENGTH(REPLACE(A.standardId, '#^|', '')) >= n.n - 1
+            WHERE SUBSTRING_INDEX(SUBSTRING_INDEX(A.standardId, '#^|', n.n), '#^|', -1) != ''
+            GROUP BY A.userID, SUBSTRING_INDEX(SUBSTRING_INDEX(A.standardId, '#^|', n.n), '#^|', -1)
+        ),
+        all_users AS (
+            /* 모든 사용자별 최신 timestamp 가져오기 */
+            SELECT DISTINCT userID, MAX(timestamp) AS timestamp
+            FROM base_data
+            GROUP BY userID
+        ),
+        result_data AS (
+            /* 모든 사용자 데이터와 non_null_data 조인하여 최종 데이터 구성 */
+            SELECT
+                au.userID,
+                GROUP_CONCAT(DISTINCT nd.single_standard ORDER BY nd.single_standard SEPARATOR '#^|') AS standardId,
+                au.timestamp
+            FROM all_users au
+            LEFT JOIN non_null_data nd
+                ON au.userID = nd.userID
+            GROUP BY au.userID, au.timestamp
+        )
+        SELECT
+            userID,
+            CASE
+                WHEN standardId = '' THEN NULL
+                WHEN standardId IS NULL THEN '-1'
+                ELSE standardId
+            END AS standardId,
+            timestamp AS `timestamp`
+        FROM result_data
+    ]]>
+    </select>
+
+    <select id="getUserInfo" parameterType="String" resultType="camelHashMap">
+        select
+            COALESCE(ptn_id, '') AS ptn_id,
+            IFNULL(NULLIF(use_terms_agree_yn, ''), 'N') AS use_terms_agree_yn
+        from aidt_lms.user
+        where user_id = #{userId}
+    </select>
+
+</mapper>

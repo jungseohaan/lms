@@ -1,0 +1,1245 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.assessment.mapper.StntEvalMapper">
+    <select id="findStntEvalListEvalCheck" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalListEvalCheck */
+        SELECT SUM(IF(a.evl_stts_cd = 1, 1, 0)) AS plnEvlCnt
+             , SUM(IF(a.evl_stts_cd = 2, 1, 0)) AS pgEvlCnt
+             , SUM(IF(a.evl_stts_cd >= 3, 1, 0)) AS cpEvlCnt
+        FROM aidt_lms.evl_info a
+                 INNER JOIN aidt_lms.evl_result_info b
+                    ON a.id = b.evl_id AND b.mamoym_id = #{userId}
+                 LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON tcmi.cla_id = a.cla_id AND tcmi.stdt_id = b.mamoym_id and tcmi.actvtn_at = 'Y'
+        WHERE 1=1
+          AND (b.eak_stts_cd != 5 OR (b.eak_stts_cd = 5 AND (tcmi.reg_dt IS NULL OR a.evl_cp_dt > tcmi.reg_dt)))
+          AND a.textbook_id = #{textbookId}
+          AND a.cla_id = #{claId}
+    </select>
+
+    <select id="findStntEvalListEvalInfo" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalListEvalInfo */
+        SELECT (count(*) over () + 1) - (row_number() over (order by case when ei.evl_stts_cd = 1 then ei.reg_dt END DESC,
+                                                                     case when ei.evl_stts_cd > 1 then evl_prg_dt END DESC)) as no
+             , COUNT(*) over () AS full_count
+             , ei.id
+             , ei.evl_nm
+             , CASE ei.evl_stts_cd
+                   WHEN 1 THEN COALESCE(DATE_FORMAT(ei.pd_evl_st_dt, "%Y-%m-%d %H:%i:%s"), '-')
+                   ELSE DATE_FORMAT(ei.evl_prg_dt, "%Y-%m-%d %H:%i:%s") END AS evl_prg_dt
+             , CASE ei.evl_stts_cd
+                   WHEN 1 THEN COALESCE(DATE_FORMAT(ei.pd_evl_ed_dt, "%Y-%m-%d %H:%i:%s"), '-')
+                   ELSE DATE_FORMAT(ei.evl_cp_dt, "%Y-%m-%d %H:%i:%s") END AS evl_cp_dt
+             , ei.evl_stts_cd
+             , aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd) AS evl_stts_nm
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , if (ei.rpt_othbc_at = 'Y' and eri.subm_at = 'Y','Y','N') as rpt_othbc_at
+             , ei.rpt_auto_othbc_at
+             , ei.sets_id
+             , (CASE WHEN (select creator_ty from aidt_lcms.sets a where a.id = ei.sets_id) = 1 THEN 'Y' ELSE 'N' END) as creatorTyYn
+             , eri.subm_at
+             , eri.slf_subm_at
+             , eri.per_subm_at
+             , eri.slf_per_subm_at
+             , tcmi.reg_dt
+          FROM aidt_lms.evl_info ei
+          LEFT JOIN aidt_lms.evl_result_info eri ON eri.evl_id = ei.id
+          LEFT JOIN aidt_lms.tc_cla_mb_info tcmi ON tcmi.cla_id = ei.cla_id AND tcmi.stdt_id = eri.mamoym_id and tcmi.actvtn_at = 'Y'
+         WHERE eri.mamoym_id = #{param.userId}
+           AND ei.cla_id = #{param.claId}
+           AND ei.textbook_id = #{param.textbookId}
+           AND (ei.evl_stts_cd != 5 OR (ei.evl_stts_cd = 5 AND (tcmi.reg_dt IS NULL OR ei.evl_cp_dt > tcmi.reg_dt)))
+         <choose>
+            <when test='param.evlSttsCd == "1" '>
+                AND ei.evl_stts_cd = 1
+            </when>
+            <when test='param.evlSttsCd == "2" '>
+                AND ei.evl_stts_cd = 2
+            </when>
+            <when test='param.evlSttsCd == "3" '>
+                AND ei.evl_stts_cd >= 3
+            </when>
+            <otherwise>
+                AND ei.evl_stts_cd = ei.evl_stts_cd
+            </otherwise>
+        </choose>
+        <if test="param.keyword != null and param.keyword != '' ">
+            <choose>
+            <when test="param.condition == 'name' ">
+                and ei.evl_nm like concat('%',#{param.keyword},'%')
+            </when>
+            <otherwise>
+                and ei.evl_nm like concat('%',#{param.keyword},'%')
+            </otherwise>
+            </choose>
+        </if>
+        ORDER BY FIELD(ei.tmpr_strg_at, 'Y', 'N')
+        , FIELD(ei.evl_stts_cd, 2, 3, 4, 5, 1)
+        , CASE WHEN ei.evl_stts_cd = 1 THEN ei.reg_dt END DESC
+        , CASE WHEN ei.evl_stts_cd > 1 THEN ei.evl_prg_dt END DESC
+        , ei.id DESC
+         LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findStntEvalStart" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalStart */
+        SELECT eri.id
+             , eri.sets_id
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , eri.subm_at
+             , eri.eak_st_dt
+             , eri.eak_ed_dt
+        FROM aidt_lms.evl_result_info eri
+        WHERE eri.evl_id = #{evlId}
+          AND eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findTchEvalSubmit" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findTchEvalSubmit */
+        SELECT eri.id
+             , eri.sets_id
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , eri.subm_at
+             , DATE_FORMAT(eri.eak_st_dt, "%Y-%m-%d %H:%i:%s") as eak_st_dt
+             , DATE_FORMAT(eri.eak_ed_dt, "%Y-%m-%d %H:%i:%s") as eak_ed_dt
+             , ei.rwd_set_at
+             , ei.rwd_point
+             , ei.ed_gid_at
+             , ei.ed_gid_dc
+          FROM aidt_lms.evl_result_info eri
+                 LEFT JOIN aidt_lms.evl_info ei ON ei.id = eri.evl_id
+         WHERE eri.evl_id = #{evlId}
+           AND eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findStntEvalExamEvalInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalExamEvalInfo */
+        SELECT ei.id
+             , ei.sets_id
+             , ei.evl_nm
+             , DATE_FORMAT(ei.evl_prg_dt, "%Y-%m-%d %H:%i:%s") as evl_prg_dt
+             , DATE_FORMAT(ei.evl_cp_dt, "%Y-%m-%d %H:%i:%s") as evl_cp_dt
+             , ei.tim_time
+             , ei.eam_exm_num
+          FROM aidt_lms.evl_info ei
+         WHERE ei.id = #{evlId}
+    </select>
+
+    <select id="findStntEvalExamEvalIemInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalExamEvalIemInfo */
+        SELECT erd.id
+             , erd.evl_Result_Id
+             , erd.evl_Iem_Id
+             , erd.sub_id
+             , a.name
+             , a.url
+             , a.image
+             , ifnull(
+                    (select thumbnail from aidt_lcms.setsummary where set_id = eri.sets_id and article_id = erd.evl_iem_id and sub_id = erd.sub_id),
+                    a.thumbnail
+               ) as thumbnail
+             , a.questionStr
+             , a.hashTags
+             , a.is_Active
+             , a.is_PublicOpen AS isPublicOpen
+          FROM aidt_lms.evl_result_info eri
+                 LEFT JOIN aidt_lms.evl_result_detail erd ON erd.evl_result_id = eri.id
+                 LEFT JOIN aidt_lcms.article a ON a.id = erd.evl_iem_id
+         WHERE eri.evl_id = #{evlId}
+            <if test="userId != null and userId != '' ">
+                AND eri.mamoym_id = #{userId}
+            </if>
+    </select>
+
+    <select id="findStntEvalSaveIemScr" parameterType="pagingParam" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalSaveIemScr */
+        SELECT CASE eii.mrk_ty
+                   WHEN 1 THEN eii.evl_iem_scr
+                   ELSE 0
+                   END AS evl_iem_scr
+        FROM aidt_lms.evl_iem_info eii
+        WHERE eii.evl_id  = #{evlId}
+          AND eii.evl_iem_id = #{evlIemId}
+          and eii.sub_id = #{subId}
+    </select>
+
+    <update id="modifyStntEvalSaveResultDetail" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSaveResultDetail */
+        UPDATE aidt_lms.evl_result_detail erd
+               INNER JOIN aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+        SET   erd.sub_mit_anw = #{subMitAnw}
+            , erd.eak_stts_cd = IF(erd.mrk_ty = 1, 5, 3)
+            , erd.eak_at = 'Y'
+            , erd.eak_st_dt = if(erd.eak_st_dt is null, now(), erd.eak_st_dt)
+            , erd.eak_ed_dt = if(erd.eak_ed_dt is null, now(), erd.eak_ed_dt)
+            , erd.anw_chg_cnt = COALESCE(anw_chg_cnt, 0) + 1
+            , erd.errata = #{errata}
+            , erd.sub_mit_anw_url = #{subMitAnwUrl}
+            , erd.evl_iem_scr = #{evlIemScr}
+            , erd.evl_iem_scr_result = #{evlIemScr}
+            , erd.mrk_cp_at = IF(erd.mrk_ty in (1, 2) and #{errata} <![CDATA[<>]]> 4, 'Y', 'N')
+            , erd.mdfr = '/stnt/eval/save'
+            , erd.mdfy_dt = now()
+            , erd.module_req_sec = erd.module_req_sec + IFNULL(#{evlTime}, 0)
+        <if test="hntUseAt != null and hntUseAt != '' ">
+            , erd.hnt_use_at = #{hntUseAt}
+        </if>
+        WHERE eri.evl_id = #{evlId}
+        AND   eri.mamoym_id = #{userId}
+        AND   erd.evl_result_id = #{evlResultId}
+        AND   erd.evl_Iem_Id = #{evlIemId}
+        AND   erd.sub_id = #{subId}
+    </update>
+
+    <update id="modifyStntEvalSaveResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSaveResultInfo */
+        UPDATE aidt_lms.evl_result_info eri
+           SET eri.evl_result_scr = (SELECT SUM(erd.evl_iem_scr_result)
+                                       FROM aidt_lms.evl_result_detail erd
+                                      WHERE erd.evl_result_id = eri.id
+                                     )
+             , mdfr = '/stnt/eval/save'
+             , mdfy_dt = now()
+         WHERE eri.id = #{evlResultId}
+            AND eri.mamoym_id = #{userId}
+    </update>
+
+    <select id="findStntEvalResultEvalInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalResultEvalInfo */
+        SELECT ei.id
+             , ei.eam_trget
+             , if(ei.eam_trget = 2,eri.sets_id,ei.sets_id) as sets_id /* 개인별 문항출제인 경우에는 학생의 셋트지 ID를 구함 */
+             , ei.evl_nm
+             , DATE_FORMAT(ei.evl_prg_dt, "%Y-%m-%d %H:%i:%s") AS evl_prg_dt
+             , ei.tim_time
+             /* AI 맞춤학습 (개별맞춤출제), AI 처방학습의 경우 학생별로 셋트지가 생성됨, 과제정보에 셋트지ID는 널임 */
+             , IF(ISNULL(ei.sets_id), (select count(1) from aidt_lms.evl_result_detail where evl_result_id = eri.id), ei.eam_exm_num) as eam_exm_num
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , ei.rwd_set_at
+             , ei.rwd_point
+             , ei.ed_gid_at
+             , ei.ed_gid_dc
+             , eri.subm_at
+          FROM aidt_lms.evl_info ei
+          JOIN aidt_lms.evl_result_info eri ON ei.id = eri.evl_id
+         WHERE ei.id = #{evlId}
+           AND eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findStntResultInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntResultInfo */
+        select ei.evl_stdr_set
+             , aidt_lms.F_CODE_NM('evl_stdr_set', ei.evl_stdr_set) as evl_stdr_set_nm
+             , case ei.evl_stdr_set_at
+             	    when 'Y' then case ei.evl_stdr_set
+             	                       when 1 then if (eri.evl_result_scr/eii.evlTotalScr*100 >= ifnull(ei.evl_gd_stdr_scr,0), '상'
+             	                                     , if (eri.evl_result_scr/eii.evlTotalScr*100 >= ifnull(ei.evl_av_stdr_scr,0), '중', '하'
+             	                                           )
+             	                                       )
+             	                       when 2 then if (eri.evl_result_scr/eii.evlTotalScr*100 >= ifnull(ei.evl_ps_stdr_scr,0), '통과', '실패')
+             	                       else null end
+             	    when 'N' then case eri.subm_at
+             	                       when 'Y' then '완료'
+             	                       when 'N' then '미완료'
+                                       else null end
+             	    else null end as evlResult
+             , (select sum(evl_iem_scr_result) from aidt_lms.evl_result_detail erd where erd.evl_result_id = eri.id and erd.mrk_cp_at = 'Y') as evl_result_scr
+             , eii.evlTotalScr
+          from aidt_lms.evl_info ei
+          join aidt_lms.evl_result_info eri on eri.evl_id = ei.id
+          join (select sum(evl_iem_scr) as evlTotalScr, evl_id from aidt_lms.evl_iem_info where evl_id = #{evlId} group by evl_id) eii on ei.id = eii.evl_id
+         where ei.id = #{evlId}
+           and eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findStntEvalResultEvalIemInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalResultEvalIemInfo */
+        SELECT eii.id
+             , erd.hnt_use_at
+             , eri.sets_id
+             , erd.evl_result_id
+             , eii.evl_iem_id
+             , eii.sub_id
+             , erd.mrk_ty
+             , aidt_lms.F_CODE_NM('mrk_ty', erd.mrk_ty) AS mrkTyNm
+             , erd.errata
+             , aidt_lms.F_CODE_NM('errata', erd.errata) AS errataNm
+             , erd.eak_At
+             , erd.fdb_dc
+             , erd.fdb_url
+             , a.name
+             , a.url
+             , a.image
+             , ifnull(
+                    (select thumbnail from aidt_lcms.setsummary where set_id = eri.sets_id and article_id = erd.evl_iem_id and sub_id = erd.sub_id),
+                    a.thumbnail
+               ) as thumbnail
+             , a.questionStr
+             , a.hashTags
+             , a.is_Active
+             , a.is_PublicOpen AS isPublicOpen
+             , erd.sub_mit_anw
+             , erd.sub_mit_anw_url
+             , erd.module_req_sec as evlTime
+             , x.hint
+             , x.sbsChatting
+             , x.sbsSolution
+             , case when ifnull(x.hint, '') = '' then 'N' else 'Y' end AS 'hintYN'/*힌트*/
+             , case when ifnull(x.sbsChatting, '') = '' then 'N' else 'Y' end AS 'sbsChattingYN'/*단계별 질문*/
+             , case when ifnull(x.sbsSolution, '') = '' then 'N' else 'Y' end AS 'sbsSolutionYN'/*단계별풀이*/
+          FROM aidt_lms.evl_info ei
+          LEFT JOIN aidt_lms.evl_result_info eri ON eri.evl_id = ei.id
+          LEFT JOIN aidt_lms.evl_iem_info eii ON eii.evl_id = ei.id
+          LEFT JOIN aidt_lms.evl_result_detail erd ON erd.evl_result_id = eri.id
+                                                  AND erd.evl_iem_id = eii.evl_iem_id
+                                                  AND erd.sub_id = eii.sub_id
+          LEFT JOIN aidt_lcms.article a ON  a.id = eii.evl_iem_id
+          LEFT JOIN aidt_lcms.article_meta_map amm
+                ON erd.evl_iem_id = amm.article_id
+                    AND amm.meta_name = 'difficulty'
+          LEFT JOIN aidt_lcms.meta m
+                ON amm.meta_id = m.id
+          LEFT JOIN aidt_lcms.aitutorcontents x
+                ON x.article_id= erd.evl_iem_id
+         WHERE eri.evl_id = #{evlId}
+        <if test="userId != null and userId != '' ">
+            AND eri.mamoym_id = #{userId}
+        </if>
+        order by eri.mamoym_id, eii.id
+    </select>
+
+    <select id="findStntEvalInfoEvalInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalInfoEvalInfo */
+        SELECT ei.id
+             /* AI 처방학습의 경우 학생별로 셋트지가 생성됨, 평가정보에 셋트지ID는 널임 */
+             , ifnull(ei.sets_id, eri.sets_id) as setsId
+             , ei.evl_nm
+             , DATE_FORMAT(ei.evl_prg_dt, "%Y-%m-%d %H:%i:%s") as evl_prg_dt
+             , DATE_FORMAT(ei.evl_cp_dt, "%Y-%m-%d %H:%i:%s") as evl_cp_dt
+             , ei.evl_stts_cd
+             , aidt_lms.F_CODE_NM('evl_stts_cd', ei.evl_stts_cd) AS evl_stts_nm
+             /* AI 맞춤학습 (개별맞춤출제), AI 처방학습의 경우 학생별로 셋트지가 생성됨, 과제정보에 셋트지ID는 널임 */
+             , IF(ISNULL(ei.sets_id), (select count(1) from aidt_lms.evl_result_detail where evl_result_id = eri.id and mrk_ty != 3), (SELECT COUNT(1) FROM aidt_lms.evl_iem_info eii WHERE eii.evl_id = ei.id AND eii.mrk_ty != 3)) as eam_exm_num
+             , ei.tim_time
+             , ei.rwd_set_at
+             , ei.rwd_point
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , ei.ai_tut_set_at
+             , if (ei.rpt_othbc_at = 'Y' and eri.subm_at = 'Y','Y','N') as rpOthbcAt
+             , ei.rpt_auto_othbc_at as rptAutoOthbcAt
+             , DATE_FORMAT(ei.rpt_othbc_dt, "%Y-%m-%d %H:%i:%s") as rpOthbcDt
+             , if(ei.pd_set_at = 'N','Y','N') as lesnEvalAt
+             , DATE_FORMAT(eri.eak_st_dt, "%Y-%m-%d %H:%i:%s") as eak_st_dt
+             , eri.subm_at
+             , ifnull(eri.evl_adi_sec, 0) as evl_adi_sec  /* 학생 개인의 추가 시간 */
+          FROM aidt_lms.evl_info ei
+          join aidt_lms.evl_result_info eri on ei.id = eri.evl_id
+         WHERE ei.id = #{evlId}
+           and eri.mamoym_id = #{userId}
+    </select>
+
+    <select id="findStntEvalResultDetailInfo" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalResultDetailInfo */
+        select
+            erd.id as evl_detail_id
+            , eri.sets_id
+            , evl_result_id
+            , evl_iem_id
+            , sub_id
+            , sub_mit_anw
+            , sub_mit_anw_url
+            , erd.errata
+            , aidt_lms.F_CODE_NM('errata', aidt_lms.F_GET_TCH_EVL_ERRATA(erd.id)) AS errata_nm
+            , erd.hdwrt_cn
+            , erd.eak_at
+            , a.questionStr
+        from aidt_lms.evl_result_detail erd
+        left join aidt_lms.evl_result_info eri on eri.id = erd.evl_result_id
+        left join aidt_lcms.article a on a.id = erd.evl_iem_id
+        where erd.evl_result_id = #{evlResultId}
+        and erd.evl_iem_id = #{evlIemId}
+        and erd.sub_id = #{subId}
+        limit 1
+    </select>
+
+    <update id="modifyStntEvalExamResultDetail" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalExamResultDetail */
+        UPDATE aidt_lms.evl_result_detail
+           SET eak_st_dt = NOW()
+             , eak_stts_cd = 2
+             , eak_at = 'Y'
+             , mdfr = '/stnt/eval/exam'
+             , mdfy_dt = NOW()
+         WHERE evl_result_id IN (SELECT id
+                                   FROM aidt_lms.evl_result_info
+                                  WHERE evl_id = #{evlId}
+                                    AND mamoym_id = #{userId}
+                                )
+    </update>
+
+    <update id="modifyStntEvalRecheck" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalRecheck */
+        UPDATE aidt_lms.evl_result_detail erd
+           SET erd.re_idf_cnt = COALESCE(erd.re_idf_cnt, 0) + 1
+             , erd.eak_at = if(erd.eak_at = 'N', 'Y', erd.eak_at)
+             , erd.eak_st_dt = if(erd.eak_st_dt is null, now(), erd.eak_st_dt)
+             , erd.eak_stts_cd = if(erd.eak_at = 'N', 2, erd.eak_stts_cd)
+             , mdfr = '/stnt/eval/recheck'
+             , erd.mdfy_dt = NOW()
+        <choose>
+            <when test="evlResultId != null and evlResultId != '' ">
+                WHERE erd.evl_result_id = #{evlResultId}
+            </when>
+            <otherwise>
+                WHERE erd.evl_result_id IN (SELECT eri.id
+                                              FROM aidt_lms.evl_result_info eri
+                                             WHERE eri.evl_id = #{evlId}
+                                               AND eri.mamoym_id = #{userId}
+                                           )
+            </otherwise>
+        </choose>
+           AND erd.evl_iem_id = #{evlIemId}
+           AND erd.sub_id = #{subId}
+    </update>
+
+    <update id="modifyStntEvalSubmitResultDetail" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSubmitResultDetail */
+        UPDATE aidt_lms.evl_result_detail erd
+          join aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+           SET erd.eak_at = 'Y'
+             , erd.eak_stts_cd = if (erd.mrk_ty = 2,3,5)
+             , erd.eak_st_dt = now()
+             , erd.eak_ed_dt = now()
+             , erd.errata= (case when erd.mrk_ty = 1 then 2 when erd.mrk_ty = 2 then 4 else erd.errata end)
+             , erd.evl_iem_scr=if(erd.mrk_ty in (1,2), 0, erd.evl_iem_scr)
+             , erd.evl_iem_scr_result=if(erd.mrk_ty in (1,2), 0, erd.evl_iem_scr_result)
+             , erd.mrk_cp_at= (case when erd.mrk_ty = 1 then 'Y' when erd.mrk_ty = 2 then 'N' else erd.mrk_cp_at end)
+             , erd.mdfr = '/stnt/eval/submit'
+             , erd.mdfy_dt = NOW()
+         WHERE eri.evl_id = #{evlId}
+           AND eri.mamoym_id = #{userId}
+           AND (erd.eak_at = 'N' or erd.errata is null)
+          <if test="excludedEvlIemIds != null and excludedEvlIemIds.size() > 0">
+            AND NOT EXISTS (
+            SELECT 1
+            FROM (
+            <foreach collection="excludedEvlIemIds" item="evlIemId" separator=" UNION ALL">
+              SELECT #{evlIemId} AS evl_iem_id
+            </foreach>
+            ) AS excluded_ids
+            WHERE excluded_ids.evl_iem_id = erd.evl_iem_id
+            )
+          </if>
+    </update>
+
+    <select id="selectStntEvalSubmitResultDetailCnt" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.selectStntEvalSubmitResultDetailCnt */
+        select a.id
+             , sum(if (a.eak_stts_cd <![CDATA[<]]> 5,1,0)) eakSttsCdCnt
+          from (select eri.id, erd.eak_stts_cd
+                  from aidt_lms.evl_result_info eri
+                  join aidt_lms.evl_result_detail erd on eri.id = erd.evl_result_id
+                 where evl_id = #{evlId}
+                   and mamoym_id = #{userId}
+                ) a
+         group by a.id
+    </select>
+
+    <update id="modifyStntEvalSubmitResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSubmitResultInfo */
+        UPDATE aidt_lms.evl_result_info
+           SET eak_ed_dt = now()
+             , subm_at = ifnull(nullif(#{submAt},''), subm_at)
+            <if test='submAt == "Y"'>
+             , subm_dt = now()
+            </if>
+             , eak_stts_cd = #{eakSttsCd}
+            <if test=' mrkCpAt == "Y" '>
+             , mrk_cp_at = 'Y'
+            </if>
+             , evl_result_scr = (select sum(evl_iem_scr_result) from aidt_lms.evl_result_detail erd where erd.evl_result_id = aidt_lms.evl_result_info.id )
+             , mdfr = '/stnt/eval/submit'
+             , mdfy_dt = now()
+         WHERE evl_id = #{evlId}
+           AND mamoym_id = #{userId}
+            <if test='submAt == "Y"'>
+                AND done_yn = 'Y'
+            </if>
+    </update>
+
+    <update id="modifyStntEvalSubmitEvlInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalSubmitEvlInfo */
+        <![CDATA[
+        update aidt_lms.evl_info
+            set
+                evl_stts_cd = 5
+                , mrk_cp_dt = now()
+                /*, mdfr = */
+                , mdfy_dt = now()
+        where
+            1=1
+            and id = #{evlId}
+            and 0 = (select count(1) from aidt_lms.evl_result_info where evl_id = #{evlId} and eak_stts_cd <> 5)
+        ]]>
+    </update>
+
+    <update id="modifyEvalStartResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyEvalStartResultInfo */
+        UPDATE aidt_lms.evl_result_info eri
+          JOIN aidt_lms.evl_info ei on eri.evl_id = ei.id
+           SET eri.eak_st_dt = NOW()
+             , eri.eak_ed_dt = if (ei.tim_st_at = 'Y', DATE_ADD(DATE_ADD(DATE_ADD(now(), INTERVAL SUBSTRING(tim_time,1,2) HOUR), INTERVAL SUBSTRING(tim_time,4,2) MINUTE), INTERVAL SUBSTRING(tim_time,7,2) SECOND), ei.pd_evl_ed_dt)
+             , eri.eak_stts_cd = 2
+             , eri.eak_at = 'Y'
+             , eri.mdfr = '/stnt/eval/start'
+             , eri.mdfy_dt = NOW()
+         WHERE eri.evl_id = #{evlId}
+           AND eri.mamoym_id = #{userId}
+    </update>
+
+    <update id="modifyEvalStartResultDetail" parameterType="map" >
+        /* StntEvalMapper.modifyEvalStartResultDetail  - no usage */
+        UPDATE aidt_lms.evl_result_detail
+        set eak_stts_cd = 2
+        /*, mdfr = */
+        , eak_at = 'Y'
+        , mdfy_dt = NOW()
+        where
+        evl_result_id in (select id from aidt_lms.evl_result_info where evl_id = #{evlId} and mamoym_id = #{userId}
+        )
+    </update>
+
+    <select id="findEvlResultDetailCount" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findStntEvalSaveIemScr */
+        SELECT count(1) as cnt
+          FROM aidt_lms.evl_result_detail erd
+         WHERE erd.evl_result_id = #{evlResultId}
+           and erd.eak_stts_cd <![CDATA[<]]> #{eakSttsCd}
+    </select>
+
+    <update id="modifyStntEvalResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalResultInfo */
+        UPDATE aidt_lms.evl_result_info
+             set eak_stts_cd = #{eakSttsCd}
+             , mrk_cp_at = 'Y'
+             , mdfr = '/stnt/eval/save'
+             , mdfy_dt = now()
+         WHERE id = #{evlResultId}
+            AND mamoym_id = #{userId}
+    </update>
+
+    <update id="modifyStntEvalInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalInfo  - no usage */
+        UPDATE aidt_lms.evl_info
+           SET evl_stts_cd = #{evlSttsCd}
+             , mrk_cp_dt = now()
+               /*,mdfr =*/
+             , mdfy_dt = now()
+         WHERE id = #{evlId}
+            and 0 = (select count(1) FROM
+         				evl_result_info
+         				where evl_id = #{evlId}
+         				and eak_stts_cd <![CDATA[<]]> 5)
+    </update>
+
+
+    <update id="modifyStntEvalInit" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalInit */
+        update evl_result_detail
+        set sub_mit_anw = ''
+          , eak_stts_cd = 2
+          ,eak_at = 'N'
+          , eak_ed_dt = null
+          , anw_chg_cnt = anw_chg_cnt+1
+          , mrk_cp_at = 'N'
+          , mdfr = '/stnt/eval/init'
+          , mdfy_dt = now()
+        where evl_iem_id =#{evlIemId}
+          and evl_result_id =#{evlResultId}
+          and sub_id = #{subId}
+    </update>
+
+
+    <update id="modifyStntEvalInitForEvlResultInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalInitForEvlResultInfo */
+        update evl_result_info
+        set eak_ed_dt = null
+          , eak_stts_cd = 2
+          , subm_at = 'N'
+          , mdfr = '/stnt/eval/init'
+          , mdfy_dt = now()
+        where mamoym_id = #{userId}
+          and  evl_id = #{evlId}
+          and id = #{evlResultId}
+    </update>
+
+    <update id="modifyStntEvalInitForEvlInfo" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvalInitForEvlInfo */
+        update evl_info
+        set evl_stts_cd =2
+        , mdfr = '/stnt/eval/init'
+        , mdfy_dt = now()
+        where id = #{evlId}
+    </update>
+
+    <select id="findStntEvalIdByArticle" parameterType="map" resultType="int">
+        select ifnull( (
+            SELECT `id`
+            FROM  `aidt_lms`.`evl_result_detail`
+            WHERE evl_result_id = #{evlResultId}
+            AND   evl_iem_id = #{evlIemId}
+            limit 1
+        ), 0 )
+    </select>
+
+     <select id="findStntEvalAiTutCn" parameterType="map" resultType="String">
+        SELECT ai_tut_cht_cn
+        FROM  `aidt_lms`.`evl_result_detail`
+        WHERE `id` = #{evalResultDetailId}
+     </select>
+
+     <update id="modifyStntEvalAiTutSave" parameterType="map">
+        UPDATE aidt_lms.evl_result_detail
+        SET   ai_tut_use_at = 'Y'
+            , ai_tut_cht_cn = #{aiTutChtCn}
+            , mdfr = #{userId}
+            , mdfy_dt = NOW()
+        WHERE `id` = #{evalResultDetailId}
+     </update>
+
+    <update id="modifyStntEvlResultDetail" parameterType="map">
+        /* StntEvalMapper.modifyStntEvlResultDetail */
+        <selectKey keyProperty="eriSubmAt" resultType="String" order="BEFORE">
+            select if (count(1) = sum(if (erd.errata is not null, 1, 0)), 'Y', eri.subm_at) as eriSubmAt
+            from aidt_lms.evl_result_info eri
+            join aidt_lms.evl_result_detail erd on eri.id = erd.evl_result_id
+            where eri.evl_id = #{evlId}
+            and eri.mamoym_id = #{userId}
+        </selectKey>
+
+        update aidt_lms.evl_info ei
+        join aidt_lms.evl_result_info eri on ei.id = eri.evl_id
+        set eri.subm_at = #{eriSubmAt}
+          , eri.mdfr = #{userId}
+          , eri.mdfy_dt = now()
+        where ei.id = #{evlId}
+        and eri.mamoym_id = #{userId}
+        and ei.pd_set_at = 'N' /* 수업중 평가만 적용한다 */
+    </update>
+
+    <select id="findConceptCheck" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findConceptCheck */
+        select
+            (select erd.mrk_ty
+               from aidt_lms.evl_result_detail erd
+               join aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+              where eri.evl_id = #{evlId}
+                and eri.mamoym_id = #{userId}
+                and erd.evl_result_id = #{evlResultId}
+                and erd.evl_Iem_Id = #{evlIemId}
+                and erd.sub_id = #{subId}
+              limit 1) as mrkTy
+           ,COALESCE(
+            (select m1.code
+               from aidt_lcms.meta m1
+              where m1.name = 'articleType'
+                and m1.id = (select articleType
+                               from aidt_lcms.article
+                              where id = #{evlIemId}))
+           ,(select m2.code
+               from aidt_lcms.meta m2
+              where m2.name = 'articleType'
+                and m2.id = (select meta_id
+                               from aidt_lcms.article_meta_map
+                              where article_id = #{evlIemId}
+                                and meta_name = 'articleType'
+                                and sub_id  = #{subId}
+                ))
+            ) as articleType
+    </select>
+
+    <select id="findEvalResuldDetail" parameterType="map" resultType="camelHashMap">
+        /* StntEvalMapper.findEvalResuldDetail */
+        select erd.id as resultDetailId
+             , (select y.`code`
+                  from aidt_lcms.article x
+                 inner join aidt_lcms.meta y on x.questionType = y.id
+                 where x.id = erd.evl_iem_id
+               ) as questionType
+          from aidt_lms.evl_result_detail erd
+          join aidt_lms.evl_result_info eri on erd.evl_result_id = eri.id
+         where eri.evl_id = #{evlId}
+           and eri.mamoym_id = #{userId}
+           and erd.evl_result_id = #{evlResultId}
+           and erd.evl_iem_id = #{evlIemId}
+           and erd.sub_id = #{subId}
+         limit 1
+    </select>
+
+    <update id="modifyStntTaskDone" parameterType="map" >
+        /* StntEvalMapper.modifyStntTaskDone */
+        UPDATE aidt_lms.task_result_info tri
+           SET tri.done_yn = #{doneYn}
+             , mdfr = '/stnt/trgt/done'
+             , mdfy_dt = now()
+         WHERE tri.task_id = #{trgtId}
+            AND tri.mamoym_id = #{mamoymId}
+            AND tri.subm_at != 'Y'
+    </update>
+
+    <update id="modifyStntEvlDone" parameterType="map" >
+        /* StntEvalMapper.modifyStntEvlDone */
+        UPDATE aidt_lms.evl_result_info eri
+           SET eri.done_yn = #{doneYn}
+             , eri.start_at = 'Y'
+             , mdfr = '/stnt/trgt/done'
+             , mdfy_dt = now()
+         WHERE eri.evl_id = #{trgtId}
+            AND eri.mamoym_id = #{mamoymId}
+            AND eri.subm_at != 'Y'
+    </update>
+
+    <insert id="saveClassMoveHistory" parameterType="map" >
+    /* StntEvalMapper.saveClassMoveHistory */
+        INSERT INTO class_change_history (
+            stdt_id,
+            old_class_id,
+            new_class_id,
+            class_change_type,
+            reg_id,
+            reg_date,
+            mod_id,
+            mod_date
+        ) VALUES (
+                     #{userId},
+                     #{oldClaId},
+                     #{newClaId},
+                     1,  -- 1: 이동
+                     #{userId},
+                     now(),
+                     #{userId},
+                     now()
+                 )
+    </insert>
+
+    <insert id="saveClassAddHistory" parameterType="map" >
+    /* StntEvalMapper.saveClassAddHistory */
+        INSERT INTO class_change_history (
+            stdt_id,
+            old_class_id,
+            new_class_id,
+            class_change_type,
+            reg_id,
+            reg_date,
+            mod_id,
+            mod_date
+        )
+        SELECT tcmi.stdt_id,
+               NULL,
+               #{claId},
+               2,
+               tcmi.stdt_id,
+               now(),
+               tcmi.stdt_id,
+               now()
+        FROM aidt_lms.tc_cla_mb_info tcmi
+        LEFT JOIN aidt_lms.class_change_history cch
+            ON cch.stdt_id COLLATE utf8mb4_unicode_ci = tcmi.stdt_id COLLATE utf8mb4_unicode_ci
+                AND cch.new_class_id COLLATE utf8mb4_unicode_ci = #{claId} COLLATE utf8mb4_unicode_ci
+        WHERE tcmi.cla_id = #{claId}
+          AND tcmi.actvtn_at = 'Y'
+          AND cch.id IS NULL  /* 중복 방지 */
+    </insert>
+
+    <insert id="saveClassMoveStdDataChange_evlResultInfo" parameterType="map" >
+        /* StntEvalMapper.saveClassMoveStdDataChange_evlResultInfo */
+        INSERT INTO aidt_lms.evl_result_info (evl_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd)
+        SELECT ei.id
+             , #{userId} as mamoym_id
+             , ei.sets_id
+             , ei.wrter_id
+             , ei.wrter_id
+             , if (ei.pd_set_at = 'N', ei.evl_stts_cd, 1)
+          FROM aidt_lms.evl_info ei
+         WHERE ei.evl_stts_cd in (1,2,3,4,5)
+           and ei.cla_id = #{newClaId}
+           and not exists (select 1
+                           from aidt_lms.evl_result_info eri2
+                                    join aidt_lms.evl_info ei2 on eri2.evl_id = ei2.id
+                           where eri2.mamoym_id = #{userId}
+                             and ei2.sets_id = ei.sets_id
+                             and ei2.cla_id = #{newClaId})
+           and ei.sets_id is not null
+    </insert>
+
+    <insert id="saveClassMoveStdDataChange_evlResultDetail" parameterType="map" >
+        /* StntEvalMapper.saveClassMoveStdDataChange_evlResultDetail */
+        INSERT INTO aidt_lms.evl_result_detail (evl_result_id, evl_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, evl_iem_scr, evl_iem_scr_result, rgtr, mdfr, eak_at, mrk_cp_at)
+         SELECT eri.id
+              , eii.evl_iem_id
+              , eii.sub_id
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then '3'
+                else eii.mrk_ty
+                end as mrk_ty
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then '5'
+                else '1'
+                end as eak_stts_cd
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then '4'
+                else null
+                end as errata
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 0
+                else eii.evl_iem_scr
+                end
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 0
+                else eii.evl_iem_scr
+                end
+              , ei.wrter_id
+              , ei.wrter_id
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 'Y'
+                else 'N'
+                end
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 'Y'
+                else 'N'
+                end
+           FROM aidt_lms.evl_info ei
+           JOIN aidt_lms.evl_result_info eri ON ei.id = eri.evl_id
+           JOIN aidt_lms.evl_iem_info eii ON ei.id = eii.evl_id
+           LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = eii.evl_iem_id )
+           LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = eii.evl_iem_id and sub_id = eii.sub_id and meta_name = 'articleType')
+         WHERE ei.evl_stts_cd in (1,2,3,4,5)
+           and ei.cla_id = #{newClaId}
+           and eri.mamoym_id = #{userId}
+           and not exists (select 1
+                          from aidt_lms.evl_info ei2
+                          join aidt_lms.evl_result_info eri2 on ei2.id = eri2.evl_id
+                          where eri2.mamoym_id = #{userId}
+                          and ei2.sets_id = ei.sets_id
+                          and ei2.cla_id = #{newClaId})
+         ORDER BY ei.id, eri.id, eii.id
+    </insert>
+
+    <insert id="saveClassMoveStdDataChange_taskResultInfo" parameterType="map" >
+        /* StntEvalMapper.saveClassMoveStdDataChange_taskResultInfo */
+        INSERT INTO aidt_lms.task_result_info (task_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd, mrk_cp_at)
+        SELECT ti.id
+             , #{userId} as mamoym_id
+             , ti.sets_id
+             , ti.wrter_id
+             , ti.wrter_id
+             , '1'
+             , 'N'
+          FROM aidt_lms.task_info ti
+         WHERE ti.task_stts_cd in (1,2)
+           and ti.cla_id = #{newClaId}
+           and not exists (select 1
+                          from aidt_lms.task_info ti2
+                          join aidt_lms.task_result_info tri2 on ti2.id = tri2.task_id
+                          where tri2.mamoym_id = #{userId}
+                          and ti2.sets_id = ti.sets_id
+                          and ti2.cla_id = #{newClaId})
+           and ti.sets_id is not null
+    </insert>
+
+    <insert id="saveClassMoveStdDataChange_taskResultDetail" parameterType="map" >
+        /* StntEvalMapper.saveClassMoveStdDataChange_taskResultDetail */
+        INSERT INTO aidt_lms.task_result_detail (task_result_id, task_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at)
+        SELECT tri.id
+           , s.article_id
+           , s.sub_id
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 3
+             else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+             end as mrk_ty
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 5
+             else 1
+             end as eak_stts_cd
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 4
+             else null
+             end as errata
+           , 'system'
+           , 'system'
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end as eakAt
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end
+        FROM aidt_lms.task_info ti
+        JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id
+        JOIN aidt_lcms.setsummary s ON ti.sets_id  = s.set_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id and meta_name = 'articleType')
+        left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+         WHERE ti.task_stts_cd in (1,2)
+           and ti.cla_id = #{newClaId}
+           and tri.mamoym_id = #{userId}
+           and not exists (select 1
+                          from aidt_lms.task_info ti2
+                          join aidt_lms.task_result_info tri2 on ti2.id = tri2.task_id
+                          where tri2.mamoym_id = #{userId}
+                          and ti2.sets_id = ti.sets_id
+                          and ti2.cla_id = #{oldClaId})
+         ORDER BY ti.id, tri.id, s.id
+    </insert>
+
+    <delete id="removeClassMoveStdDataChange_evlResultDetail" parameterType="map" >
+        /* StntEvalMapper.removeClassMoveStdDataChange_evlResultDetail */
+        delete erd
+        from aidt_lms.evl_result_detail erd
+        join aidt_lms.evl_result_info eri on eri.id = erd.evl_result_id
+        join aidt_lms.evl_info ei on ei.id = eri.evl_id
+        where ei.evl_stts_cd in( 1,2)
+        AND eri.eak_stts_cd in (1,2)
+        and ei.cla_id = #{oldClaId}
+        and eri.mamoym_id = #{userId}
+    </delete>
+
+    <delete id="removeClassMoveStdDataChange_evlResultInfo" parameterType="map" >
+        /* StntEvalMapper.removeClassMoveStdDataChange_evlResultInfo */
+        delete eri
+        from aidt_lms.evl_result_info eri
+        join aidt_lms.evl_info ei on ei.id = eri.evl_id
+        where ei.evl_stts_cd in( 1,2)
+        AND eri.eak_stts_cd in (1,2)
+        and ei.cla_id = #{oldClaId}
+        and eri.mamoym_id = #{userId}
+    </delete>
+
+    <delete id="removeClassMoveStdDataChange_taskResultDetail" parameterType="map" >
+        /* StntEvalMapper.removeClassMoveStdDataChange_taskResultDetail */
+        delete trd
+        from aidt_lms.task_result_detail trd
+        join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+        join aidt_lms.task_info ti on ti.id = tri.task_id
+        where ti.task_stts_cd in( 1,2)
+        AND tri.eak_stts_cd in (1,2)
+        and ti.cla_id = #{oldClaId}
+        and tri.mamoym_id = #{userId}
+    </delete>
+
+    <delete id="removeClassMoveStdDataChange_taskResultInfo" parameterType="map" >
+        /* StntEvalMapper.removeClassMoveStdDataChange_taskResultInfo */
+        delete tri
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_info ti on ti.id = tri.task_id
+        where ti.task_stts_cd in( 1,2)
+        AND tri.eak_stts_cd in (1,2)
+        and ti.cla_id = #{oldClaId}
+        and tri.mamoym_id = #{userId}
+    </delete>
+
+    <update id="modifyClassMoveStdDataChange_rwdEarnInfo" parameterType="map" >
+        /* StntEvalMapper.modifyClassMoveStdDataChange_rwdEarnInfo */
+        INSERT INTO aidt_lms.rwd_earn_info (
+            user_id,
+            cla_id,
+            ht_earn_gramt,
+            st_earn_gramt,
+            ht_blnc,
+            st_blnc
+        )
+        SELECT
+            user_id,
+            #{newClaId} as cla_id,
+            ht_earn_gramt,
+            st_earn_gramt,
+            ht_blnc,
+            st_blnc
+        FROM aidt_lms.rwd_earn_info
+        WHERE user_id = #{userId} AND cla_id = #{oldClaId}
+            ON DUPLICATE KEY UPDATE
+             user_id = VALUES(user_id),
+             cla_id = VALUES(cla_id),
+             ht_earn_gramt = VALUES(ht_earn_gramt),
+             st_earn_gramt = VALUES(st_earn_gramt),
+             ht_blnc = VALUES(ht_blnc),
+             st_blnc = VALUES(st_blnc),
+             mdfr = 'system',
+             mdfy_dt = CURRENT_TIMESTAMP;
+    </update>
+
+    <update id="modifyClassMoveStdDataChange_rwdEarnHist" parameterType="map" >
+        /* StntEvalMapper.modifyClassMoveStdDataChange_rwdEarnInfo */
+        update aidt_lms.rwd_earn_hist
+        set cla_id = #{newClaId}
+        where user_id = #{userId} and cla_id = #{oldClaId}
+    </update>
+
+    <update id="modifyClassMoveStdDataChange_spPrchsInfo" parameterType="map" >
+        /* StntEvalMapper.modifyClassMoveStdDataChange_rwdEarnInfo */
+        INSERT INTO aidt_lms.sp_prchs_info (
+            user_id,
+            user_se_cd,
+            cla_id,
+            prchs_gds_se_cd,
+            ht_prchs_amt,
+            st_prchs_amt,
+            rprs_gds_id,
+            rprs_gds_anct
+        )
+        SELECT
+            user_id,
+            user_se_cd,
+            #{newClaId} as cla_id,
+            prchs_gds_se_cd,
+            ht_prchs_amt,
+            st_prchs_amt,
+            rprs_gds_id,
+            rprs_gds_anct
+        FROM aidt_lms.sp_prchs_info
+        WHERE user_id = #{userId} AND cla_id = #{oldClaId}
+            ON DUPLICATE KEY UPDATE
+         user_id = VALUES(user_id),
+         user_se_cd = VALUES(user_se_cd),
+         cla_id = VALUES(cla_id),
+         prchs_gds_se_cd = VALUES(prchs_gds_se_cd),
+         ht_prchs_amt = VALUES(ht_prchs_amt),
+         st_prchs_amt = VALUES(st_prchs_amt),
+         rprs_gds_id = VALUES(rprs_gds_id),
+         rprs_gds_anct = VALUES(rprs_gds_anct),
+         mdfr = 'system',
+         mdfy_dt = CURRENT_TIMESTAMP;
+    </update>
+
+    <update id="modifyClassMoveStdDataChange_spPrchsHist" parameterType="map" >
+        /* StntEvalMapper.modifyClassMoveStdDataChange_rwdEarnInfo */
+        update aidt_lms.sp_prchs_hist
+        set cla_id = #{newClaId}
+        where user_id = #{userId} and cla_id = #{oldClaId}
+    </update>
+
+    <insert id="saveClassStdData_evlResultInfo" parameterType="map" >
+        /* StntEvalMapper.saveClassStdData_evlResultInfo */
+        INSERT INTO aidt_lms.evl_result_info (evl_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd)
+        SELECT ei.id
+             , tcmi.stdt_id
+             , ei.sets_id
+             , ei.wrter_id
+             , ei.wrter_id
+             , if (ei.pd_set_at = 'N', ei.evl_stts_cd, 1)
+        FROM aidt_lms.evl_info ei
+       INNER JOIN aidt_lms.tc_cla_mb_info tcmi ON ei.cla_id = tcmi.cla_id
+            AND tcmi.actvtn_at = 'Y'
+       LEFT JOIN aidt_lms.evl_result_info eri ON ei.id = eri.evl_id AND tcmi.stdt_id = eri.mamoym_id
+       WHERE ei.cla_id = #{claId}
+         AND ei.evl_stts_cd in (1,2,3,4,5)
+         AND eri.id IS NULL
+         and ei.sets_id is not null
+    </insert>
+
+    <insert id="saveClassStdData_evlResultDetail" parameterType="map" >
+        /* StntEvalMapper.saveClassStdData_evlResultDetail */
+         INSERT INTO aidt_lms.evl_result_detail (evl_result_id, evl_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, evl_iem_scr, evl_iem_scr_result, rgtr, mdfr, eak_at, mrk_cp_at)
+         SELECT eri.id
+              , eii.evl_iem_id
+              , eii.sub_id
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then '3'
+                else eii.mrk_ty
+                end as mrk_ty
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then '5'
+                else '1'
+                end as eak_stts_cd
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then '4'
+                else null
+                end as errata
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 0
+                else eii.evl_iem_scr
+                end
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 0
+                else eii.evl_iem_scr
+                end
+              , ei.wrter_id
+              , ei.wrter_id
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 'Y'
+                else 'N'
+                end
+              , CASE COALESCE(m2.code, m1.code)
+                when 'concept' then 'Y'
+                else 'N'
+                end
+         FROM aidt_lms.evl_info ei
+         INNER JOIN aidt_lms.evl_result_info eri ON ei.id = eri.evl_id
+         INNER JOIN aidt_lms.evl_iem_info eii ON ei.id = eii.evl_id
+         LEFT JOIN aidt_lms.evl_result_detail erd ON eri.id = erd.evl_result_id
+         LEFT JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = eii.evl_iem_id )
+         LEFT JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = eii.evl_iem_id and sub_id = eii.sub_id and meta_name = 'articleType')
+         WHERE ei.cla_id = #{claId}
+           AND erd.id IS NULL
+         ORDER BY eri.mamoym_id , ei.id, eii.id
+    </insert>
+
+    <insert id="saveClassStdData_taskResultInfo" parameterType="map" >
+        /* StntEvalMapper.saveClassStdData_taskResultInfo */
+        INSERT INTO aidt_lms.task_result_info (task_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd, mrk_cp_at)
+        SELECT ti.id
+             , tcmi.stdt_id
+             , ti.sets_id
+             , ti.wrter_id
+             , ti.wrter_id
+             , '1'
+             , 'N'
+          FROM aidt_lms.task_info ti
+         INNER JOIN aidt_lms.tc_cla_mb_info tcmi ON ti.cla_id = tcmi.cla_id
+              AND tcmi.actvtn_at = 'Y'
+          LEFT JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id AND tcmi.stdt_id = tri.mamoym_id
+         WHERE ti.cla_id  = #{claId}
+           AND ti.task_stts_cd in (1,2)
+           AND tri.id IS NULL
+           and ti.sets_id is not null
+           and ti.eam_mth != 5
+    </insert>
+
+    <insert id="saveClassStdData_taskResultDetail" parameterType="map" >
+        /* StntEvalMapper.saveClassStdData_taskResultDetail */
+        INSERT INTO aidt_lms.task_result_detail (task_result_id, task_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at)
+        SELECT tri.id
+           , s.article_id
+           , s.sub_id
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 3
+             else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+             end as mrk_ty
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 5
+             else 1
+             end as eak_stts_cd
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 4
+             else null
+             end as errata
+           , 'system'
+           , 'system'
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end as eakAt
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end
+        FROM aidt_lms.task_info ti
+        JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id
+        JOIN aidt_lcms.setsummary s ON ti.sets_id  = s.set_id
+        LEFT JOIN aidt_lms.task_result_detail trd ON tri.id = trd.task_result_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id and meta_name = 'articleType')
+        left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+         WHERE ti.cla_id  = #{claId}
+           AND trd.id IS NULL
+         ORDER BY tri.mamoym_id , ti.id, s.id
+    </insert>
+
+    <select id="findStntEvalTimeUsage" parameterType="map" resultType="int">
+        /* StntEvalMapper.findstntEvalTimeUsage */
+        SELECT COALESCE(MAX(time_usage), 0)
+        FROM aidt_lms.evl_usage_hist
+        WHERE std_id = #{studentId}
+          AND trgt_id = #{targetId}
+    </select>
+
+    <insert id="saveStntEvalTimeUsage" parameterType="map"  >
+        /* StntEvalMapper.saveStntEvalTimeUsage */
+        INSERT INTO aidt_lms.evl_usage_hist
+        (std_id, trgt_id, time_usage, st_dt, ed_dt, error_message)
+        VALUES( #{studentId}, #{targetId}, #{timeUsage}, #{startDate}, #{endDate}, #{errorMessage});
+    </insert>
+
+    <select id="findStntSetCheck" parameterType="map" resultType="map">
+        /* StntEvalMapper.findStntSetCheck */
+        SELECT 
+            (evl_count + task_count) as count,
+            (evl_count + task_count) as change_count,
+            CASE 
+                WHEN (evl_count + task_count) > 0 THEN 'Y'
+                ELSE 'N'
+            END as has_changes,
+            CASE
+                WHEN (evl_period_count + task_period_count) > 0 THEN 'Y'
+                ELSE 'N'
+            END as isPeriodChanged
+        FROM (
+            SELECT 
+                COALESCE((
+                    SELECT COUNT(1) 
+                    FROM evl_result_info 
+                    WHERE evl_id = #{evlId} 
+                      AND mamoym_id = #{userId} 
+                      AND sets_updated_at = 'Y'
+                ), 0) as evl_count,
+                COALESCE((
+                    SELECT COUNT(1) 
+                    FROM task_result_info 
+                    WHERE task_id = #{taskId} 
+                      AND mamoym_id = #{userId} 
+                      AND sets_updated_at = 'Y'
+                ), 0) as task_count,
+                COALESCE((
+                    SELECT COUNT(1)
+                    FROM evl_result_info
+                    WHERE evl_id = #{evlId}
+                      AND mamoym_id = #{userId}
+                      AND period_changed_at = 'Y'
+                ), 0) as evl_period_count,
+                 COALESCE((
+                    SELECT COUNT(1)
+                    FROM task_result_info
+                    WHERE task_id = #{taskId}
+                      AND mamoym_id = #{userId}
+                      AND period_changed_at = 'Y'
+                ), 0) as task_period_count
+        ) counts
+
+    </select>
+
+    <select id="selectClaEvalCheck" parameterType="map" resultType="int">
+        select
+            count(1)
+        from evl_info
+        where id = #{evlId}
+    </select>
+
+    <update id="updateEvalAt" parameterType="map">
+        UPDATE evl_result_info eri
+        SET sets_updated_at = 'N'
+        , period_changed_at = 'N'
+        WHERE evl_id =  #{evlId}
+          AND mamoym_id = #{userId}
+    </update>
+
+    <update id="updateTaskAt" parameterType="map">
+        UPDATE task_result_info eri
+        SET sets_updated_at = 'N'
+        , period_changed_at = 'N'
+        WHERE task_id =  #{taskId}
+        AND mamoym_id = #{userId}
+    </update>
+
+
+</mapper>
+
+
+
+

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.dashboard.mapper.TchDsbdHomewkMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <select id="findTchDsbdStatusHomewkList" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusHomewkList */
+        select COUNT(*) over () AS full_count
+             , ti.id
+             , ti.task_nm
+             , task_stts_cd
+             , aidt_lms.F_CODE_NM('task_stts_cd', task_stts_cd) as task_stts_nm
+             , DATE_FORMAT(ti.task_prg_dt, "%Y-%m-%d %H:%i:%s") as task_prg_dt
+             , DATE_FORMAT(ti.task_cp_dt, "%Y-%m-%d %H:%i:%s") as task_cp_dt
+             , ti.eam_mth
+             , aidt_lms.F_CODE_NM('eam_mth', ti.eam_mth) as eam_mth_nm
+             , ti.eam_trget
+             , case task_stts_cd
+               when 1 then '-'
+               else (select convert(count(1), CHAR) from aidt_lms.task_result_info tri where tri.task_id = ti.id)
+               end as targetCnt
+             , case task_stts_cd
+               when 1 then '-'
+               else (select convert(count(1), CHAR) from aidt_lms.task_result_info tri where tri.task_id = ti.id and tri.subm_at = 'Y')
+               end as submitCnt
+             , case task_stts_cd
+               when 1 then '-'
+               else if(task_stts_cd >= 2 and task_stts_cd <![CDATA[<]]> 5, '1', '2')
+               end as mrkSttsCd
+             , case task_stts_cd
+               when 1 then '-'
+               else if(task_stts_cd >= 2 and task_stts_cd <![CDATA[<]]> 5, '채점필요', '채점완료')
+               end as mrkSttsNm
+             , case when task_cp_dt <![CDATA[<]]> now() then 'Y' else 'N' end as taskExpiredYn
+        from   aidt_lms.task_info ti
+        where  1=1
+        and    ti.cla_id = #{param.claId}
+        and    ti.textbk_id = #{param.textbookId}
+        and    ti.tmpr_strg_at = 'N'
+        order by
+            case when ti.task_stts_cd = 1 then ti.reg_dt END DESC,
+            case when ti.task_stts_cd > 1 then task_prg_dt END DESC
+        LIMIT  #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findTchDsbdStatusHomewkDetail_taskInfo" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusHomewkDetail_taskInfo */
+        select ti.id as taskId
+             , ti.task_nm
+             , (select count(1) from aidt_lms.task_result_info tri where tri.task_id = ti.id and tri.subm_at = 'Y') as cpStntCnt
+             , (select count(1) from aidt_lms.task_result_info tri where tri.task_id = ti.id and tri.subm_at <![CDATA[<>]]> 'Y') as incpStntCnt
+        from   aidt_lms.task_info ti
+        where  ti.id = #{taskId}
+    </select>
+
+    <select id="findTchDsbdStatusHomewkDetail_taskResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusHomewkDetail_taskResultInfo */
+        select tri.id as task_result_id
+             , tri.mamoym_id
+             , u.flnm
+             , ti.cla_id
+             , tri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', tri.eak_stts_cd) AS eak_stts_nm
+             , tri.subm_at
+        from   aidt_lms.task_result_info tri
+        left join aidt_lms.user u on u.user_id = tri.mamoym_id
+        join   aidt_lms.task_info ti on ti.id = tri.task_id
+        where  tri.task_id = #{taskId}
+    </select>
+
+    <select id="findTchDsbdStatusHomewkResult_taskInfo" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusHomewkResult_taskInfo */
+        select ti.id as task_id
+             , ti.task_nm
+             , (select count(1) from aidt_lms.task_result_info tri where tri.task_id = ti.id and tri.mrk_cp_at = 'Y') as cp_stnt_cnt
+             , (select count(1) from aidt_lms.task_result_info tri where tri.task_id = ti.id and tri.mrk_cp_at <![CDATA[<>]]> 'Y') as incp_stnt_cnt
+        from   aidt_lms.task_info ti
+        where  ti.id = #{taskId}
+    </select>
+
+    <select id="findTchDsbdStatusHomewkResult_taskResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusHomewkResult_taskResultInfo */
+        select tri.id as task_result_id
+             , tri.mamoym_id
+             , u.flnm
+             , ti.cla_id
+             , tri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', tri.eak_stts_cd) AS eak_stts_nm
+             , case mrk_cp_at
+                   when 'Y' then 'N'
+                   when 'N' then 'Y'
+                 end as mrk_need_at
+             , if(mrk_cp_at = 'Y',(select count(1) from aidt_lms.task_result_detail trd where trd.task_result_id = tri.id and trd.errata = 1), 0) as anw_num
+             , if(mrk_cp_at = 'Y',(select count(1) from aidt_lms.task_result_detail trd where trd.task_result_id = tri.id and trd.errata = 3), 0) as tri_num
+             , if(mrk_cp_at = 'Y',(select count(1) from aidt_lms.task_result_detail trd where trd.task_result_id = tri.id and trd.errata = 2), 0) as wrng_num
+        from   aidt_lms.task_result_info tri
+        left join aidt_lms.user u on u.user_id = tri.mamoym_id
+        join   aidt_lms.task_info ti on ti.id =tri.task_id
+        where  tri.task_id = #{taskId}
+    </select>
+</mapper>

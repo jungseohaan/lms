@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.apm.mapper.CsInquiryMapper">
+
+    <insert id="insertInquiry" parameterType="map" useGeneratedKeys="true" keyProperty="inquiryId">
+        /* CsInquiryMapper.insertInquiry */
+        insert into aidt_lms.cs_inquiry_master
+            (
+             cla_id,
+             textbook_id,
+             user_id,
+             user_se_cd,
+             submitter,
+             phone_number,
+             email,
+             school_name,
+             class_name,
+             subject_name,
+             inquiry_type,
+             feedback_method,
+             inquiry_title,
+             inquiry_content,
+             system_browser,
+             system_os,
+             system_resolution,
+             system_ip,
+             privacy_agreement_yn,
+             inquiry_reg_dt,
+             process_status,
+             reopened_yn
+            )
+        values
+            (
+             #{claId},
+             #{textbookId},
+             #{userId},
+             #{userSeCd},
+             #{submitter},
+             #{phoneNumber},
+             #{email},
+             #{schoolName},
+             #{className},
+             #{subjectName},
+             #{inquiryType},
+             #{feedbackMethod},
+             #{inquiryTitle},
+             #{inquiryContent},
+             #{systemBrowser},
+             #{systemOs},
+             #{systemResolution},
+             #{systemIp},
+             #{privacyAgreementYn},
+             now(),
+             10,
+            <choose>
+                <when test="inquiryId != null and inquiryId != ''">
+                    'Y'
+                </when>
+                <otherwise>
+                    'N'
+                </otherwise>
+            </choose>
+            );
+    </insert>
+
+    <select id="selectInquiryList" parameterType="map" resultType="camelHashMap">
+        /* CsInquiryMapper.selectInquiryList */
+        with seCode as (
+            select
+                code_gb_cd,
+                code_cd,
+                code_nm
+            from aidt_lms.se_code
+            where code_gb_cd in ('cs_inquiry_state', 'cs_inquiry_type')
+              and use_at = 'Y'
+        )
+
+        select
+            cim.id,
+            cim.cla_id,
+            cim.textbook_id,
+            cim.user_id,
+            cim.submitter,
+            -- 1뎁스 정보
+            sct_parent.code_cd as inquiryTypeParent,
+            sct_parent.code_nm as inquiryTypeParentNm,
+            -- 2뎁스 정보 (저장된 값)
+            sct.code_cd as inquiryType,
+            sct.code_nm as inquiryTypeNm,
+            cim.inquiry_title,
+            DATE_FORMAT(cim.inquiry_reg_dt, '%Y-%m-%d') as inquiryRegDt,
+            scs.code_cd as processStatus,
+            scs.code_nm as processStatusNm,
+            COALESCE(DATE_FORMAT(cim.process_complete_dt, '%Y-%m-%d'), '-') as processCompleteDt,
+            cim.reopened_yn
+        from aidt_lms.cs_inquiry_master cim
+        join seCode scs
+            on scs.code_gb_cd = 'cs_inquiry_state'
+            and scs.code_cd = cim.process_status COLLATE utf8mb4_unicode_ci
+        join seCode sct
+            on sct.code_gb_cd = 'cs_inquiry_type'
+            and sct.code_cd = cim.inquiry_type COLLATE utf8mb4_unicode_ci
+        -- 1뎁스 정보 조인 (M10_D2 -> M10)
+        join seCode sct_parent
+            on sct_parent.code_gb_cd = 'cs_inquiry_type'
+            and sct_parent.code_cd = SUBSTRING(cim.inquiry_type, 1, 3) COLLATE utf8mb4_unicode_ci
+        where cim.user_id = #{userId}
+          and cim.cla_id = #{claId}
+          and cim.del_yn = 'N'
+            <if test="searchKeyword != null and searchKeyword != ''">
+                <choose>
+                    <when test="searchType == 'title'">
+                        and cim.inquiry_title like concat('%', #{searchKeyword}, '%')
+                    </when>
+                    <when test="searchType == 'content'">
+                        and cim.inquiry_content like concat('%', #{searchKeyword}, '%')
+                    </when>
+                    <when test="searchType == 'type'">
+                        and cim.inquiry_type = #{searchKeyword}
+                    </when>
+                    <otherwise>
+                        and (cim.inquiry_title like concat('%', #{searchKeyword}, '%')
+                             or cim.inquiry_content like concat('%', #{searchKeyword}, '%'))
+                    </otherwise>
+                </choose>
+            </if>
+        order by cim.inquiry_reg_dt desc
+        limit #{offset}, #{limit}
+    </select>
+
+    <select id="selectInquiryCountWithSearch" parameterType="map" resultType="int">
+        /* CsInquiryMapper.selectInquiryCountWithSearch */
+        select count(1)
+        from aidt_lms.cs_inquiry_master
+        where user_id = #{userId}
+          and cla_id = #{claId}
+          and del_yn = 'N'
+        <if test="searchKeyword != null and searchKeyword != ''">
+            <choose>
+                <when test="searchType == 'title'">
+                    and inquiry_title like concat('%', #{searchKeyword}, '%')
+                </when>
+                <when test="searchType == 'content'">
+                    and inquiry_content like concat('%', #{searchKeyword}, '%')
+                </when>
+                <when test="searchType == 'type'">
+                    and inquiry_type = #{searchKeyword}
+                </when>
+                <otherwise>
+                    and (inquiry_title like concat('%', #{searchKeyword}, '%') 
+                         or inquiry_content like concat('%', #{searchKeyword}, '%'))
+                </otherwise>
+            </choose>
+        </if>
+    </select>
+
+    <select id="selectInquiryDetail" parameterType="map" resultType="camelHashMap">
+        /* CsInquiryMapper.selectInquiryDetail */
+        with seCode as (
+            select
+                code_gb_cd,
+                code_cd,
+                code_nm
+            from aidt_lms.se_code
+            where code_gb_cd in ('cs_inquiry_state', 'cs_inquiry_type')
+              and use_at = 'Y'
+        )
+        select
+            cim.id as inquiryId,
+            cim.cla_id,
+            cim.textbook_id,
+            cim.user_id,
+            cim.user_se_cd,
+            cim.submitter,
+            cim.phone_number,
+            cim.email,
+            cim.school_name,
+            cim.class_name,
+            cim.subject_name,
+            cim.inquiry_type,
+            cim.feedback_method,
+            cim.feedback_success_yn,
+            cim.inquiry_title,
+            cim.inquiry_content,
+            cim.system_browser,
+            cim.system_os,
+            cim.system_resolution,
+            cim.system_ip,
+            DATE_FORMAT(cim.inquiry_reg_dt, '%Y-%m-%d') as inquiryRegDt,
+            cim.process_status,
+            scs.code_nm as processStatusNm,
+            COALESCE(DATE_FORMAT(cim.process_complete_dt, '%Y-%m-%d'), '-') as processCompleteDt,
+            cim.reopened_yn,
+            COALESCE(cim.manager_id, '') as managerId,
+            COALESCE(DATE_FORMAT(cim.answered_reg_dt, '%Y-%m-%d'), '-') as answeredRegDt,
+            COALESCE(cim.manager_content, '') as managerContent,
+            cim.temp_save_yn,
+            -- 1뎁스 문의유형 정보
+            sct_parent.code_cd as inquiryTypeParent,
+            sct_parent.code_nm as inquiryTypeParentNm,
+            -- 2뎁스 문의유형 정보
+            sct.code_cd as inquiryTypeCode,
+            sct.code_nm as inquiryTypeNm,
+            af.id as fileId,
+            af.file_name as fileName,
+            af.file_path as filePath,
+            af.file_size as fileSize,
+            CONCAT(af.file_path, af.save_file_name) as fileUrl
+        from aidt_lms.cs_inquiry_master cim
+        left join seCode scs
+            on scs.code_gb_cd = 'cs_inquiry_state'
+            and scs.code_cd = cim.process_status COLLATE utf8mb4_unicode_ci
+        left join seCode sct
+            on sct.code_gb_cd = 'cs_inquiry_type'
+            and sct.code_cd = cim.inquiry_type COLLATE utf8mb4_unicode_ci
+        -- 1뎁스 문의유형 정보 조인
+        left join seCode sct_parent
+            on sct_parent.code_gb_cd = 'cs_inquiry_type'
+            and sct_parent.code_cd = SUBSTRING(cim.inquiry_type, 1, 3) COLLATE utf8mb4_unicode_ci
+        -- 첨부파일 정보 조인
+        left join aidt_lms.cs_inquiry_file cif
+            on cif.inquiry_id = cim.id
+        left join aidt_lms.aidt_file af
+            on af.id = cif.customer_file_id
+        where cim.id = #{inquiryId}
+        group by cim.id
+    </select>
+
+    <select id="selectInquiryTypeCodes" resultType="camelHashMap">
+        /* CsInquiryMapper.selectInquiryTypeCodes */
+        select
+            code_cd as codeCd,
+            code_nm as codeNm
+        from aidt_lms.se_code
+        where code_gb_cd = 'cs_inquiry_type'
+          and code_cd like 'M%'
+          and LENGTH(code_cd) >= 3
+          and use_at = 'Y'
+        order by code_seq
+
+    </select>
+
+    <select id="selectSubjectsCodes" resultType="camelHashMap">
+        /* CsInquiryMapper.selectSubjectsCodes */
+        select
+            code as codeCd,
+            val as codeNm
+        from aidt_lcms.meta
+        where name = 'curriBook'
+          and is_active = 1
+          and brand_id in (1, 3)
+        order by
+            case
+                when val like '초등%' then 1
+                when val like '중등%' then 2
+                else 3
+            end,
+            val
+    </select>
+
+    <insert id="insertCsInquiryFile" parameterType="map">
+        /* CsInquiryMapper.insertCsInquiryFile */
+        insert into aidt_lms.cs_inquiry_file (inquiry_id, customer_file_id, file_division)
+        select #{inquiryId}, af.id, '10'
+        from aidt_lms.aidt_file af
+        where concat(af.file_path, af.save_file_name) in
+        <foreach collection="uploadResults" item="fileInfo" open="(" close=")" separator=",">
+            #{fileInfo.url}
+        </foreach>
+    </insert>
+
+    <update id="updateInquiry" parameterType="map">
+        /* CsInquiryMapper.updateInquiry */
+        update aidt_lms.cs_inquiry_master
+        set
+            <if test="inquiryTitle != null and inquiryTitle != ''">
+                inquiry_title = #{inquiryTitle},
+            </if>
+            <if test="inquiryContent != null and inquiryContent != ''">
+                inquiry_content = #{inquiryContent},
+            </if>
+            <if test="inquiryType != null and inquiryType != ''">
+                inquiry_type = #{inquiryType},
+            </if>
+            <if test="phoneNumber != null and phoneNumber != ''">
+                phone_number = #{phoneNumber},
+            </if>
+            <if test="email != null and email != ''">
+                email = #{email},
+            </if>
+            <if test="schoolName != null and schoolName != ''">
+                school_name = #{schoolName},
+            </if>
+            <if test="className != null and className != ''">
+                class_name = #{className},
+            </if>
+            <if test="subjectName != null and subjectName != ''">
+                subject_name = #{subjectName},
+            </if>
+            <if test="subjectCd != null and subjectCd != ''">
+                subject_cd = #{subjectCd},
+            </if>
+            inquiry_mod_dt = now()
+        where id = #{inquiryId}
+          and user_id = #{userId}
+          and del_yn = 'N'
+    </update>
+
+    <update id="deleteInquiry" parameterType="map">
+        /* CsInquiryMapper.deleteInquiry */
+        update aidt_lms.cs_inquiry_master
+        set del_yn = 'Y',
+            inquiry_mod_dt = now()
+        where id = #{inquiryId}
+          and user_id = #{userId}
+          and del_yn = 'N'
+    </update>
+
+    <update id="deleteInquiryFiles" parameterType="string">
+        /* CsInquiryMapper.deleteInquiryFiles */
+        update aidt_lms.aidt_file af
+        join aidt_lms.cs_inquiry_file cif on af.id = cif.customer_file_id
+        set af.del_yn = 'Y'
+        where cif.inquiry_id = #{inquiryId}
+          and af.del_yn = 'N'
+    </update>
+
+</mapper>

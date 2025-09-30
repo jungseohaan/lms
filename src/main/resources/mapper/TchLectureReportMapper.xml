@@ -1,0 +1,1134 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.TchLectureReportMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <select id="findTchLectureReportTabInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportTabInfoList */
+        select * from (
+            select
+                A.*,
+                case
+                    when A.category_cd = 'aiStudy' /* AI맞춤학습 */
+                        then
+                            case
+                                when A.ai_cstmzd_std_crt_at = 'N' then 'N'   /* AI맞춤학습 생성 여부가 N이면 제외 */
+                                when A.ai_cstmzd_std_mthd_se_cd = 2 then 'N' /* 과제로내기인 탭 제외 */
+                                when A.ai_cstmzd_std_mthd_se_cd = 1 then 'Y' /* 수업중풀기인 탭 노출 */
+                                else 'Y'
+                            end
+                    else 'Y'
+                end as incYn
+            from (
+                select 	ti.id as tabId
+                     , ti.tab_nm
+                     , ti.tab_seq
+                     , ti.crcul_id
+                     , ti.sets_id
+                     , ti.ai_cstmzd_std_crt_at /* AI맞춤학습 생성 여부 */
+                     , ifnull(ai.ai_cstmzd_std_mthd_se_cd,0) as ai_cstmzd_std_mthd_se_cd /* AI맞춤학습방법 (1: 수업중풀기, 2:과제로내기) */
+                     , ifnull(ai.eam_trget,0) as eam_trget /* 출제대상 (1:공통문항출제, 2:개별문항출제) */
+                     , if(ti.setCategory is not null,(select code from aidt_lcms.meta where name = 'setCategory' and id = ti.setCategory),null) as category_cd
+                     , if(ti.setCategory is not null,(select val from aidt_lcms.meta where name = 'setCategory' and id = ti.setCategory),null) as category_nm
+                from 	aidt_lms.tab_info ti
+                        left join ai_cstmzd_std_set_info ai
+                            on ti.id = ai.tab_id
+                where 	1=1
+                  and 	ti.crcul_id = #{crculId}
+                  and 	ti.cla_id = #{claId}
+                  and 	ti.textbk_id = #{textbkId}
+                  and   ti.expos_at = 'Y'
+                order by ti.tab_seq
+            ) A
+        ) B
+        where B.incYn = 'Y'
+    </select>
+
+    <select id="findTchLectureReportTabInfoListForElementMath" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportTabInfoListForElementMath */
+        select * from (
+                          select
+                              A.*,
+                              case
+                                  when A.category_cd = 'aiStudy' /* AI맞춤학습 */
+                                      then
+                                      case
+                                          when A.ai_cstmzd_std_crt_at = 'N' then 'N'   /* AI맞춤학습 생성 여부가 N이면 제외 */
+                                          when A.ai_cstmzd_std_mthd_se_cd = 2 then 'N' /* 과제로내기인 탭 제외 */
+                                          when A.ai_cstmzd_std_mthd_se_cd = 1 then 'Y' /* 수업중풀기인 탭 노출 */
+                                          else 'Y'
+                                          end
+                                  else 'Y'
+                                  end as incYn
+                          from (
+                                   select 	ti.id as tabId
+                                        , ti.tab_nm
+                                        , ti.tab_seq
+                                        , ti.crcul_id
+                                        , ti.sets_id
+                                        , ti.ai_cstmzd_std_crt_at /* AI맞춤학습 생성 여부 */
+                                        , ifnull(ai.ai_cstmzd_std_mthd_se_cd,0) as ai_cstmzd_std_mthd_se_cd /* AI맞춤학습방법 (1: 수업중풀기, 2:과제로내기) */
+                                        , ifnull(ai.eam_trget,0) as eam_trget /* 출제대상 (1:공통문항출제, 2:개별문항출제) */
+                                        , if(ti.setCategory is not null,(select code from aidt_lcms.meta where name = 'setCategory' and id = ti.setCategory),null) as category_cd
+                                        , if(ti.setCategory is not null,(select val from aidt_lcms.meta where name = 'setCategory' and id = ti.setCategory),null) as category_nm
+                                   from 	aidt_lms.tab_info ti
+                                               left join ai_cstmzd_std_set_info ai
+                                                         on ti.id = ai.tab_id
+                                   where 	ti.wrter_id = #{userId}
+                                     and 	ti.crcul_id = #{crculId}
+                                     and 	ti.cla_id = #{claId}
+                                     and 	ti.textbk_id = #{textbkId}
+                                     and   ti.tab_nm != '수학 마을'
+                                     and   ti.expos_at = 'Y'
+                                   order by ti.tab_seq
+                               ) A
+                      ) B
+        where B.incYn = 'Y'
+    </select>
+
+    <select id="getTchLectureReportStdDtaInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.getTchLectureReportStdDtaInfo */
+        select 	ti.id as tabId
+             , sdi.id
+             , sdi.std_dat_nm as stdDtaNm
+             , tc.text as crcuNm
+             , ti.crcul_id
+             , ti.wrter_id
+             , ti.cla_id
+             , ti.textbk_id
+             , ti.sets_id
+        from 	aidt_lms.tab_info ti
+                    join aidt_lms.tc_curriculum tc on ti.crcul_id = tc.key
+            and tc.cla_id = ti.cla_id
+            and tc.textbk_id = ti.textbk_id
+                    left join aidt_lms.std_dta_info sdi on sdi.textbk_tab_id = ti.id AND sdi.id = (SELECT MAX(id) FROM aidt_lms.std_dta_info WHERE textbk_tab_id = ti.id)
+        where 	1=1
+          and 	ti.crcul_id  = #{crculId}
+          and 	ti.id  = #{tabId}
+    </select>
+
+<!--    tab 과 std_dta_info 의 관계가 부정확(존재할 수도 없을 수도 있음)하고, 샘플데이터가 없어서, std_dta_result_info 를 sets 에 바로 join 했으나,-->
+<!--    나중에 수정해야 할 수 있음. 정확한 로직(관계)이 확인 안됨.-->
+    <select id="findTchLectureReportMdulDtaInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportMdulDtaInfoList */
+        select ifnull(sdri.sets_id, s.set_id) as sets_id
+            /* , sdrd.id as detailId 2024.05.10 해당 데이터는 필요 없는 것으로 판단하여 주석처리 */
+             , ifnull(sdrd.dta_iem_id,s.article_id) as dta_iem_id
+             , ifnull(sdrd.sub_id,s.sub_id) as sub_id
+             , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+            /* 해당 문제를 선택(recheck)한 학생수로 평균정답률을 계산함(2024-04-16, 김나영 CP님과 확인) */
+             , IFNULL(ROUND(count(case when ifnull(sdrd.errata,0) = 1 then 1 end) / count(case when sdrd.errata != 4 and sdrd.errata is not null then 1 end) * 100, 2), 0) AS avgCorrectRate /*  정답율: errata 기준(데이터 쌓이고 검증필요) */
+             , a.articleType
+             , m.val as articleTypeNm
+             , ifnull(count(if(sdri.subm_at = 'Y',1,null)),0) as submCnt
+             , sdrd.mrk_ty
+        from aidt_lms.tab_info ti
+        left join aidt_lcms.setsummary s on s.set_id = ti.sets_id
+        left join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+        left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+            and sdrd.dta_iem_id = s.article_id
+            and sdrd.sub_id = s.sub_id
+            and sdrd.src_detail_id = 0 /*  다른 문제 풀기 제외 */
+        left join aidt_lcms.article a on a.id = ifnull(sdrd.dta_iem_id, s.article_id)
+        left join aidt_lcms.meta m on m.id = a.articleType
+        where ti.id = #{tabId}
+        group by s.article_id, s.sub_id
+        order by s.id
+    </select>
+
+    <select id="findTchLectureReportMdulDtaInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportMdulDtaInfo */
+        select
+              ti.sets_id
+            , s.article_id as dta_iem_id
+            , s.sub_id
+            , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+            , (select count(1) from aidt_lms.tc_cla_mb_info where user_id = ti.wrter_id and cla_id = ti.cla_id and actvtn_at = 'Y') AS targetCnt /* 응시학생(대상자수)  미응시자는 제외(20240320 요청사항) - 미응시자 포함임(20240405) 제외는 우리반 분석만 해당 */
+            , if (a.articleType in (select 	id from 	aidt_lcms.meta m where m.name = 'articleType' and m.code = 'concept'), 0,  count(case when sdrd.errata is not null then 1 end)) as submitCnt /* 제출자수 - 개념일 경우는 제출자수 0명 처리(20240522 요청사항) */
+            , IFNULL(ROUND(count(case when sdrd.errata = 1 then 1 end) / count(case when sdrd.errata != 4 and sdrd.errata is not null then 1 end) * 100, 2), 0) AS avgCorrectRate /* 정답율: errata - 미제출자는 오답처리 (20240320 요청사항) */
+            , IFNULL(ROUND(count(case when sdrd.errata = 1 then 1 end) / count(case when sdrd.errata != 4 and sdrd.errata is not null then 1 end) * 100, 2), 0) AS correctRate /* 정답율: errata - 미제출자는 오답처리 (20240320 요청사항) */
+            , a.url
+            , a.image
+            , F_META_VAL(`curriYear`, a.curriYear) as curriYear
+            , F_META_VAL(`curriSchool`, a.curriSchool) as curriSchool
+            , F_META_VAL(`curriSubject`, a.curriSubject) as curriSubject
+            , F_META_VAL(`curriGrade`, a.curriGrade) as curriGrade
+            , TIME_FORMAT(SEC_TO_TIME(ROUND(AVG(IF(sdrd.errata is not null,TIMESTAMPDIFF(MICROSECOND, sdrd.eak_st_dt, sdrd.eak_ed_dt)/1000000, NULL)), 0)),'%H:%i:%s') AS solvSecAvr /* 풀이시간 초 */
+            , ROUND(AVG(IF(sdrd.errata is not null, IFNULL(sdrd.re_idf_cnt, 0), NULL)), 0) as reIdfCntAvg /* 재확인 횟수 평균 - 미제출자는 제외(20240320 요청사항) */
+            , ROUND(AVG(anw_chg_cnt), 2) as anwChgCntAvg /* 답안 변경 횟수 */
+            , null as answerRateStr /* 지문별 응답율 */
+        from 	aidt_lms.tab_info ti
+                join aidt_lcms.setsummary s on ti.sets_id = s.set_id
+                /* join aidt_lcms.article_meta_map amm on amm.article_id = s.article_id and amm.sub_id = s.sub_id 이 부분이 왜 들어 갔는지 모르겠어서 주석처리함 */
+                join aidt_lcms.article a on s.article_id = a.id
+                left join aidt_lms.std_dta_result_info sdri
+                    on sdri.textbk_tab_id = ti.id
+                    <if test="userId != null and userId != '' ">
+                        and 	sdri.mamoym_id = #{userId}
+                    </if>
+                left join aidt_lms.std_dta_result_detail sdrd
+                    on sdrd.dta_result_id = sdri.id and sdrd.dta_iem_id = s.article_id and sdrd.sub_id = s.sub_id
+        where 	ti.id = #{tabId}
+          and 	ti.crcul_id = #{crculId}
+          and 	s.article_id = #{dtaIemId}
+          and   s.sub_id = #{subId}
+        group by ti.sets_id
+               , s.article_id
+               , s.sub_id
+        order by s.id
+    </select>
+
+    <select id="findTchLectureReportMdulDtaInfo_answers" parameterType="map" resultType="java.lang.String">
+        /* TchLectureReportMapper.findTchLectureReportMdulDtaInfo_answers */
+        select  sdrd.sub_mit_anw
+        from 	aidt_lms.tab_info ti
+                    join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+                    join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+                    join aidt_lcms.article_meta_map amm on amm.article_id = sdrd.dta_iem_id and amm.sub_id = sdrd.sub_id and amm.meta_name = 'questionType'
+                    join aidt_lcms.meta m on amm.meta_id = m.id and m.code in ('scqz', 'mcqz', 'oxqz', 'tfqz') /*  단일선택형/다중선택형/OX형/TF형 일때만 */
+        where 	ti.id = #{tabId}
+          and 	ti.crcul_id = #{crculId}
+          and 	sdrd.dta_iem_id = #{dtaIemId}
+          and 	sdrd.sub_id = #{subId}
+          and 	sdrd.errata is not null
+    </select>
+
+
+<!--    샘플 데이터가 맞지 않아, 결과값 확인 불가-->
+    <select id="findTchLectureReportStntDtaErrataInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportStntDtaErrataInfoList */
+        select tcmi.stdt_id as userId
+             , MAX((select sri.flnm from aidt_lms.stdt_reg_info sri where tcmi.stdt_id = sri.user_id )) as flnm
+             , (select num from aidt_lms.stdt_reg_info sri where tcmi.stdt_id = sri.user_id) as num
+             , SUM(CASE WHEN sdrd.errata = 1 and sdrd.mrk_ty != 3 THEN 1 ELSE 0 END) as anwNum /*  정담수 : 개념 제외 */
+             , SUM(CASE WHEN sdrd.errata = 2 and sdrd.mrk_ty != 3 THEN 1 ELSE 0 END) as wrngNum /*  오답수 : 개념 제외 */
+             , SUM(CASE WHEN sdrd.errata = 3 and sdrd.mrk_ty != 3 THEN 1 ELSE 0 END) as triNum /*  세모수 : 개념 제외 */
+             , tcmi.actvtn_at
+             , sdri.subm_at
+             , if (sdri.id is not null,'Y', 'N') reviewAble
+        from aidt_lms.tab_info ti
+                 join aidt_lcms.`sets` s on ti.sets_id = s.id
+                 join aidt_lms.tc_cla_mb_info tcmi on tcmi.cla_id = ti.cla_id and tcmi.actvtn_at = 'Y'
+                 left join aidt_lms.std_dta_result_info sdri on sdri.sets_id = s.id and sdri.textbk_tab_id = ti.id and tcmi.stdt_id = sdri.mamoym_id
+                 left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id and sdrd.src_detail_id =0
+        where ti.id = #{tabId}
+/*            and 	exists (select 1 from aidt_lcms.setsummary su where su.article_id = sdrd.dta_iem_id)  세트:아티클 매핑 정보가 바뀌는 경우가 있어 현재의 매핑에서만 가져오게 고쳐야 하면 주석 풀것. */
+        group by tcmi.stdt_id
+        order by num
+    </select>
+
+
+<!--    샘플 데이터가 맞지 않아, 결과값 확인 불가-->
+    <select id="findReportLectureResultDetailMdulList" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findReportLectureResultDetailMdulList */
+        select s.article_id as dta_iem_id
+             , s.sub_id
+             , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+             , count(sdrd.id) AS targetCnt /*  제출학생(대상자수) */
+             , count(case when sdrd.errata is not null then 1 end) as submitCnt /*  제출자수 */
+             , IFNULL(ROUND(count(case when sdrd.errata = 1 then 1 end) / count(case when sdrd.errata != 4 and sdrd.errata is not null then 1 end) * 100, 2), 0) AS avgCorrectRate /*  정답율: errata 기준(데이터 쌓이고 검증필요) */
+             , a.url
+             , a.image
+             , F_META_VAL(`curriYear`, a.curriYear) as curriYear
+             , F_META_VAL(`curriSchool`, a.curriSchool) as curriSchool
+             , F_META_VAL(`curriSubject`, a.curriSubject) as curriSubject
+             , F_META_VAL(`curriGrade`, a.curriGrade) as curriGrade
+             , IFNULL(ROUND(count(case when sdrd.errata = 1 then 1 end) / count(case when sdrd.errata != 4 and sdrd.errata is not null then 1 end) * 100, 2), 0) AS correctRate /*  정답율: avgCorrectRate 과 동일한값인지 */
+             , TIME_FORMAT(SEC_TO_TIME(ROUND(TIMESTAMPDIFF(SECOND, sdrd.eak_st_dt, sdrd.eak_ed_dt), 0)),'%H:%i:%s') AS solv_sec_avr
+             , ROUND(AVG(TIMESTAMPDIFF(MICROSECOND, sdrd.eak_st_dt, sdrd.eak_ed_dt)/1000000), 0) AS solvSecAvr /*  풀이시간 초 */
+             , ROUND(AVG(re_idf_cnt), 2) as reIdfCntAvg /*  재확인 횟수 */
+             , ROUND(AVG(anw_chg_cnt), 2) as anwChgCntAvg /*  답안 변경 횟수 */
+             , '추후 개발 예정' as answerRateStr /*  지문별 응답율 */
+        from 	aidt_lms.tab_info ti
+                    join aidt_lcms.setsummary s on ti.sets_id = s.set_id
+                    join aidt_lcms.article a on s.article_id = a.id
+                    left join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+                    left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id and sdrd.dta_iem_id = s.article_id and sdrd.sub_id = s.sub_id
+        where 	ti.id = #{tabId}
+          and 	ti.crcul_id = #{crculId}
+        group by s.article_id, s.sub_id
+        order by s.id
+    </select>
+
+    <select id="findArticleCommentInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findArticleCommentInfo */
+        select la.article_id
+             , group_concat(case when la.part = 'hint' then la.data end order by la.article_id, la.sub_id separator '\n') as hint
+             , group_concat(case when la.part = 'model-answer' then la.data end order by la.article_id, la.sub_id separator '\n') as modelAnswer
+             , group_concat(case when la.part = 'explanation'  then la.data end order by la.article_id, la.sub_id separator '\n') as explanation
+        from aidt_lcms.log_articlepart la
+        where 1=1
+          and la.article_id in (
+        <foreach item="item" collection="articleIdList" separator=",">#{item}</foreach>
+            )
+        group by   la.article_id
+    </select>
+
+    <select id="getTchLectureReportStntInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.getTchLectureReportStntInfo */
+        select
+               sdri.sets_id
+             , sdri.mamoym_id as userId
+             , MAX((select sri.flnm from aidt_lms.stdt_reg_info sri where sdri.mamoym_id = sri.user_id )) as flnm
+             , sdrd.id
+             , sdrd.dta_result_id
+             , sdrd.dta_iem_id
+             , sdrd.sub_id
+             , sdrd.errata
+             , if (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null or sdrd.tch_errata_chg_at = 'Y', 'Y', 'N') as subm_at /* 답안 제출 여부 */
+        <if test="reExmNum != null and reExmNum != '' and reExmNum != '0' and reExmNum != 0 ">
+             , sdrd.sub_mit_anw
+             , ifnull(af.del_yn, 'N') as delYn
+        </if>
+        <if test="reExmNum == null or reExmNum == '' or reExmNum == '0' or reExmNum == 0">
+             , sdrd.sub_mit_anw
+             , ifnull(af.del_yn, 'N') as delYn
+        </if>
+             , sdrd.sub_mit_anw_url
+             , sdrd.exlt_anw_at /* 우수답안 여부 */
+             , sdrd.re_exm_cnt /* 다시풀기 횟수 */
+             , (select json_extract(questionStr, '$."rubrics"') from aidt_lcms.article where id = sdrd.dta_iem_id) as rubric
+             , ifnull(sdrd.fdb_dc, sdrd.std_fdb_dc) as fdbDc
+             , sdrd.fdb_exp_at
+             , 'CBS 설계중' as peerReview
+             , 'CBS 설계중' as selfEvl
+        from 	aidt_lms.tab_info ti
+                    left join aidt_lms.std_dta_result_info sdri
+                              on sdri.textbk_tab_id = ti.id
+                                  and sdri.sets_id = ti.sets_id
+
+        <if test="reExmNum != null and reExmNum != '' and reExmNum != '0' and reExmNum != 0 ">
+            left join aidt_lms.std_dta_result_hist sdrd on sdrd.dta_result_id = sdri.id and sdrd.re_exm_cnt = #{reExmNum}
+            LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(sdrd.sub_mit_anw, '/', LENGTH(sdrd.sub_mit_anw) - LENGTH(REPLACE(sdrd.sub_mit_anw, '/', ''))), '/'), 'url=', -1) AND af.file_name = REPLACE(SUBSTRING_INDEX(sdrd.sub_mit_anw, '/', -1), '"]', '')
+        </if>
+        <if test="reExmNum == null or reExmNum == '' or reExmNum == '0' or reExmNum == 0">
+            left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+            LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(sdrd.sub_mit_anw, '/', LENGTH(sdrd.sub_mit_anw) - LENGTH(REPLACE(sdrd.sub_mit_anw, '/', ''))), '/'), 'url=', -1) AND af.file_name = REPLACE(SUBSTRING_INDEX(sdrd.sub_mit_anw, '/', -1), '"]', '')
+        </if>
+        where 	ti.id = #{tabId}
+          and 	ti.crcul_id = #{crculId}
+          and 	sdrd.dta_iem_id = #{dtaIemId}
+          and 	sdrd.sub_id = #{subId}
+          and 	sdri.mamoym_id = #{userId}
+        group by sdri.sets_id
+               , sdri.mamoym_id
+               , sdrd.id
+               , sdrd.dta_result_id
+               , sdrd.dta_iem_id
+               , sdrd.sub_id
+    </select>
+
+
+    <select id="getTchLectureReportStntInfoOther" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.getTchLectureReportStntInfoOther */
+        select 	sdri.sets_id
+                , ti.id as tabId
+                , ti.crcul_id
+                , sdri.mamoym_id as userId
+                , sri.flnm as flnm
+                , sdrd.id
+                , sdrd.dta_result_id
+                , sdrd.dta_iem_id
+                , sdrd.sub_id
+                , sdrd.errata
+                , if (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null , 'Y', 'N') as subm_at /* 답안 제출 여부 */
+                , sdrd.sub_mit_anw
+                , sdrd.sub_mit_anw_url
+                , sdrd.exlt_anw_at /* 우수답안 여부 */
+                , sdrd.fdb_dc
+                , sdrd.fdb_exp_at
+        from 	aidt_lms.std_dta_result_detail sdrd
+                left join aidt_lms.std_dta_result_info sdri on sdrd.dta_result_id = sdri.id
+                left join aidt_lms.tab_info ti on ti.id = sdri.textbk_tab_id
+                left join aidt_lms.stdt_reg_info sri on sdri.mamoym_id = sri.user_id
+        where 	1=1
+        and 	sdrd.src_detail_id = #{id}
+        and     exists (select 1 from aidt_lms.std_dta_result_detail sub where sub.src_detail_id = #{id}  and if (sub.sub_mit_anw is not null or sub.sub_mit_anw_url is not null, 'Y', 'N')= 'Y')
+        order by sdrd.dta_result_id, sdrd.id
+    </select>
+
+
+    <select id="findTchLectureReportErrataInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportErrataInfo  */
+        select sdrd.dta_iem_id,
+               sdrd.sub_id,
+               sdrd.mrk_ty,
+               sdrd.eak_stts_cd,
+               sdrd.eak_at,
+               sdrd.errata,
+               a.articleType,
+               m.val as articleTypeNm,
+               if(sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null or sdrd.tch_errata_chg_at = 'Y', 'Y','N') as subm_at
+        from aidt_lms.std_dta_result_detail sdrd
+                 left join aidt_lcms.article a on a.id = sdrd.dta_iem_id
+                 left join aidt_lcms.meta m on m.id = a.articleType
+                 left join aidt_lms.std_dta_result_info sdri on sdri.id = sdrd.dta_result_id
+        where dta_result_id in (select id
+                                from aidt_lms.std_dta_result_info sdri
+                                where textbk_tab_id = #{tabId}
+                                  and mamoym_id = #{userId})
+          and sdrd.src_detail_id = 0 /* 다른 문제 풀기 제외 */
+        order by sdrd.id
+    </select>
+
+
+    <select id="findTchLectureReportActList" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findTchLectureReportActList */
+        select  ati.id
+             , ati.act_iem_id
+             , ati.sub_id
+             , ati.act_wy
+		     , aidt_lms.F_CODE_NM('act_wy', ati.act_wy) as actWyNm
+             , ati.act_stts_cd
+		     , aidt_lms.F_CODE_NM('act_stts_cd', ati.act_stts_cd) as actSttsNm
+             , DATE_FORMAT(ati.act_st_dt, '%Y-%m-%d %H:%i:%s') as actStDt
+             , DATE_FORMAT(ati.act_ed_dt, '%Y-%m-%d %H:%i:%s') as actEdDt
+        from 	aidt_lms.act_tol_info ati
+        where 	ati.textbk_tab_id = #{tabId}
+        and     ati.act_iem_id = #{dtaIemId}
+        and     ati.sub_id = #{subId}
+    </select>
+
+
+    <select id="findTchLectureReportActResultList" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findTchLectureReportActResultList */
+        select 	ari.id
+             , ari.act_id
+             , ifnull(
+                    (select thumbnail from aidt_lcms.setsummary where article_id = ati.act_iem_id and sub_id = ati.sub_id limit 1),
+                    ari.thumbnail
+               ) as thumbnail
+             , ari.act_submit_url
+            , ifnull(af.del_yn, 'N') as delYn
+             , ari.act_submit_dc
+             , DATE_FORMAT(ari.act_st_dt, '%Y-%m-%d %H:%i:%s') as actStDt
+             , DATE_FORMAT(ari.act_ed_dt, '%Y-%m-%d %H:%i:%s') as actEdDt
+        from 	aidt_lms.act_result_info ari
+                inner join aidt_lms.act_tol_info ati on ati.id = ari.act_id
+                LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+        where 	ari.act_id in (
+        <foreach item="item" collection="actIdList" separator=",">#{item}</foreach>
+            )
+          and 	ari.mamoym_id = #{userId}
+          and   ari.subm_at = 'Y'
+    </select>
+
+    <update id="modifyTchReportLectureResultErrataMod" parameterType="map" >
+        /* TchLectureReportMapper.modifyTchReportLectureResultErrataMod */
+        update aidt_lms.std_dta_result_detail
+        set
+            errata = #{errata},
+            eak_stts_cd = 5,
+            tch_errata_chg_at = 'Y',
+            tch_errata_chg_dt = NOW(),
+            mdfy_dt = NOW()
+        where 	id = #{dtaResultDetailId}
+    </update>
+
+    <update id="modifyTchReportLectureResultFdbMod" parameterType="map" >
+        /* TchLectureReportMapper.modifyTchReportLectureResultFdbMod */
+        update aidt_lms.std_dta_result_detail
+        set 	fdb_dc = #{fdbDc}
+        where 	id = #{dtaResultDetailId}
+    </update>
+
+    <select id="getModifyTchReportLectureResultErrataMod" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.getModifyTchReportLectureResultFdbMod */
+        select  count(case when errata = 1 then 1 end) as  anwNum
+                , count(case when errata = 2 then 1 end) as wrngNum
+                , count(case when errata = 3 then 1 end) as triNum
+        from 	aidt_lms.std_dta_result_detail sdrd
+        where 	sdrd.dta_result_id =
+                 (
+                     select 	sdri.id
+                     from 	aidt_lms.std_dta_result_detail sdrd
+                                 join aidt_lms.std_dta_result_info sdri on sdrd.dta_result_id = sdri.id
+                     where 	sdrd.id = #{dtaResultDetailId}
+                 )
+        group by sdrd.dta_result_id
+    </select>
+
+    <update id="updateTchReportLectureReviewSave" parameterType="map">
+        UPDATE aidt_lms.std_dta_result_info
+        SET stdt_prnt_rls_at = #{stdtPrntRlsAt}
+        ,genrvw = #{genrvw}
+        ,mdfr = #{userId}
+        ,mdfy_dt = NOW()
+        WHERE textbk_tab_id = #{textbkTabId}
+        AND mamoym_id = #{userId}
+    </update>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findSitesetDashreportExposList" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findSitesetDashreportExposList */
+        SELECT
+         t.code_gb_cd as expos_grp_cd
+         , t.expos_gb_nm as expos_grp_nm
+         , CONCAT('[', GROUP_CONCAT( JSON_OBJECT('expos_trget_cd', t.expos_gb_cd, 'expos_trget_nm', t.code_nm, 'code_seq', t.code_seq, 'expos_at', t.expos_at) ), ']') as expos_trget_list
+        from
+        (
+            select a.*
+                 , ifnull(b.expos_at,'N') as expos_at
+            from (
+                select a.code_gb_cd, a.code_gb_nm, a.code_cd, a.code_nm, a.code_seq, a.use_at
+                     , SUBSTRING_INDEX(SUBSTRING_INDEX(a.code_gb_cd,'_',-2),'_',1)  as expos_gb_cd
+                     , case when '1' = SUBSTRING_INDEX(SUBSTRING_INDEX(a.code_gb_cd,'_',-2),'_',1) then '대시보드'
+                            when '2' = SUBSTRING_INDEX(SUBSTRING_INDEX(a.code_gb_cd,'_',-2),'_',1) then '리포트'
+                       end  as expos_gb_nm
+                from aidt_lms.se_code a where 1=1
+                and (
+                      a.code_gb_cd like 'expos_trget_cd_%_0'   /* 교과서과목(공통) */
+                     /* a.code_gb_cd in ('expos_trget_cd_1_0', 'expos_trget_cd_2_0') */ /* 교과서과목(공통) */
+                     or
+                     a.code_gb_cd like concat('expos_trget_cd_%_', (select t.brand_id from aidt_lcms.textbook t where t.id = #{textbkId}))  /* 교과서과목(브랜드) */
+                    )
+              ) a
+              left join aidt_lms.dash_rpt_set b
+                        on a.code_gb_cd = b.expos_cd
+                        and a.code_cd = b.expos_trget_cd
+                        and b.wrter_id = #{wrterId}
+                        and b.cla_id = #{claId}       /* 학급ID */
+                        and b.yr = #{yr}           /* 년도 */
+                        and b.smt = #{smt}               /* 학기 */
+                        and b.textbk_id = #{textbkId}  /* 교과서ID */
+                        and b.expos_cd = #{exposCd} /* 1:개인, 2:선생님, 3:학부모 */
+            where 1=1
+            order by a.code_gb_cd, a.code_seq
+        ) t
+       GROUP BY t.code_gb_cd, t.expos_gb_nm;
+    </select>
+
+    <!--    현재 사용하지 않음-->
+    <select id="findSitesetDashreportExposYN" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findSitesetDashreportExposYN */
+        select
+            ds.wrter_id
+        from aidt_lms.dash_rpt_set ds
+        where ds.wrter_id = #{wrterId}
+          and ds.cla_id = #{claId}
+          and ds.yr = #{yr}
+          and ds.smt = #{smt}
+          and ds.textbk_id = #{textbkId}
+          /* and ds.expos_trget_cd  = exposTrgetCd */
+          and ds.expos_cd = #{exposCd}
+    </select>
+
+    <!--    현재 사용하지 않음-->
+    <insert id="saveSitesetDashreportExpos" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchLectureReportMapper.saveSitesetDashreportExpos */
+        insert into aidt_lms.dash_rpt_set (
+            wrter_id,             /* 작성자ID */
+            cla_id,                 /* 학급ID */
+            yr,                      /* 년도 */
+            smt,                    /* 학기 */
+            textbk_id,             /* 교과서ID */
+            expos_cd,             /* 노출구분 - 1 : 대시보드, 2: 리포트 */
+            expos_trget_cd,     /* 노출대상구분 - 코드관리 테이블 참조 */
+            expos_at,              /* 노출여부 - Y : 노출, N : 미노출 */
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        values (
+            #{wrterId}
+           ,#{claId}
+           ,#{yr}
+           ,#{smt}
+           ,#{textbkId}
+           ,#{exposCd}
+           ,#{exposTrgetCd}
+           ,#{exposAt}
+           ,#{wrterId}
+           ,now()
+           ,#{wrterId}
+           ,now()
+        )
+    </insert>
+
+    <!--    현재 사용하지 않음-->
+    <update id="modifySitesetDashreportExpos" parameterType="map">
+        /* TchLectureReportMapper.modifySitesetDashreportExpos */
+        update aidt_lms.dash_rpt_set
+        set expos_at = #{exposAt}, mdfy_dt = NOW()
+        where wrter_id = #{wrterId}
+            and cla_id = #{claId}
+            and yr = #{yr}
+            and smt = #{smt}
+            and textbk_id = #{textbkId}
+            and expos_cd = #{exposCd}
+            and expos_trget_cd = #{exposTrgetCd}
+    </update>
+
+    <select id="findTchReportStdDtaGeneralReviewInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findTchReportStdDtaGeneralReviewInfo */
+        select
+                sdri.genrvw
+                , sdri.stdt_prnt_rls_at
+        from	aidt_lms.std_dta_result_info sdri
+        where 	1=1
+        and 	sdri.textbk_tab_id = #{textbkTabId}
+        and 	sdri.mamoym_id = #{userId}
+        limit 1
+    </select>
+
+    <select id="findTchReportLectureGeneralReviewAiEvlWord" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findTchReportLectureGeneralReviewAiEvlWord */
+        select distinct
+            c.meta_id
+        from aidt_lms.std_dta_result_info sdri
+                 inner join aidt_lcms.setsummary s on s.set_id = sdri.sets_id
+                 inner join aidt_lcms.article_meta_map c
+                            on s.article_id = c.article_id and s.sub_id = c.sub_id and c.meta_name = 'studyMap1'
+        where 1=1
+          and sdri.textbk_tab_id = #{textbkTabId}
+          and sdri.mamoym_id = #{userId}
+
+    </select>
+
+    <select id="findTchReportLectureResultDetail" parameterType="map" resultType="camelHashMap" >
+        /* TchLectureReportMapper.findTchReportLectureResultDetail */
+        select
+            case when t.correct_rate <![CDATA[>=]]> 80 then 1
+                 when t.correct_rate <![CDATA[>=]]> 50 then 2
+                 when t.correct_rate <![CDATA[>=]]>  0 then 3
+            end as level
+        from (
+            select
+                ROUND(sum(case sdrd.errata when 1 then 1 when 3 then 0.5 end) / count(sdrd.id) * 100, 2) AS correct_rate /* 정답율 */
+            from aidt_lms.std_dta_result_info sdri
+            join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+            where sdri.textbk_tab_id = #{textbkTabId}
+              and sdri.mamoym_id = #{userId}
+              and sdrd.mrk_ty != 3 /* 채점유형-채점불가 제외 */
+        ) t
+    </select>
+
+
+    <select id="findTchLectureReportMdulDtaInfoList_setsIdNull" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportMdulDtaInfoList_setsIdNull */
+        select distinct
+            sdri.sets_id
+          , sdrd.id as detailId
+          , ifnull(sdrd.dta_iem_id,s.article_id) as dta_iem_id
+          , ifnull(sdrd.sub_id,s.sub_id) as sub_id
+          , ifnull(s.thumbnail,a.thumbnail) as thumbnail
+          , IFNULL(ROUND(count(case when ifnull(sdrd.errata,0) = 1 then 1 end) / count(case when sdrd.errata != 4 and sdrd.errata is not null then 1 end) * 100, 2), 0) AS avgCorrectRate /* 정답율: errata 기준(데이터 쌓이고 검증필요) */
+          , a.articleType
+          , m.val as articleTypeNm
+          , ifnull(count(if(sdri.subm_at = 'Y',1,null)),0) as submCnt
+          , sdrd.mrk_ty
+        from aidt_lms.tab_info ti /* AI 맞춤학습(과제로 출제)한 경우 탭정보에 세트지ID가 NULL임. */
+        left join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id
+        left join aidt_lcms.setsummary s on s.set_id = sdri.sets_id
+        left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+            and sdrd.dta_iem_id = s.article_id
+            and sdrd.sub_id = s.sub_id
+            and sdrd.src_detail_id = 0 /* 다른 문제 풀기 제외 */
+        left join aidt_lcms.article a on a.id = sdrd.dta_iem_id
+        left join aidt_lcms.meta m on m.id = a.articleType
+        where ti.id = #{tabId}
+        group by s.article_id, s.sub_id
+        order by s.id
+    </select>
+
+    <select id="findTchLectureReportStntDtaErrataInfoList_setsIdNull" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchLectureReportStntDtaErrataInfoList_setsIdNull */
+        select
+            mb.stdt_id as userId
+             , MAX((select sri.flnm from aidt_lms.stdt_reg_info sri where mb.stdt_id = sri.user_id )) as flnm
+             , SUM(CASE WHEN sdrd.errata = 1 and sdrd.mrk_ty != 3 THEN 1 ELSE 0 END) as anwNum /* 정담수 : 개념 제외 */
+             , SUM(CASE WHEN sdrd.errata = 2 and sdrd.mrk_ty != 3 THEN 1 ELSE 0 END) as wrngNum /* 오답수 : 개념 제외 */
+             , SUM(CASE WHEN sdrd.errata = 3 and sdrd.mrk_ty != 3 THEN 1 ELSE 0 END) as triNum /* 세모수 : 개념 제외 */
+             , if(sdri.id is not null,'Y','N') targetStnt
+             , mb.actvtn_at
+             , sdri.subm_at
+        from aidt_lms.tab_info ti
+                 inner join aidt_lms.tc_cla_mb_info mb on ti.cla_id = mb.cla_id and mb.actvtn_at = 'Y'
+                 left join aidt_lms.std_dta_result_info sdri on sdri.textbk_tab_id = ti.id and sdri.mamoym_id = mb.stdt_id
+                 left join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+        where ti.id = #{tabId}
+        group by mb.stdt_id
+        having targetStnt = 'Y'
+        order by mb.stdt_id
+    </select>
+
+
+    <select id="findLectureDetailInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.findLectureDetailInfo */
+        select 	sdrd.dta_iem_id as moduleId
+                 , sdri.mamoym_id as wrterId
+                 , sdrd.sub_id
+                 , sdri.textbk_tab_id as tabId
+                 , date_format(now(),'%Y%m%d') as wrtYmd
+                 , ti.textbk_id
+                 , ti.crcul_id
+                 , ti.wrter_id as userId
+                 , ti.cla_id
+                 , sdrd.errata
+                 , sdrd.sub_mit_anw
+                 , sdrd.sub_mit_anw_url
+        from 	aidt_lms.std_dta_result_detail sdrd
+                    join aidt_lms.std_dta_result_info sdri on sdrd.dta_result_id = sdri.id
+                    join aidt_lms.tab_info ti on sdri.textbk_tab_id = ti.id
+        where 	sdrd.id = #{dtaResultDetailId}
+    </select>
+
+    <select id="getWrongNoteCount" parameterType="map" resultType="integer">
+        /* TchLectureReportMapper.getWrongNoteCount */
+        select 	count(*)
+        from 	aidt_lms.won_asw_note wan
+        where wan.won_anw_clsf_cd = 1 /* 수업 */
+          and wan.wrter_id = #{wrterId}
+          and 	wan.wrt_ymd = #{wrtYmd}
+          and 	wan.won_anw_tg_id = #{wonAnwTgId}
+    </select>
+
+    <insert id="createWonAswNote_old" parameterType="map" >
+        /* TchLectureReportMapper.createWonAswNote old*/
+        insert into aidt_lms.won_asw_note (
+            textbk_id,              /* 교과서ID */
+            wrter_id,               /* 작성자ID */
+            wrt_ymd,                /* 작성일자 */
+            won_anw_clsf_cd,        /* 오답노트 분류코드 */
+            won_anw_nm,             /* 오답노트 이름 */
+            tab_id,                 /* 탭ID */
+            module_id,              /* 모듈ID */
+            sub_id,                 /* 연쇄형 서브 문항 idx */
+            trgt_id,                /* 대상ID */
+            won_anw_tg_id,          /* 오답결과ID */
+            won_tag,                /* 오답태그 */
+            rgtr,
+            reg_dt,
+            mdfr,
+            mdfy_dt
+        )
+        values (
+                 #{textbkId}
+               ,#{wrterId}
+               ,#{wrtYmd}
+               ,#{wonAnwClsfCd}
+               ,#{wonAnwNm}
+               ,#{tabId}
+               ,#{moduleId}
+               ,#{subId}
+               ,#{trgtId}
+               ,#{wonAnwTgId}
+               , NULL
+               , #{wrterId}
+               ,now()
+               ,#{wrterId}
+               ,now()
+               )
+    </insert>
+
+
+    <insert id="createWonAswNote" parameterType="map" >
+        /* TchLectureReportMapper.createWonAswNote new*/
+        insert into aidt_lms.won_asw_note
+                (textbk_id,wrter_id,wrt_ymd,won_anw_clsf_cd,won_anw_nm,tab_id,module_id,sub_id,trgt_id,won_anw_tg_id,won_tag,errata,sub_mit_anw,sub_mit_anw_url,rgtr,reg_dt,mdfr,mdfy_dt)
+        values (
+                 #{textbkId}
+                ,#{wrterId}
+                ,#{wrtYmd}
+                ,#{wonAnwClsfCd}
+                ,#{wonAnwNm}
+                ,#{tabId}
+                ,#{moduleId}
+                ,#{subId}
+                ,#{trgtId}
+                ,#{wonAnwTgId}
+                , null
+                ,#{errata}
+                ,#{subMitAnw}
+                ,#{subMitAnwUrl}
+                ,#{wrterId}
+                ,now()
+                ,#{wrterId}
+                ,now()
+               )
+    </insert>
+
+    <select id="tcCurriculumTextTabId" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.tcCurriculumTextTabId */
+        <include refid="com.visang.aidt.lms.api.dashboard.mapper.StntDsbdMapper.incTcCurriculumTextTabId"></include>
+        select id_path_nm from curriculum WHERE `key` = #{crculId}
+    </select>
+
+    <select id="tcCurriculumTextElse" parameterType="map" resultType="camelHashMap">
+        /* TchLectureReportMapper.tcCurriculumTextElse */
+        <include refid="com.visang.aidt.lms.api.dashboard.mapper.StntDsbdMapper.incTcCurriculumTextElse"></include>
+        select id_path_nm from curriculum WHERE `key` = #{crculId}
+    </select>
+
+    <select id="findTchReportLectureResultMdul" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchReportLectureResultMdul */
+        select (count(*) over () + 1) - (row_number() over ()) as no
+            , COUNT(*) OVER () AS fullCount
+            , a.*
+        from (
+
+            select tblSetsId.tabId
+                 , tblSetsId.articleId as dtaIemId
+                 , tblSetsId.subId
+                 , tblSetsId.setId as setsId
+                 , tblSetsId.samId
+                 , if (sum(tblSetsId.subMitAt) > 0, 'Y', 'N') as subMitAt
+                 , if (sum(tblSetsId.actAt) > 0, 'Y', 'N') as actAt
+                 , if (sum(tblSetsId.newAt) > 0, 'Y', 'N') as newAt
+                 , tblSetsId.thumbnail
+                 , ROW_NUMBER() OVER (PARTITION BY tblSetsId.setId ORDER BY tblSetsId.samId) AS setRowNo
+                 , tblSetsId.taskId
+                 , if ((select count(*)
+                   from aidt_lms.slf_per_evl_set_info spesi
+                   inner join aidt_lms.slf_per_evl_set_detail_info spesdi on spesi.id = spesdi.slf_per_evl_set_id
+                   inner join aidt_lms.slf_per_evl_result_info speri on spesdi.id = speri.slf_per_evl_detail_id
+                   where spesi.sets_id = tblSetsId.setId
+                   and spesi.tab_id = tblSetsId.tabId
+                   and spesi.module_id = tblSetsId.articleId
+                   and spesi.sub_id = tblSetsId.subId
+                   and spesi.gb_cd = 1
+                   and spesi.slf_per_evl_clsf_cd = 1) > 0, 'Y', 'N')  as selfEvlAt
+                , if ((select count(*)
+                from aidt_lms.slf_per_evl_set_info spesi
+                inner join aidt_lms.slf_per_evl_set_detail_info spesdi on spesi.id = spesdi.slf_per_evl_set_id
+                inner join aidt_lms.slf_per_evl_result_info speri on spesdi.id = speri.slf_per_evl_detail_id
+                where spesi.sets_id = tblSetsId.setId
+                and spesi.tab_id = tblSetsId.tabId
+                and spesi.module_id = tblSetsId.articleId
+                and spesi.sub_id = tblSetsId.subId
+                and spesi.gb_cd = 1
+                and spesi.slf_per_evl_clsf_cd = 2) > 0, 'Y', 'N')  as slfPerEvlAt
+        from
+                (SELECT ti.id as tabId
+                        , sam.article_id as articleId
+                        , sam.sub_id as subId
+                        , if ( (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null) and tcmi.actvtn_at = 'Y', 1, 0) as subMitAt
+                        , if (ari.subm_at = 'Y' and tcmi.actvtn_at = 'Y', 1, 0) as actAt
+                        , if (
+                                (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null or ari.subm_at = 'Y')
+                                and
+                                (sdrd.tch_rpt_chk_at = 'N' or ari.tch_rpt_chk_at = 'N'), 1, 0
+                          ) newAt
+                        , sam.set_id as setId
+                        , sam.id as samId
+                        , ifnull(sam.thumbnail, a.thumbnail) as thumbnail
+                        , null as taskId
+                   FROM aidt_lms.tab_info ti
+                   left join aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+                   left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id=tcmi.cla_id and sdri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+                   left join aidt_lcms.setsummary sam on ti.sets_id = sam.set_id
+                   left join aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and sam.sub_id = sdrd.sub_id
+                   left join aidt_lcms.article a on a.id = ifnull(sdrd.dta_iem_id, sam.article_id)
+                   left join aidt_lms.act_tol_info ati on ati.textbk_tab_id = ti.id and sam.article_id = ati.act_iem_id and sam.sub_id = ati.sub_id
+                   left join aidt_lms.act_result_info ari on ati.id = ari.act_id and sdri.mamoym_id = ari.mamoym_id
+                   WHERE 1=1
+                       AND ti.cla_id = #{param.claId}
+                       AND ti.textbk_id = #{param.textbkId}
+                       AND ti.crcul_id = #{param.crculId}
+                        <if test="param.tabId != null and param.tabId != '' ">
+                            and ti.id = #{param.tabId}
+                        </if>
+
+                   union all
+                    /* 맞춤학습 수업중 - 개별 */
+                   SELECT ti.id as tabId
+                        , sam.article_id as articleId
+                        , sam.sub_id as subId
+                        , if ( (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null) and tcmi.actvtn_at = 'Y', 1, 0) as subMitAt
+                        , if (ari.subm_at = 'Y' and tcmi.actvtn_at = 'Y', 1, 0) as actAt
+                        , if (
+                                (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null or ari.subm_at = 'Y')
+                                and
+                                (sdrd.tch_rpt_chk_at = 'N' or ari.tch_rpt_chk_at = 'N'), 1, 0
+                          ) newAt
+                        , sam.set_id as setId
+                        , sam.id as samId
+                        , ifnull(sam.thumbnail, a.thumbnail) as thumbnail
+                        , null
+                   FROM aidt_lms.tab_info ti
+                   JOIN aidt_lms.ai_cstmzd_std_set_info acssi
+                             ON ti.id = acssi.tab_id AND acssi.ai_cstmzd_std_mthd_se_cd = 1 AND acssi.eam_trget = 2
+                   JOIN aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+                   left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id=tcmi.cla_id and sdri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+                   left join aidt_lcms.setsummary sam on sdri.sets_id = sam.set_id
+                   left join aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and sam.sub_id = sdrd.sub_id
+                    left join aidt_lcms.article a on a.id = ifnull(sdrd.dta_iem_id, sam.article_id)
+                   left join aidt_lms.act_tol_info ati on ati.textbk_tab_id = ti.id and sam.article_id = ati.act_iem_id and sam.sub_id = ati.sub_id
+                   left join aidt_lms.act_result_info ari on ati.id = ari.act_id and sdri.mamoym_id = ari.mamoym_id
+                   WHERE 1=1
+                       AND ti.cla_id = #{param.claId}
+                       AND ti.textbk_id = #{param.textbkId}
+                       AND ti.crcul_id = #{param.crculId}
+                        <if test="param.tabId != null and param.tabId != '' ">
+                            and ti.id = #{param.tabId}
+                        </if>
+
+
+                   union all
+                   /* 맞춤학습 과제 */
+                   SELECT null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          null,
+                          acssi.task_id
+                   FROM aidt_lms.tab_info ti
+                   JOIN aidt_lms.ai_cstmzd_std_set_info acssi
+                             ON ti.id = acssi.tab_id AND acssi.ai_cstmzd_std_mthd_se_cd = 2
+                   WHERE 1=1
+                        <if test="param.tabId != null and param.tabId != '' ">
+                            and ti.id = #{param.tabId}
+                        </if>
+                ) tblSetsId
+            group by tblSetsId.tabId, tblSetsId.setId, tblSetsId.articleId, tblSetsId.subId
+            order by tblSetsId.tabId, tblSetsId.samId
+        ) a
+        <if test='param.subMitAt.equals("Y")'>
+            where (a.subMitAt = 'Y' or a.actAt  = 'Y') or a.taskid is not null
+        </if>
+        <if test="pageable != null">
+            LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+        </if>
+    </select>
+
+    <select id="findTchReportLectureResultMdul_setsIdNull" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchReportLectureResultMdul_setsIdNull */
+        select (count(*) over () + 1) - (row_number() over ()) as no
+        , COUNT(*) OVER () AS fullCount
+        , a.*
+        from (
+
+        select tblSetsId.tabId
+        , tblSetsId.articleId as dtaIemId
+        , tblSetsId.subId
+        , tblSetsId.setId as setsId
+        , tblSetsId.samId
+        , if (sum(tblSetsId.subMitAt) > 0, 'Y', 'N') as subMitAt
+        , if (sum(tblSetsId.actAt) > 0, 'Y', 'N') as actAt
+        , if (sum(tblSetsId.newAt) > 0, 'Y', 'N') as newAt
+        , tblSetsId.thumbnail
+        , ROW_NUMBER() OVER (PARTITION BY tblSetsId.setId ORDER BY tblSetsId.samId) AS setRowNo
+        , tblSetsId.taskId
+        , 'N' as selfEvlAt
+        from
+        (SELECT ti.id as tabId
+        , sam.article_id as articleId
+        , sam.sub_id as subId
+        , if ( (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null) and tcmi.actvtn_at = 'Y', 1, 0) as subMitAt
+        , if (ari.subm_at = 'Y' and tcmi.actvtn_at = 'Y', 1, 0) as actAt
+        , if (
+        (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null or ari.subm_at = 'Y')
+        and
+        (sdrd.tch_rpt_chk_at = 'N' or ari.tch_rpt_chk_at = 'N'), 1, 0
+        ) newAt
+        , sam.set_id as setId
+        , sam.id as samId
+        , ifnull(sam.thumbnail, a.thumbnail) as thumbnail
+        , null as taskId
+        FROM aidt_lms.tab_info ti
+        left join aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id=tcmi.cla_id and sdri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        left join aidt_lcms.setsummary sam on sdri.sets_id = sam.set_id
+        left join aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and sam.sub_id = sdrd.sub_id
+        left join aidt_lcms.article a on a.id = ifnull(sdrd.dta_iem_id, sam.article_id)
+        left join aidt_lms.act_tol_info ati on ati.textbk_tab_id = ti.id and sam.article_id = ati.act_iem_id and sam.sub_id = ati.sub_id
+        left join aidt_lms.act_result_info ari on ati.id = ari.act_id and sdri.mamoym_id = ari.mamoym_id
+        WHERE ti.wrter_id = #{param.userId}
+        AND ti.cla_id = #{param.claId}
+        AND ti.textbk_id = #{param.textbkId}
+        AND ti.crcul_id = #{param.crculId}
+        <if test="param.tabId != null and param.tabId != '' ">
+            and ti.id = #{param.tabId}
+        </if>
+
+        union all
+        /* 맞춤학습 수업중 - 개별 */
+        SELECT ti.id as tabId
+        , sam.article_id as articleId
+        , sam.sub_id as subId
+        , if ( (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null) and tcmi.actvtn_at = 'Y', 1, 0) as subMitAt
+        , if (ari.subm_at = 'Y' and tcmi.actvtn_at = 'Y', 1, 0) as actAt
+        , if (
+        (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null or ari.subm_at = 'Y')
+        and
+        (sdrd.tch_rpt_chk_at = 'N' or ari.tch_rpt_chk_at = 'N'), 1, 0
+        ) newAt
+        , sam.set_id as setId
+        , sam.id as samId
+        , ifnull(sam.thumbnail, a.thumbnail) as thumbnail
+        , null
+        FROM aidt_lms.tab_info ti
+        JOIN aidt_lms.ai_cstmzd_std_set_info acssi
+        ON ti.id = acssi.tab_id AND acssi.ai_cstmzd_std_mthd_se_cd = 1 AND acssi.eam_trget = 2
+        JOIN aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id=tcmi.cla_id and sdri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        left join aidt_lcms.setsummary sam on sdri.sets_id = sam.set_id
+        left join aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id and sam.article_id = sdrd.dta_iem_id and sam.sub_id = sdrd.sub_id
+        left join aidt_lcms.article a on a.id = ifnull(sdrd.dta_iem_id, sam.article_id)
+        left join aidt_lms.act_tol_info ati on ati.textbk_tab_id = ti.id and sam.article_id = ati.act_iem_id and sam.sub_id = ati.sub_id
+        left join aidt_lms.act_result_info ari on ati.id = ari.act_id and sdri.mamoym_id = ari.mamoym_id
+        WHERE ti.wrter_id = #{param.userId}
+        AND ti.cla_id = #{param.claId}
+        AND ti.textbk_id = #{param.textbkId}
+        AND ti.crcul_id = #{param.crculId}
+        <if test="param.tabId != null and param.tabId != '' ">
+            and ti.id = #{param.tabId}
+        </if>
+        union all
+        /* 맞춤학습 과제 */
+        SELECT null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        acssi.task_id
+        FROM aidt_lms.tab_info ti
+        JOIN aidt_lms.ai_cstmzd_std_set_info acssi
+        ON ti.id = acssi.tab_id AND acssi.ai_cstmzd_std_mthd_se_cd = 2
+        WHERE 1=1
+        and ti.id = #{param.tabId}
+
+        ) tblSetsId
+        group by tblSetsId.tabId, tblSetsId.setId, tblSetsId.articleId, tblSetsId.subId
+        order by tblSetsId.tabId, tblSetsId.samId
+
+        ) a
+        <if test='param.subMitAt.equals("Y")'>
+            where (a.subMitAt = 'Y' or a.actAt  = 'Y') or a.taskid is not null
+        </if>
+        <if test="pageable != null">
+            LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+        </if>
+    </select>
+
+    <update id="modifyTchReportLectureActTchRptChkAt" parameterType="map" >
+        /* TchLectureReportMapper.modifyTchReportLectureActTchRptChkAt */
+        update aidt_lms.act_tol_info ati
+        join aidt_lms.act_result_info ari on ati.id = ari.act_id
+        set  ari.tch_rpt_chk_at = 'Y'
+            ,ari.mdfy_dt = NOW()
+            ,ari.mdfr= #{userId}
+        where 1=1
+        and ati.cla_id = #{claId}
+        and ati.textbk_tab_id = #{tabId}
+        and ati.act_iem_id = #{dtaIemId}
+        and ati.sub_id = #{subId}
+    </update>
+
+    <update id="modifyTchReportLectureStdDtaTchRptChkAt" parameterType="map" >
+        /* TchLectureReportMapper.modifyTchReportLectureStdDtaTchRptChkAt */
+        update aidt_lms.tab_info ti
+        join aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+        join aidt_lms.std_dta_result_detail sdrd ON sdri.id = sdrd.dta_result_id
+        set sdrd.tch_rpt_chk_at = 'Y'
+            ,sdrd.mdfy_dt = NOW()
+            ,sdrd.mdfr = #{userId}
+        WHERE 1=1
+           AND ti.cla_id = #{claId}
+           AND ti.textbk_id = #{textbkId}
+           AND ti.crcul_id = #{crculId}
+           AND sdri.sets_id = #{setsId}
+           AND sdrd.dta_iem_id = #{dtaIemId}
+           AND sdrd.sub_id = #{subId}
+    </update>
+
+
+    <select id="findTchReportLectureActWyList" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchReportLectureActWyList */
+        SELECT sc.code_cd as actWyCd,
+               sc.code_nm as actWyNm,
+               ati.actId
+        FROM aidt_lms.se_code sc
+        LEFT JOIN (
+            SELECT ati.id AS actId,
+                   ati.act_st_dt,
+                   ati.act_wy,
+                   ROW_NUMBER() OVER (PARTITION BY ati.act_wy ORDER BY ati.act_st_dt DESC) AS rn
+            FROM aidt_lms.act_tol_info ati
+            WHERE 1=1
+              AND ati.cla_id = #{claId}
+                AND ati.textbk_id = #{textbkId}
+                and ati.textbk_tab_id = #{tabId}
+                and ati.act_iem_id = #{dtaIemId}
+                and ati.sub_id = 0
+        ) ati ON sc.code_cd = ati.act_wy AND ati.rn = 1
+        WHERE sc.code_gb_cd = 'act_wy'
+    </select>
+
+    <select id="findTchReportLectureResultAct" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchLectureReportMapper.findTchReportLectureResultAct */
+        select tcmi.stdt_id
+             , sc.code_cd as actWyCd
+             , sc.code_nm as actWyNm
+             , sum(if (ari.subm_at = 'Y', 1, 0)) as actWyCnt
+             , (select num from aidt_lms.stdt_reg_info sri where tcmi.stdt_id = sri.user_id) as num
+        from aidt_lms.tc_cla_mb_info tcmi
+        join aidt_lms.se_code sc on code_gb_cd = 'act_wy'
+        left join aidt_lms.tab_info ti on tcmi.cla_id = ti.cla_id
+                 AND ti.textbk_id = #{textbkId}
+                 AND ti.crcul_id = #{crculId}
+        left join aidt_lms.act_tol_info ati on 1=1
+                                                    and ti.cla_id = ati.cla_id
+                                                    and ti.textbk_id = ati.textbk_id
+                                                    and ati.textbk_tab_id = ti.id and sc.code_cd = ati.act_wy
+        left join aidt_lms.act_result_info ari on ati.id = ari.act_id and ari.mamoym_id = tcmi.stdt_id
+        WHERE 1=1
+        and tcmi.cla_id = #{claId}
+        and tcmi.actvtn_at = 'Y'
+        group by tcmi.stdt_id, sc.code_cd
+        order by num
+    </select>
+
+    <select id="findStntReportLectureResultAct" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchLectureReportMapper.findStntReportLectureResultAct */
+        SELECT ati.act_wy as actWyCd
+             , (select code_nm from aidt_lms.se_code a where a.code_cd = ati.act_wy and a.code_gb_cd = 'act_wy') as actWyNm
+             , ati.act_proc_cd
+             , ati.act_iem_id
+             , a.thumbnail   AS articleThumbnail
+             , ari.thumbnail AS actThumbnail
+             , ari.act_submit_url
+             , ifnull(af.del_yn, 'N') as delYn
+             , ari.act_submit_dc
+        FROM aidt_lms.tab_info ti
+                 JOIN aidt_lms.act_tol_info ati ON 1=1
+                                                AND ti.cla_id = ati.cla_id
+            AND ti.textbk_id = ati.textbk_id
+            AND ati.textbk_tab_id = ti.id
+                 JOIN aidt_lms.act_result_info ari
+                      ON ati.id = ari.act_id AND ari.mamoym_id = #{stntId} AND ari.subm_at = 'Y'
+                 JOIN aidt_lcms.setsummary ss ON ti.sets_id = ss.set_id AND ati.act_iem_id = ss.article_id
+                 JOIN aidt_lcms.article a ON ati.act_iem_id = a.id
+        LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+        WHERE ti.cla_id = #{claId}
+          AND ti.textbk_id = #{textbkId}
+          AND ti.crcul_id = #{crculId}
+          <if test="tabId != null and tabId != '' ">
+            AND ti.id = #{tabId}
+          </if>
+          <if test="dtaIemId != null and dtaIemId != '' ">
+            AND ati.act_iem_id = #{dtaIemId}
+          </if>
+        ORDER BY ati.act_wy, ti.id, ss.id, ati.act_proc_cd
+    </select>
+
+    <select id="getTchReportLectureResultMrkTy" parameterType="map" resultType="integer">
+        /* TchLectureReportMapper.getTchReportLectureResultMrkTy */
+        select 	mrk_ty
+        from 	aidt_lms.std_dta_result_detail sdrd
+        where sdrd.id = #{dtaResultDetailId}
+    </select>
+</mapper>
+

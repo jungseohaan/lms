@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.dashboard.mapper.TchDsbdEvalMapper">
+    <!-- 2차 캐시 적용 -->
+    <cache/>
+
+    <select id="findTchDsbdStatusEvalList" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusEvalList */
+        select COUNT(*) over () AS full_count
+             , ei.id
+             , ei.evl_nm
+             , DATE_FORMAT(ei.evl_prg_dt, "%Y-%m-%d %H:%i:%s") as evl_prg_dt
+             , DATE_FORMAT(ei.evl_cp_dt, "%Y-%m-%d %H:%i:%s") as evl_cp_dt
+             , ei.eam_mth
+             , aidt_lms.F_CODE_NM('eam_mth', ei.eam_mth) as eam_mth
+             , ei.eam_trget
+             , (select convert(count(1), CHAR) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id) as targetCnt
+             , case evl_stts_cd
+               when 1 then 0
+               else (select convert(count(1), CHAR) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id and eri.subm_at = 'Y')
+               end as submitCnt
+             , case evl_stts_cd
+               when 1 then '-'
+               else if(evl_stts_cd >= 2 and evl_stts_cd <![CDATA[<]]> 5, '1', '2')
+               end as mrkSttsCd
+             , case evl_stts_cd
+               when 1 then '-'
+               else if(evl_stts_cd >= 2 and evl_stts_cd <![CDATA[<]]> 5, '채점필요', '채점완료')
+               end as mrkSttsNm
+        from   aidt_lms.evl_info ei
+        where  1=1
+        and    ei.cla_id = #{param.claId}
+        and    ei.textbook_id = #{param.textbookId}
+        and    ei.tmpr_strg_at = 'N'
+        order by
+            case when ei.evl_stts_cd = 1 then ei.reg_dt END DESC,
+            case when ei.evl_stts_cd > 1 then evl_prg_dt END DESC
+        LIMIT  #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findTchDsbdStatusEvalDetail_evlInfo" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusEvalDetail_evlInfo */
+        select ei.id as evlId
+             , ei.evl_nm
+             , (select count(1) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id and eri.subm_at = 'Y') as cpStntCnt
+             , (select count(1) from aidt_lms.evl_result_info eri where eri.evl_id = ei.id and eri.subm_at <![CDATA[<>]]> 'Y') as incpStntCnt
+        from   aidt_lms.evl_info ei
+        where  ei.id = #{evlId}
+    </select>
+
+    <select id="findTchDsbdStatusEvalDetail_evlResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusEvalDetail_evlResultInfo */
+        select eri.id as evl_result_id
+             , eri.mamoym_id
+             , u.flnm
+             , ei.cla_id
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+             , eri.subm_at
+             , if(ei.evl_stts_cd = 2 and eri.subm_at = 'N', true, false) as is_encouragement
+        from   aidt_lms.evl_result_info eri
+        left join aidt_lms.user u on u.user_id = eri.mamoym_id
+        join   aidt_lms.evl_info ei on ei.id = eri.evl_id
+        where  eri.evl_id = #{evlId}
+    </select>
+
+    <select id="findTchDsbdStatusEvalResult_evlInfo" parameterType="map" resultType="camelHashMap">
+        <![CDATA[
+        /* TchDsbdMapper.findTchDsbdStatusEvalResult_evlInfo */
+        select ei.id as evlId
+             , ei.evl_nm
+             , ei.evl_stdr_set_at
+             , ei.evl_stdr_set
+             , (select count(*) from aidt_lms.evl_result_info where evl_id = #{evlId} and ifnull(evl_result_scr, 0) >= 80) as evlGdStdrScrCnt
+             , (select count(*) from aidt_lms.evl_result_info where evl_id = #{evlId} and ifnull(evl_result_scr, 0) >= 50 and ifnull(evl_result_scr, 0) < 80) as evlAvStdrScrCnt
+             , (select count(*) from aidt_lms.evl_result_info where evl_id = #{evlId} and ifnull(evl_result_scr, 0) >= 0 and ifnull(evl_result_scr, 0) < 50) as evlBdStdrScrCnt
+        from   aidt_lms.evl_info ei
+        where  ei.id = #{evlId}
+        ]]>
+    </select>
+
+    <select id="findTchDsbdStatusEvalResult_evlInfoCnt" parameterType="map" resultType="camelHashMap">
+        /* TchDsbdMapper.findTchDsbdStatusEvalResult_evlInfoCnt */
+        select case ei.evl_stdr_set_at
+                when 'Y' then case ei.evl_stdr_set
+                                   when 1 then if (eri.evl_result_scr/eii.evlTotalScr*100 >= ifnull(ei.evl_gd_stdr_scr,0), 'gd'
+                                                 , if (eri.evl_result_scr/eii.evlTotalScr*100 >= ifnull(ei.evl_av_stdr_scr,0), 'av', 'bd'
+                                                       )
+                                                   )
+                                   when 2 then if (eri.evl_result_scr/eii.evlTotalScr*100 >= ifnull(ei.evl_ps_stdr_scr,0), 'ps', 'notPs')
+                                   else null end
+                when 'N' then case eri.subm_at
+                                   when 'Y' then 'cp'
+                                   when 'N' then 'notCp'
+                                   else null end
+                else null end as evlResult
+         , count(1) cnt
+      from aidt_lms.evl_info ei
+      join aidt_lms.evl_result_info eri on eri.evl_id = ei.id
+      join (select sum(evl_iem_scr) as evlTotalScr, evl_id from aidt_lms.evl_iem_info where evl_id = #{evlId} group by evl_id) eii on ei.id = eii.evl_id
+      where (     (ei.evl_stdr_set_at = 'Y' and ei.evl_stdr_set in (1, 2))
+              or   ei.evl_stdr_set_at = 'N'
+            ) and ei.id = #{evlId}
+      group by ei.id, ei.evl_stdr_set_at, ei.evl_stdr_set, evlResult
+    </select>
+
+    <select id="findTchDsbdStatusEvalResult_evlResultInfo" parameterType="map" resultType="camelHashMap">
+        <![CDATA[
+        /* TchDsbdMapper.findTchDsbdStatusEvalResult_evlResultInfo */
+        select eri.id as evl_result_id
+             , eri.mamoym_id
+             , u.flnm
+             , ei.cla_id
+             , eri.eak_stts_cd
+             , aidt_lms.F_CODE_NM('eak_stts_cd', eri.eak_stts_cd) AS eak_stts_nm
+           /*  , ifnull(eri.evl_result_scr, 0) as evl_result_scr */
+             , COALESCE((
+                    SELECT ROUND(SUM(aidt_lms.F_GET_TCH_EVL_SCR(erd.id)), 2)
+                    FROM aidt_lms.evl_result_detail erd
+                    WHERE erd.evl_result_id = eri.id
+                ), 0) AS evlResultScr  /* 총점수 */
+             , case when ifnull(evl_result_scr, 0) >= 80 then '상'
+                    when ifnull(evl_result_scr, 0) >= 50 and ifnull(evl_result_scr, 0) < 80 then '중'
+                    when ifnull(evl_result_scr, 0) >= 0 and ifnull(evl_result_scr, 0) < 50 then '하'
+               end as evlResultAnctNm
+        from   aidt_lms.evl_result_info eri
+        left join aidt_lms.user u on u.user_id = eri.mamoym_id
+        join   aidt_lms.evl_info ei on ei.id = eri.evl_id
+        join   (select sum(evl_iem_scr) as evlTotalScr, evl_id from aidt_lms.evl_iem_info where evl_id = #{evlId} group by evl_id) eii on ei.id = eii.evl_id
+        where  eri.evl_id = #{evlId}
+        ]]>
+    </select>
+</mapper>

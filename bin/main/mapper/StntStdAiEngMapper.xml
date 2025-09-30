@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.selflrn.mapper.StntStdAiEngMapper">
+    <select id="findStntStdAiInitEng" parameterType="map" resultType="camelHashMap">
+        /* StntStdAiMapper.findStntStdAiInitEng */
+		with achInfo as (
+						select 	a.usd_ach_id as usdAchId, sum(a.usd_ach_scr) as usd_ach_scr, sum(a.rflt_actv_cnt) as rflt_actv_cnt, a.unit_num
+		                ,       round((sum(a.usd_ach_scr)/sum(a.rflt_actv_cnt))*100,2) as usd_ach_scr_percent
+		                from    aidt_lms.usd_ach_src2_info a
+		                where  1=1
+						  /*
+		                   * 대시보드의 성취도 계산에는 존재 하는 조건
+		                   * ai 학습일 경우 학습일 구분 없이 전체 일자로 조회
+						   * and  date_format(std_dt, '%Y%m%d') = date_format(now(), '%Y%m%d')
+		                   */
+		                  and   a.usd_ach_id in ('listening', 'reading', 'vocabulary', 'grammar', 'pronunciation', 'writing', 'speaking')
+		                  and   a.cla_id      = #{claId}
+		                  and   a.stdt_id     = #{userId}
+		                  and   a.textbk_id   = #{textbkId}
+		                  and   a.unit_num    = #{unitNum}
+		                and a.std_dt = (
+		                    select max(b.std_dt)
+		                    from aidt_lms.usd_ach_src2_info b
+							where  1=1
+							  and   b.usd_ach_id in ('listening', 'reading', 'vocabulary', 'grammar', 'pronunciation', 'writing', 'speaking')
+							  and   b.cla_id      = #{claId}
+							  and   b.stdt_id     = #{userId}
+							  and   b.textbk_id   = #{textbkId}
+							  and   b.unit_num    = #{unitNum}
+							)
+		                group by usd_ach_id
+		                order by usd_ach_scr_percent
+		                limit 3
+		)
+				select CONCAT('Lesson ', unit_num, ' > ', GROUP_CONCAT(info.usdAchId separator ', ')) as stdNm,
+					   GROUP_CONCAT(mt.id separator ',')                                              as enLrngDivIds
+				from aidt_lcms.meta mt
+						 inner join achInfo info on mt.code = info.usdAchId
+					and brand_id = 3
+    </select>
+
+	<!-- 사용하지 않음 -->
+	<select id="findStntStdAiInitEng_back" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findStntStdAiInitEng */
+		select CONCAT('Lesson ',unit_num,' > ', GROUP_CONCAT(x.usdAchId separator ', ')) as stdNm
+			 , GROUP_CONCAT(x.metaId separator ', ') as enLrngDivIds
+		from (
+				 select DISTINCT a.meta_id AS metaId
+							   , (select val from aidt_lcms.meta where id = a.meta_id) AS unitNm
+							   , a.usd_ach_id as usdAchId
+							   , a.unit_num
+				 from aidt_lms.usd_ach_src2_info a
+				 where 1=1
+				   and a.usd_ach_id in ('listening', 'reading', 'vocabulary', 'grammar', 'pronunciation', 'writing', 'speaking')
+				   and a.std_at ='Y'
+				   and a.stdt_id =   #{userId}
+				   and a.cla_id =    #{claId}
+				   and a.textbk_id = #{textbkId}
+				   and a.unit_num =  #{unitNum}
+				 and a.std_dt = (
+				     select max(b.std_dt)
+				     from aidt_lms.usd_ach_src2_info b
+					 where 1=1
+					   and b.usd_ach_id in ('listening', 'reading', 'vocabulary', 'grammar', 'pronunciation', 'writing', 'speaking')
+					   and b.std_at ='Y'
+					   and b.stdt_id =   #{userId}
+					   and b.cla_id =    #{claId}
+					   and b.textbk_id = #{textbkId}
+					   and b.unit_num =  #{unitNum}
+					 )
+				 order by a.usd_ach_scr
+					 limit 3
+			 ) x
+	</select>
+
+	<select id="findUserById" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findUserById */
+		select *
+		  from aidt_lms.user
+		 where user_id = #{userId}
+	</select>
+
+	<select id="findTcCurriculum" parameterType="map" resultType="camelHashMap">
+		/* StntStdAiMapper.findTcCurriculum */
+		select tc.*
+		from aidt_lms.tc_curriculum tc
+		where tc.cla_id = #{claId}
+		  and tc.textbk_id = #{textbkId}
+		  and tc.wrter_id in (
+                 select tcmi.user_id from aidt_lms.tc_cla_mb_info tcmi where tcmi.stdt_id = #{userId} and tcmi.cla_id = #{claId} and tcmi.actvtn_at = 'Y'
+        	)
+			limit 1
+	</select>
+</mapper>

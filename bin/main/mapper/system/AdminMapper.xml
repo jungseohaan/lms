@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.system.repository.SystemRepository">
+
+    <!-- <insert id="insertUserAuthGroup" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_brand_authgroup_map
+            (uid, brand_id, authgroup_id)
+        VALUES
+            (#{uid}, #{brand_id}, #{authgroup_id})
+    </insert>
+
+     -->
+
+
+
+    <insert id="insertUser" parameterType="com.visang.aidt.lms.api.system.dto.UserVO_request" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO aidt_lcms.user
+        (uid, name, email, password, team, creator, creator_id, creator_name, is_active)
+        VALUES
+            (#{uid}, #{name}, #{email}, #{password}, #{team}, #{creator}, #{creator_id}, #{creator_name}, #{is_active})
+    </insert>
+
+    <select id="insertAndGetUser" parameterType="com.visang.aidt.lms.api.system.dto.UserVO_request" affectData="true"
+            resultType="com.visang.aidt.lms.api.system.dto.UserVO" flushCache="true">
+        INSERT INTO aidt_lcms.user
+        (uid, name, email, password, team, creator, creator_id, creator_name, is_active, authgroup)
+        VALUES
+            (#{uid}, #{name}, #{email}, #{password}, #{team}, #{creator}, #{creator_id}, #{creator_name}, #{is_active}, #{authgroup})
+            returning id, uid, name, email, team, authgroup, token, is_active, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate
+    </select>
+
+    <!-- User 테이블 가져오기 -->
+    <select id="getUserList"
+            parameterType="com.visang.aidt.lms.api.system.dto.UserVO_request"
+            resultType="com.visang.aidt.lms.api.system.dto.UserVO">
+        SELECT id, uid, name, email, team, authgroup, token, is_active, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate  , count(*) OVER() AS full_count
+        FROM aidt_lcms.user
+        ORDER BY uid
+        <if test="limit != null and limit != '' ">  LIMIT #{limit} </if>
+    </select>
+
+    <!-- 회원 정보 가져오기 -->
+    <select id="getUserByEmail" parameterType="String" resultType="com.visang.aidt.lms.api.system.dto.UserVO">
+        SELECT id, uid, name, email, team, authgroup, token, is_active, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate  , count(*) OVER() AS full_count
+        FROM aidt_lcms.user
+        WHERE email = #{email}
+    </select>
+
+    <select id="getUserById" parameterType="String" resultType="com.visang.aidt.lms.api.system.dto.UserVO">
+        SELECT id, uid, name, email, team, authgroup, token, is_active, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate  , count(*) OVER() AS full_count
+        FROM aidt_lcms.user
+        WHERE uid = #{uid}
+    </select>
+
+    <update id="userupdate" parameterType="com.visang.aidt.lms.api.system.dto.UserVO_request">
+        UPDATE aidt_lcms.user
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="authgroup != null">authgroup=#{authgroup},</if>
+            <if test="password != null and password !='' ">password=#{password},</if>
+            <if test="name != null">name=#{name},</if>
+            <if test="email != null">email=#{email},</if>
+            <if test="team != null">team=#{team},</if>
+            <if test="is_active != null">is_active=#{is_active},</if>
+
+            <!--  테스트 후  저작자 임의 입력 금지   -->
+            <choose><when test=" updater_id != null ">
+                updater_id=#{updater_id},
+                updater=(select uid from aidt_lcms.user where id = #{updater_id}),
+                updater_name=(select name from aidt_lcms.user where id = #{updater_id}), </when>
+                <when test=" updater != null and updater != ''  ">
+                    updater_id=(select id from aidt_lcms.user where uid = #{updater}),
+                    updater=#{updater},
+                    updater_name=(select name from aidt_lcms.user where uid = #{updater}), </when>
+                <otherwise>
+                    updater_id=(select id from aidt_lcms.user where uid = #{loginUserId}),
+                    updater=(select uid from aidt_lcms.user where uid = #{loginUserId}),
+                    updater_name=(select name from aidt_lcms.user where uid = #{loginUserId}), </otherwise> </choose>
+
+        </trim>
+        WHERE uid = #{uid}
+    </update>
+
+    <select id="selectUserInfo" parameterType="com.visang.aidt.lms.api.member.dto.LoginVO"
+            resultType="com.visang.aidt.lms.api.member.dto.LoginVO">
+        select `id`
+        , `uid`
+        , `name`
+        from aidt_lcms.user
+        where 1=1
+        <choose>
+            <when test=" creator_id != null and creator_id > 0 ">
+                and   id = #{creator_id}
+            </when>
+            <when test=' creator != null and creator != "" '>
+                and   uid = #{creator}
+            </when>
+            <otherwise>
+                and   uid = #{loginUserId}
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectLmsUserInfo" parameterType="com.visang.aidt.lms.api.member.dto.LoginVO"
+            resultType="com.visang.aidt.lms.api.member.dto.LoginVO">
+        select `user_id` as `uid`
+        , `flnm` as `name`
+        from `aidt_lms`.`user`
+        where 1=1
+        <choose>
+            <when test=" creator_id != null and creator_id > 0 ">
+                and   id = #{creator_id}
+            </when>
+            <when test=' creator != null and creator != "" '>
+                and   user_id = #{creator}
+            </when>
+            <otherwise>
+                and   user_id = #{loginUserId}
+            </otherwise>
+        </choose>
+    </select>
+
+
+    <!--
+        <delete id="deleteUserAuthGroup" parameterType="String" >
+          DELETE
+          FROM user_brand_authgroup_map
+          WHERE uid = #{uid}
+      </delete>
+
+
+
+
+
+
+    <delete id="deleteUser">
+          DELETE
+          FROM User
+          WHERE id = #{id}
+      </delete>
+
+   -->
+</mapper>

@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.act.mapper.StntActMapper">
+
+    <select id="findRecntActProcCd" parameterType="map" resultType="int">
+        /* StntActMapper.findRecntActProcCd */
+        select coalesce(act_proc_cd, 0) as act_proc_cd
+        from (
+                 select act_proc_cd
+                 from aidt_lms.act_tol_info ati
+                 where 1 = 1
+                 and ati.wrter_id = #{userId}
+                   and ati.cla_id = #{claId}
+                   and ati.textbk_tab_id = #{textbkTabId}
+                   and ati.act_iem_id = #{actIemId}
+                   and ati.sub_id = #{subId}
+                 order by act_ed_dt desc
+                     limit 1
+             ) subquery
+        union all
+        select 0 as act_proc_cd
+            where not exists (
+                                select 1
+                                from aidt_lms.act_tol_info ati
+                                where 1 = 1
+                                  and ati.wrter_id = #{userId}
+                                  and ati.cla_id = #{claId}
+                and ati.textbk_tab_id = #{textbkTabId}
+                and ati.act_iem_id = #{actIemId}
+                and ati.sub_id = #{subId}
+                )
+                limit 1
+    </select>
+
+    <select id="findStntActMdulList" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.findStntActMdulList */
+        select ari.id
+             , ari.act_id
+             , ati.act_proc_cd
+             , ari.group_id
+             , ati.exchng_yn
+             , ari.act_stts_cd
+             , aidt_lms.F_CODE_NM('act_stts_cd', ari.act_stts_cd) as act_stts_nm
+             , ati.act_wy
+             , aidt_lms.F_CODE_NM('act_wy', ati.act_wy) as act_wy_nm
+             , ifnull((select thumbnail from aidt_lcms.setsummary
+                        where article_id = ati.act_iem_id and sub_id = ati.sub_id limit 1), ari.thumbnail) as thumbnail
+             , ari.act_submit_url
+            , ifnull(af.del_yn, 'N') as delYn
+             , ari.act_submit_dc
+             , DATE_FORMAT(ari.act_st_dt,'%Y-%m-%d %H:%i:%s') as act_st_dt
+             , DATE_FORMAT(ari.act_ed_dt,'%Y-%m-%d %H:%i:%s') as act_ed_dt
+             , ari.fdb_dc
+             , ari.fdb_url
+             , 'Y' as isMyActive
+             , ari.mamoym_id as stntId
+        from aidt_lms.act_tol_info ati
+        join aidt_lms.act_result_info ari on ari.act_id = ati.id
+        LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+        where 1=1
+        and ati.wrter_id = #{userId}
+          and ati.cla_id = #{claId}
+          and ati.textbk_tab_id = #{textbkTabId}
+          and ati.act_iem_id = #{actIemId}
+          and ati.sub_id = #{subId}
+          and ari.mamoym_id = #{stntId}
+          and ari.subm_at = 'Y'
+          and ati.act_proc_cd = 1
+    </select>
+
+    <select id="findStntActMdulListForMate" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.findStntActMdulListForMate */
+        select id
+             , act_id
+             , act_proc_cd
+             , group_id
+             , exchng_yn
+             , act_stts_cd
+             , act_stts_nm
+             , act_wy
+             , act_wy_nm
+             , thumbnail
+             , act_submit_url
+             ,delYn
+             , act_submit_dc
+             , act_st_dt
+             , act_ed_dt
+             , fdb_dc
+             , fdb_url
+             , isMyActive
+             , stntId
+        from (select ari.id
+                   , ari.act_id
+                   , ati.act_proc_cd
+                   , ari.group_id
+                   , ati.exchng_yn
+                   , ari.act_stts_cd
+                   , aidt_lms.F_CODE_NM('act_stts_cd', ari.act_stts_cd)                AS act_stts_nm
+                   , ati.act_wy
+                   , aidt_lms.F_CODE_NM('act_wy', ati.act_wy)                          AS act_wy_nm
+                   , COALESCE(
+                    (SELECT thumbnail
+                     FROM aidt_lcms.setsummary
+                     WHERE article_id = ati.act_iem_id
+                       AND sub_id = ati.sub_id
+                    LIMIT 1),
+                      ari.thumbnail
+                       )                                                                 AS thumbnail
+                   , ari.act_submit_url
+                   , ari.act_submit_dc
+                   , DATE_FORMAT(ari.act_st_dt, '%Y-%m-%d %H:%i:%s')                   AS act_st_dt
+                   , DATE_FORMAT(ari.act_ed_dt, '%Y-%m-%d %H:%i:%s')                   AS act_ed_dt
+                   , ari.fdb_dc
+                   , ari.fdb_url
+                   , CASE WHEN ari.mamoym_id = #{stntId} THEN 'Y' ELSE 'N' END AS isMyActive
+                   , ari.mamoym_id                                                     AS stntId
+                   , ifnull(af.del_yn, 'N') as delYn
+              FROM aidt_lms.act_tol_info ati
+                       JOIN aidt_lms.act_result_info ari ON ari.act_id = ati.id
+                       LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+              where ari.act_id in (select id
+                                   from aidt_lms.act_tol_info ati2
+                                   where 1=1
+                                    and ati2.wrter_id = #{userId}
+                                     and ati2.cla_id = #{claId}
+                                     AND ati2.textbk_tab_id = #{textbkTabId}
+                                     AND ati2.act_iem_id = #{actIemId}
+                                     AND ati2.sub_id = #{subId}
+                                     AND ati2.act_proc_cd = 2)
+                and ati.wrter_id = #{userId}
+                and ati.cla_id = #{claId}
+                AND ati.textbk_tab_id = #{textbkTabId}
+                AND ati.act_iem_id = #{actIemId}
+                AND ati.sub_id = #{subId}
+                AND ati.act_proc_cd = 2
+                AND ari.subm_at = 'Y'
+                and group_id is not null
+                and ari.mamoym_id = #{stntId}
+              union all
+              select ari.id
+                   , ari.act_id
+                   , ati.act_proc_cd
+                   , ari.group_id
+                   , ati.exchng_yn
+                   , ari.act_stts_cd
+                   , aidt_lms.F_CODE_NM('act_stts_cd', ari.act_stts_cd)                AS act_stts_nm
+                   , ati.act_wy
+                   , aidt_lms.F_CODE_NM('act_wy', ati.act_wy)                          AS act_wy_nm
+                   , COALESCE(
+                      (SELECT thumbnail
+                       FROM aidt_lcms.setsummary
+                       WHERE article_id = ati.act_iem_id
+                         AND sub_id = ati.sub_id
+                      LIMIT 1),
+                        ari.thumbnail
+                       )                                                                 AS thumbnail
+                   , ari.act_submit_url
+                   , ari.act_submit_dc
+                   , DATE_FORMAT(ari.act_st_dt, '%Y-%m-%d %H:%i:%s')                   AS act_st_dt
+                   , DATE_FORMAT(ari.act_ed_dt, '%Y-%m-%d %H:%i:%s')                   AS act_ed_dt
+                   , ari.fdb_dc
+                   , ari.fdb_url
+                   , CASE WHEN ari.mamoym_id = #{stntId} THEN 'Y' ELSE 'N' END AS isMyActive
+                   , ari.mamoym_id                                                     AS stntId
+                   , ifnull(af.del_yn, 'N') as delYn
+              FROM aidt_lms.act_tol_info ati
+                       JOIN aidt_lms.act_result_info ari ON ari.act_id = ati.id
+                       LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+              where (ari.act_id, ari.group_id) in (select act_id, group_id
+                                                   from aidt_lms.act_result_info ari2
+                                                   where ari2.act_id in (select id
+                                                                         from aidt_lms.act_tol_info ati2
+                                                                         where 1=1
+                                                                            and ati2.wrter_id = #{userId}
+                                                                           and ati2.cla_id = #{claId}
+                                                                           AND ati2.textbk_tab_id = #{textbkTabId}
+                                                                           AND ati2.act_iem_id = #{actIemId}
+                                                                           AND ati2.sub_id = #{subId}
+                                                                           AND ati2.act_proc_cd = 2)
+                                                     and group_id is not null
+                                                     and ari2.mamoym_id = #{stntId})
+                and ati.wrter_id = #{userId}
+                and ati.cla_id = #{claId}
+                AND ati.textbk_tab_id = #{textbkTabId}
+                AND ati.act_iem_id = #{actIemId}
+                AND ati.sub_id = #{subId}
+                AND ati.act_proc_cd = 2
+                AND ari.subm_at = 'Y'
+                and ari.mamoym_id != #{stntId}) as mateActInfo
+        ORDER BY mateActInfo.isMyActive DESC, mateActInfo.id
+    </select>
+
+    <select id="findStntActFeedback" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.findStntActFeedback */
+        select  id, evaluator_id, fdb_dc as mateFdbDc, fdb_url as mateFdbUrl
+          from aidt_lms.act_mate_fdb
+         where act_id       = #{actId}
+           and mamoym_id    = #{stntId}
+           and group_id     = #{groupId}
+    </select>
+
+
+    <select id="findStntActFeedbackForMate" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.findStntActFeedbackForMate */
+        select id, evaluator_id, fdb_dc as mateFdbDc, fdb_url as mateFdbUrl
+          from aidt_lms.act_mate_fdb
+         where act_id       = #{actId}
+           and mamoym_id    = #{stntId}
+           and evaluator_id = #{evaluatorId}
+           and group_id     = #{groupId}
+    </select>
+
+    <update id="modifyStntActMdulSubmit" parameterType="map" >
+        /* StntActMapper.modifyStntActMdulSubmit */
+        update aidt_lms.act_tol_info ati
+        join aidt_lms.act_result_info ari on ari.act_id = ati.id
+        set ari.act_stts_cd = 2
+        , ari.subm_at = 'Y'
+        , ari.thumbnail = #{thumbnail}
+        , ari.act_submit_url = #{actSubmitUrl}
+        , ari.act_submit_dc = #{actSubmitDc}
+        , ari.act_ed_dt = now()
+        , ari.mdfy_dt = now()
+        where ati.id = #{actId}
+          and ari.mamoym_id = #{userId}
+    </update>
+
+    <select id="findStntActMdul" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.findStntActMdul */
+        select ari.id
+             , ari.act_stts_cd
+             , aidt_lms.F_CODE_NM('act_stts_cd', ari.act_stts_cd) as act_stts_nm
+             , ari.subm_at
+             , DATE_FORMAT(ari.act_st_dt,'%Y-%m-%d %H:%i:%s') as act_st_dt
+             , DATE_FORMAT(ari.act_ed_dt,'%Y-%m-%d %H:%i:%s') as act_ed_dt
+             , ari.act_id
+             , ifnull((select thumbnail from aidt_lcms.setsummary
+                         where article_id = ati.act_iem_id and sub_id = ati.sub_id limit 1), ari.thumbnail) as thumbnail
+             , ari.act_submit_url
+            , ifnull(af.del_yn, 'N') as delYn
+             , ari.act_submit_dc
+             , ari.fdb_dc
+        from aidt_lms.act_tol_info ati
+        join aidt_lms.act_result_info ari on ari.act_id = ati.id
+        LEFT JOIN aidt_lms.aidt_file af ON af.file_path = SUBSTRING_INDEX(CONCAT(SUBSTRING_INDEX(ari.act_submit_url, '/', LENGTH(ari.act_submit_url) - LENGTH(REPLACE(ari.act_submit_url, '/', ''))), '/'), 'url=', -1) AND af.file_name = SUBSTRING_INDEX(ari.act_submit_url, '/', -1)
+        where ati.id = #{actId}
+          and ari.mamoym_id = #{userId}
+        limit 1
+    </select>
+
+
+    <update id="createStntActMateFdb" parameterType="map" >
+        insert into
+                   aidt_lms.act_mate_fdb (
+                                           act_id
+                                         , evaluator_id
+                                         , mamoym_id
+                                         , group_id
+                                         , fdb_dc
+                                         , fdb_url
+                                         )
+                values (
+                        #{actId}
+                       ,#{evaluatorId}
+                       ,#{stntId}
+                       ,#{groupId}
+                       ,#{fdbDc}
+                       ,#{fdbUrl}
+                       )
+                    on duplicate key update
+                                              fdb_dc = #{fdbDc}
+                                            , fdb_url = #{fdbUrl}
+
+    </update>
+
+    <select id="recntActProcList" parameterType="map" resultType="camelHashMap">
+        /* StntActMapper.recntActProcList */
+        select x.act_wy      as actWy
+             , x.act_proc_cd as recntActProcCd
+             , x.act_ed_dt
+          from (select ati.act_wy
+                     , ati.act_proc_cd
+                     , ari.act_ed_dt
+                     , row_number() over (partition by ati.act_wy order by ari.act_ed_dt desc) as row_num
+                  from aidt_lms.act_tol_info ati
+                           join aidt_lms.act_result_info ari on ari.act_id = ati.id
+                 where 1=1
+                and ati.wrter_id = #{userId}
+                   and ati.cla_id = #{claId}
+                   and ati.textbk_tab_id = #{textbkTabId}
+                   and ati.act_iem_id = #{actIemId}
+                   and ati.sub_id = #{subId}
+                   and ari.mamoym_id = #{stntId}
+                   and ari.subm_at = 'Y') x
+         where x.row_num = 1
+    </select>
+
+    <update id="createStntActMateChkReadSave" parameterType="map" >
+        insert into
+                   aidt_lms.act_mate_read (
+                                           act_id
+                                         , evaluator_id
+                                         , mamoym_id
+                                         , group_id
+                                         , read_yn
+
+                                         )
+                values (
+                        #{actId}
+                       ,#{evaluatorId}
+                       ,#{stntId}
+                       ,#{groupId}
+                       , 'Y'
+                       )
+                    on duplicate key update
+                                              read_yn = 'Y'
+
+    </update>
+
+</mapper>
+

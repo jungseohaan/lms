@@ -1,0 +1,1322 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.homework.mapper.TchHomewkMapper">
+    <select id="findTaskInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTaskInfo */
+        SELECT ifnull(now() > ti.task_cp_dt, 0) as deadline
+             , ti.*
+          FROM aidt_lms.task_info ti
+         WHERE ti.id = #{taskId}
+    </select>
+
+    <select id="findTchHomewkListTaskList_bak" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkListTaskList_bak uiux 1차 수정 이후 사용 하지 않음 */
+        SELECT (count(*) over () + 1) - (row_number() over ()) as no
+             , count(*) over () as fullCount, ta.id
+             , (select code_nm from aidt_lms.se_code a where a.code_cd = ta.eam_mth and a.code_gb_cd = 'eam_mth') as eamMth
+             , ta.task_nm
+             , ta.eam_trget /* 1:공통문항출제, 2:개인별문항출제 */
+             , ta.task_stts_cd
+             , aidt_lms.F_CODE_NM('task_stts_cd', ta.task_stts_cd) AS taskSttsNm
+             , DATE_FORMAT(ta.task_prg_dt, "%Y-%m-%d %H:%i:%s") task_prg_dt
+             , DATE_FORMAT(ta.task_cp_dt, "%Y-%m-%d %H:%i:%s") task_cp_dt
+             , tri.target_cnt
+             , tri.submit_cnt
+             , IF (tri.target_cnt <![CDATA[<>]]> tri.submit_cnt and ta.task_stts_cd = 2, true, false) AS isEncouragement    /* 과제상태가 진행중이고 미제출 학생이 존재하면 true */
+             , if((select count(1)
+                    from aidt_lms.task_result_info tri
+                    where tri.task_id = ta.id
+                    and   tri.eak_stts_cd <![CDATA[>=]]> 3) > 0,'Y','N') as report_link_yn
+          FROM aidt_lms.task_info ta
+          LEFT JOIN (SELECT task_id
+                          , COUNT(1) AS target_cnt
+                          , SUM(IF(subm_at = 'Y', 1, 0)) AS submit_cnt
+                      FROM aidt_lms.task_result_info
+                     GROUP BY task_id) tri ON ta.id = tri.task_id
+         WHERE 1=1
+           AND ta.cla_id = #{param.claId}
+           AND ta.textbk_id = #{param.textbookId}
+           AND ta.tmpr_strg_at = #{param.tmprStrgAt}
+           <if test="param.taskSttsCd != null and param.taskSttsCd != '' ">
+             <choose>
+                 <when test=" param.taskSttsCd == 3">
+                     AND ta.task_stts_cd >= #{param.taskSttsCd}
+                 </when>
+                 <otherwise>
+                     AND ta.task_stts_cd = #{param.taskSttsCd}
+                 </otherwise>
+             </choose>
+           </if>
+            order by
+                case when ta.task_stts_cd = 1 then ta.reg_dt END DESC,
+                case when ta.task_stts_cd > 1 then task_prg_dt END DESC
+         LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findTchHomewkListTaskListTmpr" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkListTaskListTmpr */
+        SELECT (count(*) over () + 1) - (row_number() over ()) as no
+             , count(*) over () as fullCount, ta.id
+             , (select code_nm from aidt_lms.se_code a where a.code_cd = ta.eam_mth and a.code_gb_cd = 'eam_mth') as eamMth
+             , ta.task_nm
+             , DATE_FORMAT(ta.reg_dt, "%Y-%m-%d %H:%i:%s") reg_dt
+          FROM aidt_lms.task_info ta
+         WHERE 1=1
+           AND ta.cla_id = #{param.claId}
+           AND ta.textbk_id = #{param.textbookId}
+           AND ta.tmpr_strg_at = #{param.tmprStrgAt}
+           <if test="param.taskSttsCd != null and param.taskSttsCd != '' ">
+               AND ta.task_stts_cd = #{param.taskSttsCd}
+           </if>
+        ORDER BY ta.reg_dt desc
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <select id="findTchHomewkListTaskInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkListTaskInfo */
+        SELECT ta.id
+             , ta.sets_id
+             , ta.task_nm
+             , ta.eam_mth
+             , (select code_nm from aidt_lms.se_code a where a.code_gb_cd = 'eam_mth' and a.code_cd = ta.eam_mth) as eamMthNm
+             , ta.eam_trget /* 1:공통문항출제, 2:개인별문항출제 */
+             , ta.eam_exm_num
+             , ta.tim_time
+             , ta.rwd_set_at
+             , ta.rwd_point
+             , DATE_FORMAT(ta.task_prg_dt, "%Y-%m-%d %H:%i:%s") task_prg_dt
+             , DATE_FORMAT(ta.task_cp_dt, "%Y-%m-%d %H:%i:%s") task_cp_dt
+             , ta.task_stts_cd
+             , aidt_lms.F_CODE_NM('task_stts_cd', ta.task_Stts_Cd) AS taskSttsNm
+             , if (ta.rpt_othbc_at = 'Y' and
+               (select if (count(1)=sum(if(eak_stts_cd >= 3,1,0)),'Y','N')
+                   from aidt_lms.task_result_info
+                  where task_id = ta.id) = 'Y', 'Y', 'N') as rpOthbcAt
+             , DATE_FORMAT(ta.rpt_othbc_dt, "%Y-%m-%d %H:%i:%s") as rpOthbcDt
+             , ai_tut_set_at
+             , case when ta.task_stts_cd <![CDATA[<]]> 2	then 'N'
+                when
+                (
+                    select count(1) from aidt_lms.task_result_info tri where tri.task_id = ta.id
+                    and ta.task_stts_cd <![CDATA[<]]> 2
+                ) = 0 then 'Y'
+                else 'N'
+                end as report_link_yn
+                 , CASE
+                       WHEN ta.eam_mth = 5 THEN 'aiCustom'
+                       WHEN ta.eam_mth = 4 THEN 'aiPrescription'
+                       WHEN ta.eam_mth = 8 THEN 'groupTask'
+                       WHEN ta.eam_mth IN (2, 3, 6, 7) THEN 'general'
+                    /*   WHEN ta.eam_mth IN (2, 3, 4, 5, 6, 7, 8) THEN 'all' */
+                       ELSE NULL
+                    END as taskDivision
+              , (select count(1) from aidt_lms.task_result_info a where a.task_id = #{taskId} and a.subm_at = 'Y') as submitCnt
+              , task_stts_cd
+        FROM aidt_lms.task_info ta
+        WHERE ta.id = #{taskId}
+    </select>
+
+    <select id="findTchHomewkPreviewTaskInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkPreviewTaskInfo */
+        SELECT ta.id
+             , IF(ta.eam_trget = 2, 'Y', 'N') as eamTrgetYn
+             , ta.sets_id
+             , ta.task_nm
+             , DATE_FORMAT(ta.task_prg_dt, "%Y-%m-%d %H:%i:%s") task_prg_dt
+             , DATE_FORMAT(ta.task_cp_dt, "%Y-%m-%d %H:%i:%s") task_cp_dt
+             , ta.tim_time
+          FROM aidt_lms.task_info ta
+         WHERE ta.id = #{taskId}
+    </select>
+
+    <select id="findTchHomewkPreviewStudentList" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkPreviewStudentList */
+        SELECT tri.id
+             , tri.mamoym_id as user_id
+             , (select flnm from user u where u.user_id = tri.mamoym_id) as flnm
+             , tri.sets_id
+          FROM aidt_lms.task_result_info tri
+         WHERE tri.task_id = #{taskId}
+    </select>
+
+    <delete id="removeTchTaskResultDetail" parameterType="map">
+        /* TchHomewkMapper.removeTchTaskResultDetail */
+        DELETE
+          FROM aidt_lms.task_result_detail
+         WHERE task_result_id in (SELECT id
+                                    FROM aidt_lms.task_result_info
+                                   WHERE task_id = #{taskId}
+        						 )
+    </delete>
+
+    <delete id="removeTchTaskResultInfo" parameterType="map">
+        /* TchHomewkMapper.removeTchTaskResultInfo */
+        DELETE
+          FROM aidt_lms.task_result_info
+         WHERE task_id = #{taskId}
+    </delete>
+
+    <delete id="removeTchTaskTrnTrget" parameterType="map">
+        /* TchHomewkMapper.removeTchTaskTrnTrget */
+        DELETE
+          FROM aidt_lms.task_trn_trget
+         WHERE task_id = #{taskId}
+    </delete>
+
+    <delete id="removeTchTaskInfo" parameterType="map">
+        /* TchHomewkMapper.removeTchTaskInfo */
+        DELETE
+          FROM aidt_lms.task_info
+         WHERE id = #{taskId}
+    </delete>
+
+    <update id="modifyTchAiCustomTaskInfo">
+        UPDATE aidt_lms.ai_cstmzd_std_set_info
+        SET task_del_at = 'Y',
+            mdfy_dt = now()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <select id="findTchHomewkReadInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkReadInfo */
+        SELECT
+            ti.wrter_id
+            ,ti.cla_id
+            ,ti.textbk_id as textbookId
+            ,ti.sets_id
+            , ti.eam_mth
+            , aidt_lms.F_CODE_NM('eam_mth', ti.eam_mth) AS eamMthNm
+            ,ti.task_nm
+            , DATE_FORMAT(ti.pd_evl_st_dt, '%Y-%m-%d %H:%i') AS pd_evl_st_dt
+            , DATE_FORMAT(ti.pd_evl_ed_dt, '%Y-%m-%d %H:%i') AS pd_evl_ed_dt
+            , DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d %H:%i') AS task_prg_dt
+            , DATE_FORMAT(ti.task_cp_dt, '%Y-%m-%d %H:%i') AS task_cp_dt
+            ,ti.nt_trn_at
+            ,ti.bbs_sv_at
+            ,ti.bbs_nm
+            ,ti.tag
+            ,ti.cocnr_at
+            ,ti.tim_st_at
+            ,ti.tim_time
+            ,ti.prscr_std_set_at
+            ,ti.prscr_std_st_dt
+            ,ti.prscr_std_ed_dt
+            ,ti.prscr_std_nt_trn_at
+            ,ti.ai_tut_set_at
+            ,ti.rwd_set_at
+            ,ti.ed_gid_at
+            ,ti.ed_gid_dc
+            ,ti.std_set_at
+            ,ti.rpt_auto_othbc_at
+            FROM aidt_lms.task_info ti
+         WHERE ti.id = #{taskId}
+    </select>
+
+    <update id="modifyTchTaskSave" parameterType="map">
+        /* TchHomewkMapper.modifyTchTaskSave */
+        UPDATE aidt_lms.task_info ti
+        left outer join aidt_lms.rwd_earn_pcy rep on menu_se_cd = 2 and sve_se_cd = 3 and use_at = 'Y'
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="rptAutoOthbcAt != null and rptAutoOthbcAt != '' ">rpt_auto_othbc_at=#{rptAutoOthbcAt},</if>
+            <if test='rptAutoOthbcAt != null and rptAutoOthbcAt.toString() == "Y"'>rpt_othbc_at = 'Y',</if>
+            <if test="taskNm != null and taskNm != '' ">task_nm=#{taskNm},</if>
+            <if test="pdEvlStDt != null and pdEvlStDt != '' ">pd_evl_st_dt=#{pdEvlStDt},</if>
+            <if test="pdEvlEdDt != null and pdEvlEdDt != '' ">pd_evl_ed_dt=#{pdEvlEdDt},</if>
+            <if test="ntTrnAt != null and ntTrnAt != '' ">nt_trn_at=#{ntTrnAt},</if>
+            <if test="bbsSvAt != null and bbsSvAt != '' ">bbs_sv_at=#{bbsSvAt},</if>
+            <if test="bbsNm != null and bbsNm != '' ">bbs_nm=#{bbsNm},</if>
+            <if test="tag != null and tag != '' ">tag=#{tag},</if>
+            <if test="cocnrAt != null and cocnrAt != '' ">cocnr_at=#{cocnrAt},</if>
+            <if test="timStAt != null and timStAt != '' ">tim_st_at=#{timStAt},</if>
+            <if test="timTime != null and timTime != '' ">tim_time=#{timTime},</if>
+            <if test="prscrStdSetAt != null and prscrStdSetAt != '' ">prscr_std_set_at=#{prscrStdSetAt},</if>
+            <if test="prscrStdStDt != null and prscrStdStDt != '' ">prscr_std_st_dt=#{prscrStdStDt},</if>
+            <if test="prscrStdEdDt != null and prscrStdEdDt != '' ">prscr_std_ed_dt=#{prscrStdEdDt},</if>
+            <if test="prscrStdNtTrnAt != null and prscrStdNtTrnAt != '' ">prscr_std_nt_trn_at=#{prscrStdNtTrnAt},</if>
+            <if test="aiTutSetAt != null and aiTutSetAt != '' ">ai_tut_set_at=#{aiTutSetAt},</if>
+            <!-- 리워드설정여부 기획에서 삭제되어서 무조건 셋팅한다 (2024-05-24) -->
+            <!--<if test="rwdSetAt != null and rwdSetAt != '' ">rwd_set_at={rwdSetAt},</if>-->
+            <!--<if test=' rwdSetAt == "Y" '>-->
+                ti.rwd_set_at = 'Y',
+                ti.rwd_point = rep.rwd_point,
+            <!--</if>-->
+            <if test="edGidAt != null and edGidAt != '' ">ed_gid_at=#{edGidAt},</if>
+            <if test="edGidDc != null and edGidDc != '' ">ed_gid_dc=#{edGidDc},</if>
+        </trim>
+            , task_prg_dt = pd_evl_st_dt
+            , task_cp_dt = pd_evl_ed_dt
+            , tmpr_strg_at = 'N'
+            , task_stts_cd = 1
+            , ti.mdfr = '/tch/homewk/save'
+            , ti.mdfy_dt = NOW()
+        WHERE ti.id = #{taskId}
+    </update>
+
+    <insert id="createTchTaskSaveSets" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchHomewkMapper.createTchTaskSaveSets */
+        <selectKey keyProperty="newSetsid" resultType="String" order="BEFORE">
+            <choose>
+                <when test=' createdByBbsSetsId != null and createdByBbsSetsId == "Y" '>
+                    select #{bbsSetsId} as newSetsid
+                </when>
+                <otherwise>
+                    select F_NUMBER_CRT('ST') as newSetsid
+                </otherwise>
+            </choose>
+        </selectKey>
+
+        INSERT INTO aidt_lcms.sets (id, brand_id, name, description, thumbnail, hashTags, points_type, points, limit_time_type, limit_time, is_active, is_publicOpen, is_editable, is_deleted, version, tempStr, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate, setCategory, curriBook, curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5, difficulty)
+        SELECT #{newSetsid}
+             , s.brand_id
+             , ti.bbs_nm
+             , s.description
+             , s.thumbnail
+             , ti.tag
+             , s.points_type
+             , s.points
+             , s.limit_time_type
+             , s.limit_time
+             , 1 as isActive
+             , if(ti.cocnr_at = 'N', 0, 1)
+             , s.is_editable
+             , s.is_deleted
+             , s.version
+             , s.tempStr
+             , s.creator_id
+             , s.creator
+             , s.creator_name
+             , s.regdate
+             , s.updater_id
+             , s.updater
+             , s.updater_name
+             , s.updatedate
+             , s.setCategory
+             , s.curriBook
+             , s.curriUnit1
+             , s.curriUnit2
+             , s.curriUnit3
+             , s.curriUnit4
+             , s.curriUnit5
+             , s.difficulty
+          FROM aidt_lms.task_info ti
+          JOIN aidt_lcms.sets s ON ti.sets_id = s.id
+         WHERE ti.id = #{taskId}
+    </insert>
+
+    <update id="modifyTchTaskSaveBbsSetId" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskSaveBbsSetId */
+        UPDATE aidt_lms.task_info
+           SET bbs_sets_id = #{newSetsid}
+             , mdfr = '/tch/homewk/save'
+             , mdfy_dt = NOW()
+         WHERE id = #{taskId}
+    </update>
+
+    <delete id="removeTchTaskSaveTRD" parameterType="map">
+        /* TchHomewkMapper.removeTchTaskSaveTRD */
+        DELETE FROM aidt_lms.task_result_detail
+         WHERE task_result_id in (SELECT id
+                                   FROM aidt_lms.task_result_info
+                                  WHERE task_id = #{taskId}
+                                )
+    </delete>
+
+    <select id="findExistingTaskResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findExistingTaskResultInfo */
+        SELECT tri.mamoym_id as stntId, tri.eak_stts_cd
+          FROM aidt_lms.task_result_info tri
+         WHERE tri.task_id = #{taskId}
+    </select>
+
+    <delete id="removeTchTaskSaveTRI" parameterType="map">
+        /* TchHomewkMapper.removeTchTaskSaveTRI */
+        DELETE FROM aidt_lms.task_result_info
+        WHERE task_id = #{taskId}
+    </delete>
+
+    <insert id="createTchTaskSaveTRI" parameterType="map" useGeneratedKeys="true">
+        /* TchHomewkMapper.createTchTaskSaveTRI */
+        INSERT INTO aidt_lms.task_result_info (task_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd, mrk_cp_at
+        <if test='stntPeriodChangedMap != null and stntPeriodChangedMap.size() > 0'>
+            , period_changed_at
+        </if>
+        )
+        SELECT ti.id
+             , tcmi.stdt_id
+             , ti.sets_id
+             , ti.wrter_id
+             , ti.wrter_id
+             , '1'
+             , 'N'
+        <if test='stntPeriodChangedMap != null and stntPeriodChangedMap.size() > 0'>
+            , CASE 
+            <foreach collection="stntPeriodChangedMap" index="stntId" item="periodChanged">
+                WHEN tcmi.stdt_id = #{stntId} THEN #{periodChanged}
+            </foreach>
+                ELSE 'N' 
+              END as period_changed_at
+        </if>
+          FROM aidt_lms.task_info ti
+          JOIN aidt_lms.tc_cla_mb_info tcmi ON ti.cla_id = tcmi.cla_id
+                                            AND tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+          <if test=" stntListSize > 0 ">
+                and tcmi.stdt_id in
+                (<foreach item="item" collection="stntList" separator=",">#{item.stntId}</foreach>)
+          </if>
+         WHERE ti.id = #{taskId}
+    </insert>
+
+    <insert id="createTchTaskSaveTRD" parameterType="map" useGeneratedKeys="true">
+        /* TchHomewkMapper.createTchTaskSaveTRD */
+        INSERT INTO aidt_lms.task_result_detail (task_result_id, task_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at)
+        SELECT tri.id
+           , s.article_id
+           , s.sub_id
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 3
+             else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+             end as mrk_ty
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 5
+             else 1
+             end as eak_stts_cd
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 4
+             else null
+             end as errata
+           , 'system'
+           , 'system'
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end as eakAt
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end
+        FROM aidt_lms.task_info ti
+        JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id
+        JOIN aidt_lcms.setsummary s ON ti.sets_id  = s.set_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id  and sub_id = s.sub_id and meta_name = 'articleType')
+        left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+        WHERE ti.id = #{taskId}
+        ORDER BY tri.id, s.id
+    </insert>
+
+    <update id="modifyTchTaskInitTaskInfoY" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskInitTaskInfoY */
+        UPDATE aidt_lms.task_info
+        SET task_prg_dt = pd_evl_st_dt
+          , task_cp_dt = pd_evl_ed_dt
+          , task_stts_cd = 2
+          , mrk_cp_dt = NULL
+          , mdfr = '/tch/homewk/init'
+          , mdfy_dt = NOW()
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="modifyTchTaskInitTaskInfoN" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskInitTaskInfoN  - no usage */
+        UPDATE aidt_lms.task_info
+        SET task_prg_dt = NULL
+          , task_cp_dt = NULL
+          , task_stts_cd = 1
+          , mrk_cp_dt = NULL
+        WHERE id = #{taskId}
+    </update>
+
+    <update id="modifyTchTaskInitTaskResultInfo" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskInitTaskResultInfo */
+        UPDATE aidt_lms.task_result_info
+        SET eak_stts_cd = 1
+          , eak_at = 'N'
+          , subm_at = 'N'
+          , mrk_cp_at = 'N'
+          , eak_st_dt = NULL
+          , eak_ed_dt = NULL
+          , task_result_scr = NULL
+          ,task_result_anct =NULL
+          , mdfr = '/tch/homewk/init'
+          , mdfy_dt = NOW()
+        WHERE task_id = #{taskId}
+    </update>
+
+    <update id="modifyTchTaskInitTaskResultDetail" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskInitTaskResultDetail */
+        UPDATE aidt_lms.task_result_detail
+        SET eak_stts_cd = 1
+          , eak_at = 'N'
+          , mrk_cp_at = 'N'
+          , eak_st_dt = NULL
+          , eak_ed_dt = NULL
+          , sub_mit_anw = NULL
+          , sub_mit_anw_url = NULL
+          , errata = NULL
+          , re_idf_cnt = NULL
+          , anw_chg_cnt = NULL
+          , fdb_dc = NULL
+          , mdfr = '/tch/homewk/init'
+          , mdfy_dt = NOW()
+          WHERE task_result_id IN (SELECT id
+                                FROM aidt_lms.task_result_info
+                                WHERE task_id = #{taskId}
+        )
+    </update>
+
+    <select id="findTchTaskInit" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchTaskInit */
+        SELECT ei.id
+             , ei.task_nm
+             , DATE_FORMAT(ei.task_prg_dt, "%Y-%m-%d %H:%i:%s") AS task_prg_dt
+             , ei.task_stts_cd
+             , aidt_lms.F_CODE_NM('task_stts_cd', ei.task_stts_cd) AS task_stts_nm
+        FROM aidt_lms.task_info ei
+        WHERE ei.id = #{taskId}
+    </select>
+
+    <insert id="createTchTaskCreate" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchHomewkMapper.createTchTaskCreate */
+        INSERT INTO aidt_lms.task_info (wrter_id, cla_id, textbk_id
+                                     , task_nm
+                                     , eam_mth
+                                    , eam_trget
+                                    <choose>
+                                        <when test=' eamMth == "2" '>
+                                         , eam_exm_num, eam_gd_exm_mun, eam_av_up_exm_mun, eam_av_exm_mun, eam_av_lw_exm_mun, eam_bd_exm_mun
+                                        </when>
+                                        <otherwise>
+                                         , eam_exm_num
+                                        </otherwise>
+                                    </choose>
+                                     , eam_scp, sets_id, rgtr, mdfr, task_stts_cd, tmpr_strg_at
+                                     ,prscr_std_set_at
+                                    ,prscr_std_st_dt
+                                    ,prscr_std_ed_dt
+                                    ,prscr_std_nt_trn_at
+                                    ,prscr_std_pd_set)
+        VALUES (#{wrterId}, #{claId}, #{textbookId}
+              , #{taskNm}
+              , #{eamMth}
+              , #{eamTrget}
+              <choose>
+                <when test=' eamMth == "2" '>
+                , #{eamExmNum}, #{eamGdExmMun}, #{eamAvUpExmMun}, #{eamAvExmMun}, #{eamAvLwExmMun}, #{eamBdExmMun}
+                </when>
+                <otherwise>
+                ,0
+                </otherwise>
+              </choose>
+              , #{eamScp}, #{setsId}, 'system', 'system', 1, 'Y'
+                ,ifnull(#{prscrStdSetAt}, 'N')
+            ,null    /* {prscrStdStDt} 사용하지않음 */
+            ,null    /* {prscrStdEdDt} 사용하지않음 */
+            ,ifnull(#{prscrStdNtTrnAt}, 'N')
+            ,#{prscrStdPdSet})
+    </insert>
+
+    <update id="modifyHomewkSubmAtTRD" parameterType="map">
+        /* TchHomewkMapper.modifyHomewkSubmAtTRD */
+    update aidt_lms.task_result_detail trd
+      join aidt_lms.task_result_info tri on trd.task_result_id = tri.id
+      set trd.eak_at = 'Y'
+        , trd.eak_st_dt = now()
+        , trd.eak_ed_dt = now()
+        , trd.eak_stts_cd = 5
+        , trd.mrk_cp_at = 'Y'
+        , trd.errata = 2
+        , trd.mdfr = '/stnt/homewk/submit'
+        , trd.mdfy_dt = NOW()
+    where tri.task_id = #{taskId}
+        and trd.mrk_ty in (1,2) /* 자동채점/수동채점만 대상  */
+        and tri.subm_At = 'N'
+        <if test="userId != null and userId != '' ">
+            AND tri.mamoym_id = #{userId}
+        </if>
+    </update>
+
+    <update id="modifyHomewkSubmAtTRI" parameterType="map">
+        /* TchHomewkMapper.modifyHomewkSubmAtTRI */
+    update aidt_lms.task_result_info
+       set eak_stts_cd = 5
+         , mrk_cp_at = 'Y'
+         , mdfr = '/stnt/homewk/submit'
+         , mdfy_dt = NOW()
+         where task_id = #{taskId}
+        and subm_At = 'N'
+        <if test="userId != null and userId != '' ">
+                    AND mamoym_id = #{userId}
+                </if>
+    </update>
+
+    <update id="modifyTchTaskSaveEEN" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskSaveEEN */
+        UPDATE aidt_lms.task_info
+           SET eam_exm_num = (
+                                select count(distinct trd.task_iem_id) as x
+                                  from aidt_lms.task_result_info tri
+                                       join aidt_lms.task_result_detail trd on tri.id = trd.task_result_id
+                                 where tri.task_id = #{taskId}
+                             )
+            , mdfr = '/tch/homewk/save'
+            , mdfy_dt = NOW()
+         WHERE id = #{taskId}
+          /* and ifnull(eam_exm_num, 0) = 0 */
+    </update>
+
+    <select id="findTchHomewkResultStatusTaskInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkResultStatusTaskInfo */
+        SELECT ti.id
+        , ti.sets_id
+        , ti.task_nm
+        , DATE_FORMAT(ti.task_prg_dt, "%Y-%m-%d %H:%i:%s") as task_prg_dt
+        , DATE_FORMAT(ti.task_cp_dt, "%Y-%m-%d %H:%i:%s") as task_cp_dt
+        , ti.tim_time
+        , tri.target_cnt
+        , tri.examCnt
+        , ti.eam_exm_num
+        , ti.task_stts_cd
+        , aidt_lms.F_CODE_NM('task_stts_cd', ti.task_stts_cd) AS taskSttsNm
+        FROM aidt_lms.task_info ti
+        LEFT JOIN (SELECT task_id
+        , COUNT(1) AS target_cnt
+        , SUM(IF(eak_at = 'Y', 1, 0)) AS examCnt
+        FROM aidt_lms.task_result_info
+        where task_id = #{taskId}
+        GROUP BY task_id) tri ON ti.id = tri.task_id
+        WHERE ti.id = #{taskId}
+    </select>
+
+    <select id="findTchHomewkResultStatusTaskIemInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkResultStatusTaskIemInfo */
+        SELECT tii.id
+        , tii.task_iem_id
+        , tii.sub_id
+        , a.name
+        , a.url
+        , a.image
+        , ifnull(tii.thumbnail,a.thumbnail) as thumbnail
+        , a.questionStr
+        , a.hashTags
+        , a.is_active
+        , a.is_publicOpen AS isPublicOpen
+        , a.is_editable
+        , trd.correctRate
+        FROM (
+            select trd.id, trd.task_iem_id, tri.task_id, trd.sub_id, s.thumbnail
+            from aidt_lms.task_result_detail trd
+            join (select id, task_id, sets_id from aidt_lms.task_result_info where task_id = #{taskId} limit 1) tri on trd.task_result_id = tri.id
+            left join aidt_lcms.setsummary s on s.set_id = tri.sets_id and s.article_id = trd.task_iem_id and s.sub_id = trd.sub_id
+        ) tii
+        LEFT JOIN aidt_lcms.article a ON tii.task_iem_id = a.id
+        LEFT JOIN (
+            SELECT t2.task_iem_id
+                 , t2.sub_id
+                 , ROUND(SUM(IF(t2.errata = 1, 1, 0)) / COUNT(1) * 100, 2) AS correctRate
+            FROM aidt_lms.task_result_info t1
+            join aidt_lms.task_result_detail t2 on t2.task_result_id = t1.id
+            WHERE t1.task_id = #{taskId}
+              and t1.subm_at = 'Y'
+            GROUP BY t2.task_iem_id, t2.sub_id
+        ) trd ON trd.task_iem_id = tii.task_iem_id and trd.sub_id = tii.sub_id
+        WHERE tii.task_id = #{taskId}
+        order by tii.id
+    </select>
+
+    <select id="findTchHomewkResultStatusTaskResultDet" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkResultStatusTaskResultDet */
+        SELECT trd.task_iem_id, trd.sub_id
+        , trd.sub_mit_anw
+        , trd.sub_mit_anw_url
+        , um.id as userIdx
+        , um.user_id
+        , um.flnm  AS flnm
+        , tri.subm_at AS submAt
+        , tcmi.actvtn_at AS actvtnAt
+        FROM aidt_lms.task_info ti
+        LEFT JOIN aidt_lms.task_result_info tri ON tri.task_id = ti.id
+        LEFT JOIN aidt_lms.task_result_detail trd ON trd.task_result_id = tri.id
+        LEFT JOIN aidt_lms.user um ON um.user_id = tri.mamoym_id
+        LEFT JOIN aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id  and tri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        WHERE ti.id = #{taskId}
+        ORDER BY um.flnm ASC, sub_mit_anw ASC
+    </select>
+
+    <select id="findTchHomewkResultStatusSubMitAnwStnt" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkResultStatusSubMitAnwStnt */
+        select trd.task_iem_id, trd.sub_id, trd.sub_mit_anw as sub_mit_anw
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on tri.id = trd.task_result_id
+        where tri.task_id = #{taskId}
+        and trd.mrk_ty = 1
+        and trd.sub_mit_anw is not null
+        group by trd.task_iem_id, trd.sub_id, trd.sub_mit_anw
+    </select>
+
+    <select id="findTchHomewkResultStatusAnwStudent" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkResultStatusAnwStudent */
+        select trd.task_iem_id, trd.sub_id, trd.sub_mit_anw as sub_mit_anw
+        , tri.mamoym_id, u.id as userIdx, u.user_id, u.flnm
+        from aidt_lms.task_result_info tri
+        join aidt_lms.task_result_detail trd on tri.id = trd.task_result_id
+        left join user u on tri.mamoym_id = u.user_id
+        where tri.task_id = #{taskId}
+        and trd.mrk_ty = 1
+        order by u.flnm
+    </select>
+
+    <select id="getTaskInfoById" parameterType="map" resultType="java.util.LinkedHashMap">
+        /* TchHomewkMapper.getTaskInfoById */
+        SELECT ti.*
+        FROM aidt_lms.task_info ti
+        WHERE ti.id = #{taskId}
+    </select>
+
+    <select id="findTaskResultInfoListByTaskId" parameterType="map" resultType="java.util.LinkedHashMap">
+        /* TchHomewkMapper.findTaskResultInfoListByTaskId */
+        SELECT ti.*
+        FROM aidt_lms.task_result_info ti
+        WHERE ti.task_id = #{taskId}
+    </select>
+
+
+    <insert id="copyTaskResultDetailByTaskId" parameterType="map" >
+        /* TchHomewkMapper.copyTaskResultDetailByTaskId */
+        INSERT INTO aidt_lms.task_result_detail
+        (task_result_id, task_iem_id, sub_id, mrk_ty, eak_stts_cd, eak_at, mrk_cp_at, eak_st_dt, eak_ed_dt, sub_mit_anw
+        , sub_mit_anw_url, errata, re_idf_cnt, anw_chg_cnt, fdb_dc, hdwrt_cn, rgtr, reg_dt, mdfr, mdfy_dt)
+        select 	#{newTaskResultId}, task_iem_id, sub_id, mrk_ty, 1, 'N', 'N', NULL, NULL, NULL
+             , NULL, NULL, NULL, NULL, NULL, hdwrt_cn, rgtr, now(), mdfr, now()
+        from 	aidt_lms.task_result_detail trd
+        where 	trd.task_result_id = #{oldTaskResultId}
+    </insert>
+
+    <select id="findHomewkAutoQstnExtr" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findHomewkAutoQstnExtr */
+        select
+            /* 랜덤한 문제 출제로 수정 */
+            RANK() over (partition by studyMap_1 order by studyMap_2, id) as rankInfo,
+            A.*
+        from (
+            select
+                a.id,
+                a.name,
+                a.thumbnail, /* 문항유형이므로 setsummary의 thumbnail로 처리할 필요 없음 */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'studyMap1' and x.meta_id = y.id and x.sub_id = 0) as studyMap1, /* 학습맵(대단원) */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'studyMap_1' and x.meta_id = y.id and x.sub_id = 0) as studyMap_1, /* 학습맵(지식요인) */
+                (select y.id from aidt_lcms.article_meta_map x join aidt_lcms.meta y where x.article_id = a.id and x.meta_name = 'studyMap_2' and x.meta_id = y.id and x.sub_id = 0) as studyMap_2, /* 학습맵(유형) */
+                (select m.val from aidt_lcms.meta m where m.id = b.meta_id) as questionTypeNm,
+                (select m.val from aidt_lcms.meta m where m.id = d.meta_id) as difyNm
+            from aidt_lcms.article a
+                inner join aidt_lcms.article_meta_map b
+                    on  b.article_id = a.id
+                            and b.meta_name = 'questionType'
+                            and b.meta_id not in
+                                (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+                inner join aidt_lcms.article_meta_map c
+                    on  c.article_id = a.id
+                            and c.meta_name = 'articleCategory'
+                            and c.meta_id in
+                                (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+                inner join aidt_lcms.article_meta_map d
+                    on  d.article_id = a.id
+                            and d.meta_name = 'difficulty'
+                            and d.meta_id in
+                                (select id from aidt_lcms.meta where name = 'difficulty' and code in (#{difyCode})) /* 난이도 */
+            where 1 = 1
+              and a.is_active = 1
+              and a.is_publicOpen = 1
+              and a.creator_ty = 1      /* AIDT에서 교사가 제작한 모듈(아티클)은 제외 */
+              and a.articleType in
+                  (select id from aidt_lcms.meta where name = 'articleType' and code = 'question')  /* 유형(문항) */
+              and exists (
+                    select 1
+                    from aidt_lcms.article_meta_map amm
+                    where a.id = amm.article_id
+                    and amm.meta_id in (<foreach item="item" collection="eamScp" separator=",">#{item}</foreach>) /* 요청파라미터 : 출제범위(eamScp) 값 */
+                  )
+              /* 다른 난이도에서 이미 출제 된 모듈(아티클)은 제외 */
+              <if test="excludeIds != null and excludeIds.size() > 0">
+              and a.id not in
+                  <foreach item="article" collection="excludeIds" open="(" separator="," close=")">
+                    #{article}
+                  </foreach>
+              </if>
+
+        ) A
+        where 1=1
+        and	studyMap1  is not null
+        and	studyMap_1 is not null
+        and	studyMap_2 is not null
+        /* 다른 난이도에서 이미 출제 된 지식요인은 제외 */
+        <if test="excludeStudyMaps != null and excludeStudyMaps.size() > 0">
+            and A.studyMap_1 not in
+            <foreach item="studyMap_1" collection="excludeStudyMaps" open="(" separator="," close=")">
+                #{studyMap_1}
+            </foreach>
+        </if>
+        order by
+            rand(),
+            studyMap_2
+        limit #{difyLimit}
+    </select>
+
+    <update id="modifyTaskStatusToInProgress" parameterType="map">
+        /* tchHomewkMapper.modifyTaskStatusToInProgress */
+        UPDATE aidt_lms.task_info
+        SET task_stts_cd = 2   /* 진행중 */
+        WHERE 1 = 1
+        AND id = #{taskId}
+        AND task_stts_cd = 1  /* 예정 */
+        AND (now() <![CDATA[>=]]>  task_prg_dt AND now() <![CDATA[<=]]> task_cp_dt)
+        AND tmpr_strg_at = 'N'
+    </update>
+
+    <update id="modifyTchTaskSaveSetsId" parameterType="map" >
+        /* TchHomewkMapper.modifyTchTaskSaveSetsId */
+        UPDATE aidt_lms.task_info
+        SET sets_id = #{setsId}
+        , mdfr = '/tch/homewk/m-save'
+        , mdfy_dt = NOW()
+        WHERE id = #{taskId}
+    </update>
+
+    <insert id="createTchTaskCreateForTextbk_taskInfo" parameterType="map" useGeneratedKeys="true" keyProperty="taskId">
+        /* TchHomewkMapper.createTchTaskCreateForTextbk_taskInfo */
+        INSERT INTO aidt_lms.task_info
+        (wrter_id, cla_id, textbk_id
+        , task_nm, sets_id
+        , pd_evl_st_dt, pd_evl_ed_dt, tim_time
+        , eam_mth, eam_trget, eam_exm_num
+        , tim_st_at, rwd_set_at
+        , task_stts_cd
+        , rgtr, mdfr
+        , task_prg_dt, task_cp_dt, tmpr_strg_at, rpt_auto_othbc_at
+        )
+        VALUES
+        (#{wrterId}, #{claId}, #{textbookId}
+        , #{taskNm}, #{setsId}
+        , #{pdEvlStDt}, #{pdEvlEdDt}, #{timTime}
+        , #{eamMth}, #{eamTrget}, (select count(1) from aidt_lcms.sets_article_map sam where sets_id = #{setsId})
+        , #{timStAt}, #{rwdSetAt}
+        , #{taskSttsCd}
+        , '/tch/homewk/create/for/textbk', '/tch/homewk/create/for/textbk'
+        , #{pdEvlStDt}, #{pdEvlEdDt}, 'N', 'Y'
+        )
+    </insert>
+
+    <insert id="createTchTaskCreateForTextbk_taskResultInfo" parameterType="map" useGeneratedKeys="true">
+        /* TchHomewkMapper.createTchTaskCreateForTextbk_taskResultInfo */
+        INSERT INTO aidt_lms.task_result_info (task_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd, mrk_cp_at)
+        SELECT ti.id
+             , tcmi.stdt_id
+             , ti.sets_id
+             , ti.wrter_id
+             , ti.wrter_id
+             , '1'
+             , 'N'
+          FROM aidt_lms.task_info ti
+          JOIN aidt_lms.tc_cla_mb_info tcmi ON ti.cla_id = tcmi.cla_id and tcmi.actvtn_at = 'Y'
+         WHERE ti.id = #{taskId}
+    </insert>
+
+    <insert id="createTchTaskCreateForTextbk_taskResultDetail" parameterType="map" useGeneratedKeys="true">
+        /* TchHomewkMapper.createTchTaskCreateForTextbk_taskResultDetail */
+        INSERT INTO aidt_lms.task_result_detail (task_result_id, task_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at)
+        SELECT tri.id
+           , s.article_id
+           , s.sub_id
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 3
+             else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+             end as mrk_ty
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 5
+             else 1
+             end as eak_stts_cd
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 4
+             else null
+             end as errata
+           , 'system'
+           , 'system'
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end as eakAt
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end
+        FROM aidt_lms.task_info ti
+        JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id
+        JOIN aidt_lcms.setsummary s ON ti.sets_id  = s.set_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id and meta_name = 'articleType')
+        left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+        WHERE ti.id = #{taskId}
+        ORDER BY tri.id, s.id
+    </insert>
+
+    <update id="modifyTchHomewkPeriodChange" parameterType="map" >
+        /* TchHomewkMapper.modifyTchHomewkPeriodChange */
+        UPDATE aidt_lms.task_info
+           SET
+                mdfr = '/tch/homewk/period/change'
+              , mdfy_dt = NOW()
+              , nt_trn_at = #{ntTrnAt}
+            <choose>
+                <when test=' taskSttsCd == 1 '>
+                    /* 예정(taskSttsCd:1) */
+                  , pd_evl_st_dt = #{pdEvlStDt}
+                  , pd_evl_ed_dt = #{pdEvlEdDt}
+                  , task_prg_dt = #{pdEvlStDt}
+                  , task_cp_dt = #{pdEvlEdDt}
+                </when>
+                <when test=' taskSttsCd == 2 '>
+                    /* 진행중(taskSttsCd:2) */
+                  , pd_evl_ed_dt = #{pdEvlEdDt}
+                  , task_cp_dt = #{pdEvlEdDt}
+                </when>
+            </choose>
+         WHERE id = #{taskId}
+    </update>
+
+    <update id="modifyTchHomewkResultInfo" parameterType="map" >
+        /* TchEvalMapper.modifyTchHomewkResultInfo */
+        UPDATE aidt_lms.task_result_info tri
+          JOIN aidt_lms.task_info ti on tri.task_id = ti.id
+           set tri.mdfr = '/tch/homewk/period/change'
+             , tri.mdfy_dt = NOW()
+             , tri.eak_ed_dt = if (ti.tim_st_at = 'Y', DATE_ADD(DATE_ADD(DATE_ADD(now(), INTERVAL SUBSTRING(tim_time,1,2) HOUR), INTERVAL SUBSTRING(tim_time,4,2) MINUTE), INTERVAL SUBSTRING(tim_time,7,2) SECOND), ti.pd_evl_ed_dt)
+         WHERE ti.id = #{taskId}
+           and tri.eak_stts_cd = 2
+    </update>
+
+    <select id="findTchHomewkStatusList_currentTaskList" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkStatusList_currentTaskList */
+        select
+        	  ti.id
+        	, ti.task_nm
+            , count(tri.id) as targetCnt
+            , sum(if(tri.subm_at = 'Y',1,0)) as submitCnt
+
+            , (select case when count(case when eak_stts_cd != 5 then 1 end) > 0
+                    then '채점필요' else '채점완료' end
+                from aidt_lms.task_result_info
+                where task_id = ti.id) as gradeSttsNm /* 채점상태 */
+            , ti.rpt_othbc_at /* 공개여부 */
+            , DATE_FORMAT(ti.rpt_othbc_dt, '%Y-%m-%d %H:%i:%s') as rpOthbcDt /* 공개일시 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                    from 	aidt_lms.task_scr_md_info tsmi
+                    join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                    join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                    where 	1=1
+                    and 	tri.task_id = ti.id
+                    and 	tsmi.md_rflt_at = 'N') as applScrAt /* 수정 반영 여부 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                from 	aidt_lms.task_scr_md_info tsmi
+                join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                where 	1=1
+                and 	tri.task_id = ti.id ) as modifyHistAt /* 수정 이력 존재 여부 */
+            , count(*) over () as full_count
+            /* 		, tri.subm_at */
+            , (select count(c.id) as cnt
+                from aidt_lms.task_info a
+                left outer join aidt_lcms.setsummary b
+                    on a.sets_id = b.set_id
+                left outer join aidt_lcms.meta c
+                    on b.gradingMethod = c.id
+                    and c.name = 'gradingMethod'
+                    and c.code = 'manual'
+                where a.id = ti.id) as manualCnt  /* 수동채점 갯수 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                from 	aidt_lms.task_scr_md_info tsmi
+                join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                where 	1=1
+                and 	tri.task_id = ti.id ) as modifyHistAt /* 수정 이력 존재 여부 */
+        from aidt_lms.task_info ti
+        left join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        where 1=1
+        and ti.task_stts_cd = 2
+        and ti.cla_id = #{claId}
+        and ti.textbk_id = #{textbookId}
+        group by ti.id
+    </select>
+
+    <select id="findTchHomewkStatusList_reqGradeTaskListItem" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkStatusList_reqGradeTaskListItem */
+        SELECT
+             ti.id
+           , ti.task_nm
+           , SUM(IF(tri.eak_stts_cd != 5, 1, 0)) AS gradeSttsCnt
+           , ti.eam_trget
+           , (select case when count(case when eak_stts_cd != 5 then 1 end) > 0
+                              then '채점필요' else '채점완료' end
+              from aidt_lms.task_result_info
+              where task_id = ti.id) as gradeSttsNm /* 채점상태 */
+            , ti.rpt_othbc_at /* 공개여부 */
+            , DATE_FORMAT(ti.rpt_othbc_dt, '%Y-%m-%d %H:%i:%s') as rpOthbcDt /* 공개일시 */
+            , (select count(*) from aidt_lms.task_result_info a where a.task_id = ti.id and a.subm_at = 'Y') as submitCnt
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                    from 	aidt_lms.task_scr_md_info tsmi
+                    join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                    join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                    where 	1=1
+                    and 	tri.task_id = ti.id
+                    and 	tsmi.md_rflt_at = 'N') as applScrAt /* 수정 반영 여부 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                from 	aidt_lms.task_scr_md_info tsmi
+                join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                where 	1=1
+                and 	tri.task_id = ti.id ) as modifyHistAt /* 수정 이력 존재 여부 */
+            , count(*) over () as full_count
+            /* 		, tri.subm_at */
+            , (select count(c.id) as cnt
+                from aidt_lms.task_info a
+                left outer join aidt_lcms.setsummary b
+                    on a.sets_id = b.set_id
+                left outer join aidt_lcms.meta c
+                    on b.gradingMethod = c.id
+                    and c.name = 'gradingMethod'
+                    and c.code = 'manual'
+                where a.id = ti.id) as manualCnt  /* 수동채점 갯수 */
+            , (select 	case when count(1) > 0 then 'Y' else 'N' end
+                from 	aidt_lms.task_scr_md_info tsmi
+                join aidt_lms.task_result_detail trd on trd.id = tsmi.task_result_detail_id
+                join aidt_lms.task_result_info tri on tri.id = trd.task_result_id
+                where 	1=1
+                and 	tri.task_id = ti.id ) as modifyHistAt /* 수정 이력 존재 여부 */
+        FROM aidt_lms.task_info ti
+        JOIN aidt_lms.task_result_info tri ON ti.id = tri.task_id
+        JOIN aidt_lms.task_result_detail trd on trd.id = tri.id
+        WHERE 1=1
+          AND trd.mrk_ty != 1
+          and ti.task_stts_cd >= 3
+          AND ti.cla_id = #{claId}
+          AND ti.textbk_id = #{textbookId}
+          AND 'Y' = (select count(1) from aidt_lms.task_result_info where task_id = ti.id and task_stts_cd <![CDATA[<]]> 3)
+        GROUP BY ti.id
+        HAVING gradeSttsCnt > 0;
+    </select>
+
+    <select id="findTchHomewkListTaskList" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkListTaskList */
+        SELECT COUNT(*) OVER () AS fullCount
+             , ti.id
+             , ti.task_nm
+             , (select code_nm from aidt_lms.se_code a where a.code_cd = ti.eam_mth and a.code_gb_cd = 'eam_mth') as eam_mth
+             , ti.eam_trget
+             , ti.tmpr_strg_at
+             , ti.task_stts_cd
+             , CASE
+                   WHEN ti.eam_trget = 1 THEN '채점 완료'
+                   WHEN ti.task_stts_cd = 2 THEN aidt_lms.F_CODE_NM('task_stts_cd', ti.task_stts_cd)
+                   WHEN (
+                         SELECT IF(COUNT(1) = SUM(IF(trd.mrk_ty = 3, 1, 0) = 1), 'T', 'F')
+                           FROM aidt_lms.task_result_info tri
+                           JOIN aidt_lms.task_result_detail trd ON tri.id = trd.task_result_id
+                          WHERE tri.task_id = ti.id
+                          GROUP BY tri.task_id
+                       ) = 'F'
+                   THEN (SELECT CASE WHEN COUNT(CASE WHEN tri2.eak_stts_cd != 5 THEN 1 END) > 0
+                                     THEN '채점 필요'
+                                     ELSE '채점 완료'
+                                END
+                           FROM aidt_lms.task_result_info tri2
+                          WHERE tri2.task_id = ti.id)
+                   ELSE '채점 불필요'
+               END AS taskSttsNm
+             , DATE_FORMAT(ti.task_prg_dt, "%Y-%m-%d") AS task_prg_dt
+             , DATE_FORMAT(ti.task_cp_dt, "%Y-%m-%d") AS task_cp_dt
+             , CASE WHEN ti.tmpr_strg_at = 'Y'
+               THEN DATE_FORMAT(ti.reg_dt, "%Y-%m-%d")
+               ELSE NULL
+               END AS reg_dt
+             /*, COALESCE((SELECT COUNT(1)
+                          FROM aidt_lms.task_result_info tri3
+                         WHERE tri3.task_id = ti.id
+                         GROUP BY tri3.task_id), 0) AS target_cnt */
+             , COALESCE((SELECT COUNT(1)
+                           FROM aidt_lms.task_result_info tri3
+                        LEFT JOIN aidt_lms.tc_cla_mb_info tcmi
+                               ON tcmi.stdt_id = tri3.mamoym_id AND tcmi.cla_id = ti.cla_id
+                          WHERE tri3.task_id = ti.id
+                            AND (tcmi.reg_dt IS NULL OR tcmi.reg_dt <![CDATA[<=]]> COALESCE(ti.task_cp_dt, ti.task_prg_dt))
+                        GROUP BY tri3.task_id), 0) AS target_cnt
+             , COALESCE((SELECT COUNT(1)
+                          FROM aidt_lms.task_result_info tri4
+                         WHERE tri4.task_id = ti.id AND tri4.subm_at = 'Y'
+                         GROUP BY tri4.task_id), 0) AS submit_cnt
+             , ti.sets_id
+             , CASE
+                   WHEN ti.task_stts_cd >= 3 AND ti.rpt_auto_othbc_at = 'Y' THEN 'N'  -- 자동공개면 무조건 삭제불가
+                   WHEN ti.task_stts_cd >= 3 AND ti.rpt_auto_othbc_at = 'N' AND ti.rpt_othbc_at = 'Y' THEN 'N'  -- 수동공개 상태면 삭제불가
+                   ELSE 'Y'
+               END AS del_yn
+        FROM aidt_lms.task_info ti
+        WHERE 1=1
+          AND ti.cla_id = #{param.claId}
+          AND ti.textbk_id = #{param.textbookId}
+            <if test="param.tmprStrgAt != null and param.tmprStrgAt != ''">
+                AND ti.tmpr_strg_at = #{param.tmprStrgAt}
+            </if>
+            <if test="param.taskSttsCd != null and param.taskSttsCd != '' ">
+                <choose>
+                    <when test=" param.taskSttsCd == 3">
+                        AND ti.task_stts_cd >= #{param.taskSttsCd}
+                    </when>
+                <otherwise>
+                         AND ti.task_stts_cd = #{param.taskSttsCd}
+                </otherwise>
+                </choose>
+           </if>
+           <if test="param.keyword != null and param.keyword != '' ">
+                <choose>
+                    <when test="param.condition == 'name' ">
+                        and ti.task_nm like concat('%',#{param.keyword},'%')
+                    </when>
+                    <otherwise>
+                        and ti.task_nm like concat('%',#{param.keyword},'%')
+                    </otherwise>
+                </choose>
+           </if>
+        ORDER BY FIELD(ti.tmpr_strg_at, 'Y', 'N')
+               , FIELD(ti.task_stts_cd, 2, 3, 4, 5, 1)
+               , CASE WHEN ti.task_stts_cd = 1 THEN ti.reg_dt END DESC
+               , CASE WHEN ti.task_stts_cd > 1 THEN ti.task_prg_dt END DESC
+               , ti.id DESC
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+    <update id="updateTimTime">
+        UPDATE task_info
+        SET
+            tim_time = #{timTime},
+            mdfr = 'system',
+            mdfy_dt = NOW()
+        WHERE id = #{taskId}
+    </update>
+    <select id="selectSttsCd" parameterType="map" resultType="integer">
+        select
+            task_stts_cd
+        from aidt_lms.task_info
+        where id = #{trgtId}
+    </select>
+    <select id="hasStdtTakenTask" parameterType="map" resultType="camelHashMap">
+        SELECT
+        mamoym_id as userStdtId
+        FROM task_result_info
+        WHERE task_id = #{taskId}
+        AND mamoym_id IN
+        <foreach collection="targetStdtList" item="stdtId" open="(" separator="," close=")">
+            #{stdtId}
+        </foreach>
+    </select>
+
+    <select id="findTchHomewkReadInfoStntList" parameterType="map" resultType="camelHashMap">
+    /* TchHomewkMapper.findTchHomewkReadInfoStntList */
+        SELECT tri.mamoym_id as stntId
+        /* ,tcmi.actvtn_at */
+        FROM aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id and tri.mamoym_id = tcmi.stdt_id and actvtn_at = 'Y'
+        WHERE ti.id = #{taskId}
+    </select>
+
+    <select id="findTaskSubmStatus_ti" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTaskSubmStatus_ti */
+        select ti.id
+             , ti.task_nm
+             , ti.task_stts_cd
+             , DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d %H:%i') as task_prg_dt_hm
+             , DATE_FORMAT(ti.task_prg_dt, '%Y-%m-%d') as task_prg_dt
+             , DATE_FORMAT(ti.task_cp_dt, '%Y-%m-%d') as task_cp_dt
+             , COALESCE((SELECT COUNT(1)
+                         FROM aidt_lms.task_result_info tri3
+                                  LEFT JOIN aidt_lms.tc_cla_mb_info tcmi
+                                            ON tcmi.stdt_id = tri3.mamoym_id AND tcmi.cla_id = ti.cla_id and tcmi.actvtn_at = 'Y'
+                         WHERE tri3.task_id = ti.id
+                           AND (tcmi.reg_dt IS NULL OR tcmi.reg_dt <![CDATA[<=]]> COALESCE(ti.task_cp_dt, ti.task_prg_dt))
+                         GROUP BY tri3.task_id), 0) AS target_cnt
+             , COALESCE((SELECT COUNT(1)
+                          FROM aidt_lms.task_result_info tri4
+                         WHERE tri4.task_id = ti.id AND tri4.subm_at = 'Y' AND tri4.subm_dt IS NOT NULL
+                         GROUP BY tri4.task_id), 0) AS submit_cnt
+        from aidt_lms.task_info ti
+        where ti.id = #{taskId}
+    </select>
+
+    <select id="findTaskSubmStatus_tri" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTaskSubmStatus_tri */
+        select
+            row_number() over (order by tri.mamoym_id) as no
+            , ti.id
+             , tri.id triId
+             , tri.mamoym_id
+             , tri.subm_at
+             , DATE_FORMAT(tri.subm_dt, '%Y-%m-%d %H:%i') as subm_dt
+             , (select num from aidt_lms.stdt_reg_info sri where sri.user_id = tcmi.stdt_id) as num
+             , (select flnm from aidt_lms.`user` u where u.user_id = tcmi.stdt_id) as flnm
+             , tcmi.actvtn_at
+        from aidt_lms.task_info ti
+        join aidt_lms.task_result_info tri on ti.id = tri.task_id
+        left join aidt_lms.tc_cla_mb_info tcmi on ti.cla_id = tcmi.cla_id and tri.mamoym_id = tcmi.stdt_id and tcmi.actvtn_at = 'Y'
+        where ti.id = #{taskId}
+          AND (tcmi.reg_dt IS NULL OR tcmi.reg_dt <![CDATA[<=]]> COALESCE(ti.task_cp_dt, ti.task_prg_dt))
+        order by tcmi.id
+    </select>
+
+    <select id="findTchHomewkStntList" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.findTchHomewkStntList */
+        SELECT tcmi.stdt_id as stntId
+        /* , tri.id as triId */
+        , if (tri.id is not null, 'Y','N') as trgtAt
+        /* , tcmi.actvtn_at */
+        FROM aidt_lms.tc_cla_mb_info tcmi
+        join aidt_lms.task_info ti on ti.cla_id = tcmi.cla_id
+        left join aidt_lms.task_result_info tri on ti.id = tri.task_id and tri.mamoym_id = tcmi.stdt_id
+        where ti.id = #{taskId}
+        and actvtn_at = 'Y'
+        order by tcmi.id
+    </select>
+
+    <update id="modifyTchHomewkEnd" parameterType="map" >
+        /* TchHomewkMapper.modifyTchHomewkEnd */
+        <![CDATA[
+        UPDATE aidt_lms.task_info
+        SET
+            task_cp_dt = NOW()
+          , task_stts_cd = if((select count(1) from aidt_lms.task_result_info where task_id = #{taskId} and eak_stts_cd <> 5) = 0, 5, 3)
+          , mrk_cp_dt = if((select count(1) from aidt_lms.task_result_info where task_id = #{taskId} and eak_stts_cd <> 5) = 0, now(), mrk_cp_dt)
+          , mdfr = '/tch/homewk/end'
+          , mdfy_dt = NOW()
+        WHERE id = #{taskId}
+        ]]>
+    </update>
+
+    <select id="findTchHomewkEndHomewkInfo" parameterType="map" resultType="camelHashMap">
+        /* TchEvalMapper.findTchHomewkEndHomewkInfo */
+        SELECT ti.id
+             , ti.task_nm
+             , ti.task_prg_dt
+             , ti.task_cp_dt
+             , ti.task_stts_cd
+             , aidt_lms.F_CODE_NM('task_stts_cd', ti.task_stts_cd) AS taskSttsNm
+             , ti.rpt_auto_othbc_at
+        FROM aidt_lms.task_info ti
+        WHERE ti.id = #{taskId}
+    </select>
+
+    <!-- 보안 개선:  과제 테이블 복사 메소드 -->
+    <insert id="cloneTaskInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchHomewkMapper.cloneTaskInfo - 과제정보 안전한 복사 (스키마 완전 매핑) */
+        INSERT INTO aidt_lms.task_info (
+            wrter_id, cla_id, textbk_id, textbk_nm, eam_mth, eam_trget, eam_scp,
+            eam_exm_num, eam_gd_exm_mun, eam_av_up_exm_mun, eam_av_exm_mun, eam_av_lw_exm_mun, eam_bd_exm_mun,
+            task_nm, sets_id, task_stts_cd, task_prg_dt, task_cp_dt, mrk_cp_dt,
+            bbs_sv_at, bbs_sets_id, bbs_nm, tag, cocnr_at,
+            pd_evl_st_dt, pd_evl_ed_dt, nt_trn_at, tim_st_at, tim_time,
+            prscr_std_set_at, prscr_std_st_dt, prscr_std_ed_dt, prscr_std_nt_trn_at, prscr_std_pd_set,
+            prscr_std_crt_at, prscr_std_crt_trget_id, ai_tut_set_at, rwd_set_at, rwd_point,
+            ed_gid_at, ed_gid_dc, std_set_at, rpt_othbc_at, rpt_othbc_dt, rpt_auto_othbc_at,
+            tmpr_strg_at, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        VALUES (
+            #{wrter_id}, #{cla_id}, #{textbk_id}, #{textbk_nm}, #{eam_mth}, #{eam_trget}, #{eam_scp},
+            #{eam_exm_num}, #{eam_gd_exm_mun}, #{eam_av_up_exm_mun}, #{eam_av_exm_mun}, #{eam_av_lw_exm_mun}, #{eam_bd_exm_mun},
+            #{task_nm}, #{sets_id}, #{task_stts_cd}, #{task_prg_dt}, #{task_cp_dt}, #{mrk_cp_dt},
+            #{bbs_sv_at}, #{bbs_sets_id}, #{bbs_nm}, #{tag}, #{cocnr_at},
+            #{pd_evl_st_dt}, #{pd_evl_ed_dt}, #{nt_trn_at}, #{tim_st_at}, #{tim_time},
+            #{prscr_std_set_at}, #{prscr_std_st_dt}, #{prscr_std_ed_dt}, #{prscr_std_nt_trn_at}, #{prscr_std_pd_set},
+            #{prscr_std_crt_at}, #{prscr_std_crt_trget_id}, #{ai_tut_set_at}, #{rwd_set_at}, #{rwd_point},
+            #{ed_gid_at}, #{ed_gid_dc}, #{std_set_at}, #{rpt_othbc_at}, #{rpt_othbc_dt}, #{rpt_auto_othbc_at},
+            #{tmpr_strg_at}, #{rgtr}, #{reg_dt}, #{mdfr}, #{mdfy_dt}
+        )
+    </insert>
+
+    <insert id="cloneTaskResultInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchHomewkMapper.cloneTaskResultInfo - 과제결과정보 안전한 복사 (스키마 완전 매핑) */
+        INSERT INTO aidt_lms.task_result_info (
+            task_id, mamoym_id, sets_id, eak_at, eak_stts_cd, subm_at, subm_dt, mrk_cp_at,
+            eak_st_dt, eak_ed_dt, task_result_scr, task_result_anct, slf_subm_at, per_subm_at, slf_per_subm_at,
+            genrvw, stdt_prnt_rls_at, tch_rpt_chk_at, done_yn, rgtr, reg_dt, mdfr, mdfy_dt
+        )
+        VALUES (
+            #{task_id}, #{mamoym_id}, #{sets_id}, #{eak_at}, #{eak_stts_cd}, #{subm_at}, #{subm_dt}, #{mrk_cp_at},
+            #{eak_st_dt}, #{eak_ed_dt}, #{task_result_scr}, #{task_result_anct}, #{slf_subm_at}, #{per_subm_at}, #{slf_per_subm_at},
+            #{genrvw}, #{stdt_prnt_rls_at}, #{tch_rpt_chk_at}, #{done_yn}, #{rgtr}, #{reg_dt}, #{mdfr}, #{mdfy_dt}
+        )
+    </insert>
+
+    <update id="updateTaskAt" parameterType="map">
+        UPDATE task_result_info eri
+        SET sets_updated_at = #{setsUpdatedAt}
+        WHERE eri.task_id = #{trgtId}
+    </update>
+
+    <select id="finTaskResultInfo" parameterType="map" resultType="camelHashMap">
+        /* TchHomewkMapper.finTaskResultInfo */
+        select
+            tri.mamoym_id,
+            tri.sets_id
+        from aidt_lms.task_result_info tri
+        WHERE tri.task_id = #{taskId}
+        <if test=" stntListSize > 0 ">
+            and tri.mamoym_id in
+            (<foreach item="item" collection="stntList" separator=",">#{item.stntId}</foreach>)
+        </if>
+    </select>
+
+    <select id="findTchHomewkEamTrget" parameterType="map" resultType="integer">
+        /* TchHomewkMapper.findTchHomewkEamTrget */
+        select eam_trget
+        from aidt_lms.task_info ti
+        where ti.id = #{taskId}
+    </select>
+
+    <insert id="createTchTaskSaveTriForEamtrget2" parameterType="map" useGeneratedKeys="true">
+        /* TchHomewkMapper.createTchTaskSaveTriForEamtrget2 */
+        INSERT INTO aidt_lms.task_result_info (task_id, mamoym_id, sets_id, rgtr, mdfr, eak_stts_cd, mrk_cp_at)
+        <foreach item="item" collection="taskResultList" separator="UNION ALL">
+            SELECT ti.id
+            , #{item.mamoymId}
+            , #{item.setsId}
+            , ti.wrter_id
+            , ti.wrter_id
+            , '1'
+            , 'N'
+            FROM aidt_lms.task_info ti
+            WHERE ti.id = #{taskId}
+        </foreach>
+    </insert>
+
+    <update id="updateTaskInfo" parameterType="map">
+        UPDATE aidt_lms.task_info
+        SET task_nm = #{taskNm}
+          , rpt_auto_othbc_at = #{rptAutoOthbcAt}
+          , bbs_sv_at = #{bbsSvAt}
+          , bbs_nm = #{bbsNm}
+          , tag = #{tag}
+          , cocnr_at = #{cocnrAt}
+          , pd_evl_st_dt = #{pdEvlStDt}
+          , pd_evl_ed_dt = #{pdEvlEdDt}
+          , task_prg_dt = #{pdEvlStDt}
+          , task_cp_dt = #{pdEvlEdDt}
+          , nt_trn_at = #{ntTrnAt}
+          , tim_st_at = #{timStAt}
+          , tim_time = #{timTime}
+          , ai_tut_set_at = #{aiTutSetAt}
+          , rwd_set_at = #{rwdSetAt}
+          , ed_gid_at = #{edGidAt}
+          , ed_gid_dc = #{edGidDc}
+          , std_set_at = #{stdSetAt}
+          , mdfy_dt = NOW()
+        WHERE id = #{taskId}
+    </update>
+</mapper>

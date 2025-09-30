@@ -1,0 +1,22 @@
+# Local Settings
+
+# Spring
+spring:
+  datasource:
+    hikari:
+      driver-class-name: net.sf.log4jdbc.sql.jdbcapi.DriverSpy
+      jdbc-url: jdbc:log4jdbc:mysql://localhost:5006/aidt_lms?useSSL=false&serverTimezone=Asia/Seoul&useLegacyDatetimeCode=false&allowMultiQueries=true
+      username: vsncp2dba
+      password: Qltkdelql!12
+
+  # TODO : liverload는 dev일 때만 사용할 것
+  devtools:
+    livereload:
+      enabled: true
+
+
+# sql log formatting
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: true

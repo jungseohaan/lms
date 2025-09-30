@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.TchCrcuMapper">
+
+    <select id="selectCurriculumList" parameterType="map" resultType="map">
+        select a1.`id`
+             , a1.wrter_id as wrterId
+             , a1.cla_id as claId
+             , a1.textbk_id as textbkId
+             , a1.textbk_idx_id as textbkIdxId
+             , a1.`key`
+             , a1.`order`
+             , a1.`parent`
+             , a1.`text`
+             , a1.`startPage`
+             , a1.`endPage`
+             , a1.use_at as useAt
+             , a1.del_at as delAt
+             , a1.addcon_at as addconAt
+             /*
+             , (select if(count(1) > 0, 'Y', 'N') from aidt_lms.tab_info
+                where textbk_id = a1.textbk_id and wrter_id = a1.wrter_id and cla_id = a1.cla_id) as addconAt
+             */
+             , a1.textbk_idx_nm as textbkIdxNm
+             , a1.curriUnit1
+             , a1.curriUnit2
+             , a1.curriUnit3
+             , a1.curriUnit4
+             , a1.curriUnit5
+             , ifnull(a1.`depth`, 0) + 1 as `depth`
+        from  tc_curriculum a1
+        where 1=1
+            and   a1.cla_id = #{claId}
+            and   a1.textbk_idx_id = #{textbkIdxId}
+    </select>
+
+    <select id="findCrcuList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuMapper.findCrcuList */
+        with recursive curriculum as (
+            select
+                a.id,
+                a.wrter_id,
+                a.cla_id,
+                a.textbk_id,
+                a.textbk_idx_id,
+                a.key,
+                a.parent,
+                a.text,
+                a.startPage,
+                a.endPage,
+                a.use_at,
+                a.del_at,
+                a.addcon_at,
+                a.curriUnit1,
+                a.curriUnit2,
+                a.curriUnit3,
+                a.curriUnit4,
+                a.curriUnit5,
+                cast(lpad(a.key,5,'0') as char(100) character set utf8) as id_path,
+                1 as depth
+            from
+                tc_curriculum a
+            where
+                1=1
+              and a.cla_id = #{claId}
+              and a.textbk_idx_id = #{textbkIdxId}
+              and a.parent = 0
+            union all
+            select
+                b.id,
+                b.wrter_id,
+                b.cla_id,
+                b.textbk_id,
+                b.textbk_idx_id,
+                b.key,
+                b.parent,
+                b.text,
+                b.startPage,
+                b.endPage,
+                b.use_at,
+                b.del_at,
+                b.addcon_at,
+                b.curriUnit1,
+                b.curriUnit2,
+                b.curriUnit3,
+                b.curriUnit4,
+                b.curriUnit5,
+                concat(c.id_path, '->', lpad(b.key,5,'0')) as id_path,
+                1 + c.depth as depth
+            from
+                tc_curriculum b
+                    inner join curriculum c
+                            on c.cla_id = b.cla_id
+                            and c.textbk_idx_id = b.textbk_idx_id
+                            and c.key = b.parent
+        )
+        select
+            id,
+            wrter_id,
+            cla_id,
+            textbk_id,
+            textbk_idx_id,
+            `key`,
+            ifnull(parent, 0) as parent,
+            row_number() over () as `order`,
+            text,
+            startPage,
+            endPage,
+            use_at,
+            del_at,
+            addcon_at,
+            curriUnit1,
+            curriUnit2,
+            curriUnit3,
+            curriUnit4,
+            curriUnit5,
+            depth
+        from
+            curriculum
+        order by
+            id_path
+    </select>
+
+    <insert id="createTchCrcuClassifyReg" parameterType="map" useGeneratedKeys="true" keyProperty="currId" keyColumn="id">
+        /* TchCrcuMapper.createTchCrcuClassifyReg */
+        insert into aidt_lms.tc_curriculum
+        ( id,wrter_id,smte_cd,cla_id,textbk_id,textbk_idx_id,`key`,`order`,parent,depth,`text`,use_at,addcon_at)
+         select
+            null
+            , wrter_id
+            , smte_cd
+            , cla_id
+            , textbk_id
+            , textbk_idx_id
+            , ifnull(max(a.`key`), 0) + 1
+            , `order`
+            , ifnull(a.`parent`, 0)
+            , ifnull(a.`depth`, 0) + 1
+            , #{crculNm}
+            , 'Y'
+            , 'N'
+         from aidt_lms.tc_curriculum a
+         where
+         1=1
+         and a.cla_id = #{claId}
+         and a.textbk_id = #{textbkId}
+         and a.parent = #{parentKey}
+    </insert>
+
+    <select id="findCurriculumInfo" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuMapper.findCurriculumInfo */
+        select
+            id
+            , wrter_id
+            , `key`
+            , `parent`
+            , `text`
+            , use_at
+            , del_at
+            , addcon_at
+            , textbk_id
+            , textbk_idx_id
+            , cla_id
+            , `startPage`
+            , `endPage`
+            , `order`
+            , curriUnit1
+            , curriUnit2
+            , curriUnit3
+            , curriUnit4
+            , curriUnit5
+            , `depth`
+        from aidt_lms.tc_curriculum
+        where
+            1=1
+            <choose>
+                <when test=' currId != null '>
+                    and id =#{currId}
+                </when>
+                <otherwise>
+                    and cla_id = #{claId}
+                    and textbk_id = #{textbkId}
+                    and `key` =#{crculKey}
+                    and parent = #{parentKey}
+                </otherwise>
+            </choose>
+    </select>
+
+    <update id="modifyTchCrcuClassifyMod" parameterType="map">
+        /* TchCrcuMapper.modifyTchCrcuClassifyMod */
+        update aidt_lms.tc_curriculum
+        set `text` = #{crculNm}
+          ,mdfr = #{wrterId}
+          ,mdfy_dt = NOW()
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbkId}
+          and parent = #{parentKey}
+          and `key` =#{crculKey}
+    </update>
+
+
+    <delete id="deleteTchCrcuClassifyDel" parameterType="map">
+        /* TchCrcuMapper.deleteTchCrcuClassifyDel */
+        delete from aidt_lms.tc_curriculum
+        where  1=1
+          and wrter_id = #{wrterId}
+          and cla_id = #{claId}
+          and textbk_id = #{textbkId}
+          and parent = #{parentKey}
+          and `key` =#{crculKey}
+    </delete>
+
+    <select id="findTchRedirectCrcuInfo" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuMapper.findTchRedirectCrcuInfo */
+        select
+            a.id as curri_culum_id,
+            a.`key`,
+            a.`text`
+        from
+            aidt_lms.tc_curriculum a
+            inner join aidt_lcms.textbookcurriculum_meta_map b
+                on a.textbk_idx_id = b.textbookIndex_id
+                    and a.`key` = b.`key`
+                    and b.meta_id = #{curriUnitId}
+        where 1=1
+            and a.cla_id = #{claId}
+            and a.textbk_id = #{textbkId}
+        order by b.id
+        limit 1
+    </select>
+
+    <select id="getLastLessonCurriculum" parameterType="map" resultType="camelHashMap">
+        /*TchCrcuMapper.getLastLessonCurriculum*/
+        select ifnull(f.map_key, 0) as meta_id
+        from aidt_lms.tc_lastlesson tl
+                 join aidt_lms.tab_info ti
+                      on tl.crcul_id = ti.crcul_id
+                          and ti.tab_seq = 1
+                          and ti.wrter_id = #{userId}
+                 join aidt_lcms.sets_article_map sam
+                      on ti.sets_id = sam.sets_id
+                 join aidt_lcms.article_meta_map amm
+                      on sam.article_id = amm.article_id
+                          and amm.meta_name = CASE
+                                                  WHEN #{brandId} = 1 THEN 'studyMap2'
+                                                  WHEN #{brandId} = 3 THEN 'studyMap1'
+                              END
+            left join aidt_game_quiz_meta.fulldataset f
+                on amm.meta_id = f.map_key
+        where 1 = 1
+          and tl.cla_id = #{claId}
+        group by f.map_key
+    </select>
+
+    <select id="getLastLessonCurriculum2" parameterType="map" resultType="camelHashMap">
+        /*TchCrcuMapper.getLastLessonCurriculum2 - 학습맵 없을 경우 상위 학습맵 탐색*/
+        select ifnull( (
+            select a1.meta_id
+            from
+            (	select a2.`order`
+	            	, b2.meta_id
+                from  aidt_lcms.textbookcurriculum a2
+                      inner join aidt_lcms.textbookcurriculum_meta_map b2
+                                    on a2.textbookIndex_id = b2.textbookIndex_id
+                                    and a2.`key` = b2.`key`
+                                    and b2.meta_name = case
+                                                        when #{brandId} = 1 then 'studyMap1'/*영어 - studyMap1*/
+                                                        when #{brandId} = 3 then 'studyMap2'/*수학 - studyMap2*/
+                                                        else 'studyMap1'
+                                                       end
+                where a2.textbookIndex_id = #{lastLessonTextbookIndexId}
+                and
+                (   select b3_1.`order`
+                    from  aidt_lms.tc_lastlesson a3_1
+                          inner join aidt_lcms.textbookcurriculum b3_1 on a3_1.textbk_idx_id = b3_1.textbookIndex_id
+			  					                                       and a3_1.crcul_id = b3_1.`key`
+                    where a3_1.id = #{lastLessonId}
+                    limit 1
+                ) >= a2.`order`
+            ) a1
+            where a1.meta_id in ( select a2_1.map_key from aidt_game_quiz_meta.fulldataset a2_1 )
+            order by a1.`order` desc
+            limit 1
+        ), 0 ) as meta_id
+    </select>
+
+    <select id="getLastLessonCurriculumMap1" parameterType="map" resultType="camelHashMap">
+        select ifnull(f.map_key, 0) as meta_id
+        from aidt_lms.tc_lastlesson tl
+                 join aidt_lms.tab_info ti
+                      on tl.crcul_id = ti.crcul_id
+                          and ti.tab_seq = 1
+                          and ti.wrter_id = #{userId}
+                 join aidt_lcms.sets_article_map sam
+                      on ti.sets_id = sam.sets_id
+                 join aidt_lcms.article_meta_map amm
+                      on sam.article_id = amm.article_id
+                          and amm.meta_name = 'studyMap1'
+                 left join aidt_game_quiz_meta.fulldataset f
+                           on amm.meta_id = f.map_key
+        where 1 = 1
+          and tl.cla_id = #{claId}
+        group by f.map_key
+    </select>
+
+    <select id="getFirstCurriculum" parameterType="map" resultType="camelHashMap">
+        select ifnull(f.map_key, 0) as meta_id
+        from aidt_lms.tc_curriculum tc
+                 join aidt_lms.tab_info ti
+                      on tc.`key` = ti.crcul_id
+                          and ti.tab_seq = 1
+                          and ti.wrter_id = #{userId}
+                 join aidt_lcms.sets_article_map sam
+                      on ti.sets_id = sam.sets_id
+                 join aidt_lcms.article_meta_map amm
+                      on sam.article_id = amm.article_id
+                          and amm.meta_name = CASE
+                                                  WHEN #{brandId} = 1 THEN 'studyMap2'
+                                                  WHEN #{brandId} = 3 THEN 'studyMap1'
+                              END
+                 left join aidt_game_quiz_meta.fulldataset f
+                           on amm.meta_id = f.map_key
+        where 1 = 1
+          and tc.cla_id = #{claId}
+          and tc.curriUnit1 is not null
+          and tc.curriUnit2 is null
+          and tc.`depth` = 0
+        order by tc.`order`
+        limit 1
+    </select>
+
+    <select id="getLevelMetaListFromTextbook" parameterType="map" resultType="camelHashMap">
+        select a1.name as textbook_name
+        	, e1.`name`
+            , e1.`code`
+        from  aidt_lcms.textbook a1
+              inner join aidt_lcms.textbook_meta_map b1 on a1.id = b1.textbook_id
+              inner join aidt_lcms.meta c1 on b1.meta_id = c1.id and c1.name = 'curriBook'
+              inner join aidt_lcms.meta_meta_map d1 on c1.id = d1.meta_id_a
+              inner join aidt_lcms.meta e1 on d1.meta_id_b = e1.id
+        where a1.id = #{textbkId}
+    </select>
+
+	<select id="selectActiveInfoList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuMapper.selectActiveInfoList */
+        select b.id as actId
+        from (
+                 select id, cla_id, textbk_id
+                 from aidt_lms.tab_info ti
+                 where cla_id = #{claId}
+                   and textbk_id = #{textbkId}
+                   and crcul_id != #{crculId}
+             ) a
+                 inner join aidt_lms.act_tol_info b on a.cla_id = b.cla_id and a.id = b.textbk_tab_id
+        where b.act_stts_cd = 1;
+    </select>
+</mapper>

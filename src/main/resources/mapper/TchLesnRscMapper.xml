@@ -1,0 +1,1971 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--suppress SqlDialectInspection -->
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchLesnRscMapper">
+    <select id="findLesnRscList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscList */
+        select t.*
+        , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+        , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+        , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+        , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+        /* 출제범위 존재여부 */
+        , if((
+            select count(*)
+            from aidt_lcms.setsummary a
+                inner join aidt_lcms.article_meta_map b
+                    on a.article_id = b.article_id and a.sub_id = b.sub_id
+            where a.set_id = t.id
+                and b.meta_name like 'studyMap%'
+                and b.meta_name not in ('studyMap','studyMap_2')
+          ) > 0,'Y','N') as exam_scope_exist_yn
+        , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.slf_per_sets_mapng spsm where spsm.sets_id = t.id) as slfPerEvlAt
+        , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId}) as scrapAt
+        , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+        , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+        , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+        , count(*) over () as full_count
+       /* , (select thumbnail from aidt_lcms.article a where a.id = (
+            select min(sam.article_id) over (order by id)
+            from aidt_lcms.sets_article_map sam
+            where sam.sets_id = t.id limit 1
+          )) as thumbnail */
+        /* 2024-11-28일 */
+        /* 첫번째 아티클이 비공개일 경우 두번째 아티클 썸네일로 처리, 단 셋트지에 아티클이 한개이고 해당 아티클이 비공개인 경우 썸네일이 NULL이 됨 */
+        /*
+        , (select ifnull(s.thumbnail, a.thumbnail) as thumbnail
+            from aidt_lcms.setsummary s
+            inner join aidt_lcms.article a on s.article_id = a.id and a.is_publicOpen = 1
+            where s.set_id = t.id
+            order by s.id
+            limit 1
+          ) as thumbnail
+         */
+        , setCategory
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                s.id,
+                s.brand_id,
+                s.name,
+                s.thumbnail,
+                s.hashTags,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty
+            from aidt_lcms.textbook t
+            inner join aidt_lcms.sets s on s.curriBook = t.curriBook  /* 교과서 ID */
+            <if test="param.curriIdList != null and param.curriIdList.size() > 0 ">
+                inner join aidt_lcms.sets_article_map b on b.sets_id = s.id
+                inner join aidt_lcms.article_meta_map c on c.article_id = b.article_id and c.sub_id = 0
+                    and c.meta_id in (<foreach item="item" collection="param.curriIdList" separator=",">#{item}</foreach>) /* 학습맵 커리큘럼에서 선택된 값 (교과과정 -> 학습맵으로 변경됨) */
+            </if>
+            where 1=1
+            and t.id = #{param.textbkId}
+            and s.is_active = 1
+            and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+            and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+            and s.is_deleted = 0
+            <if test="param.category != null and param.category != '' ">
+                and s.setCategory = (select id from aidt_lcms.meta where name = 'setCategory' and code = #{param.category}) /* 구분 */
+            </if>
+            <if test="param.difyIdList != null and param.difyIdList.size() > 0 ">
+                and s.difficulty in (select id from aidt_lcms.meta where name = 'difficulty' and code in (<foreach item="item" collection="param.difyIdList" separator=",">#{item}</foreach>)) /* 난이도 */
+            </if>
+            <if test="param.keyword != null and param.keyword != '' ">
+                and ( s.name like concat('%',#{param.keyword},'%') or s.hashTags like concat('%',#{param.keyword},'%')) /* 검색어 */
+            </if>
+            and not exists (
+                select 1
+                from aidt_lcms.sets_hide sh
+                where sh.sets_id = s.id
+            )
+        ) t
+        where 1=1
+        and     setCategory not in (select m.id from aidt_lcms.meta m where name = 'setCategory' and code in ('aiStudy') ) /* AI 자료는 제외 2024.5.20 요청 */
+        <if test="param.scrapAt != null and param.scrapAt != ''">
+            <choose>
+                <when test=" param.scrapAt == 'Y'.toString() ">
+                    and  exists(select 1 from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId})
+                </when>
+                <when test=" param.scrapAt == 'N'.toString() ">
+                    and  not exists(select 1 from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId})
+                </when>
+            </choose>
+        </if>
+        <if test="param.sortGbCd != null and param.sortGbCd != ''">
+            order by
+            <choose>
+                <when test="param.sortGbCd == 1">
+                    t.creator_ty, scrapCnt desc, regdate desc
+                </when>
+                <when test="param.sortGbCd == 2">
+                    regdate desc
+                </when>
+                <when test="param.sortGbCd == 3">
+                    scrapCnt desc, regdate desc
+                </when>
+                <when test="param.sortGbCd == 4">
+                    -- 조건 1: t.name 오름차순 정렬
+                    CASE
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 48 AND 57 THEN 1  -- 숫자 (0-9)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 65 AND 90 THEN 2  -- 대문자 (A-Z)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 97 AND 122 THEN 3 -- 소문자 (a-z)
+                    ELSE 4
+                    END,
+                    BINARY t.name ASC,
+                    -- 조건 2: 동일한 이름인 경우 regdate 최신순 정렬
+                    regdate desc
+                </when>
+            </choose>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findLesnRscList_meta" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findLesnRscList_meta */
+        select m.id
+        , m.name
+        , m.code
+        , m.val
+        , m.is_active
+        , smm.sets_id
+        from aidt_lcms.sets_meta_map smm
+        join aidt_lcms.meta m on m.id = smm.meta_id and m.is_active = TRUE
+        where 1=1
+        and smm.sets_id in (
+        <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+        )
+    </select>
+
+    <select id="findLesnRscList_article" parameterType="map" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscList_article */
+        select
+              sam.article_id as id
+            , sam.sub_id
+            , va.name
+            , ifnull(sam.thumbnail,va.thumbnail) as thumbnail
+            , va.hashTags
+            , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = va.id and amm.sub_id = sam.sub_id and amm.meta_name = 'questionType') as questionType
+            , if(va.use_evaluation > 0, 'Y', 'N') as slf_per_evl_yn /* 자기동료평가 유무 */
+            , json_extract(va.questionStr, '$."evaluation"') as slf_per_evl_info
+            , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = va.id and amm.sub_id = sam.sub_id and amm.meta_name = 'articleType') as articleType
+            , sam.set_id as sets_id
+            , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = va.id and amm.sub_id = sam.sub_id and amm.meta_name = 'difficulty') as mdulDifyNm
+            , ifnull((select sum(ss.points) from aidt_lcms.setsummary ss where ss.set_id = sam.set_id and ss.article_id = sam.article_id and ss.sub_id = sam.sub_id),0) as mdulScr
+            , ifnull(muc.use_cnt,0) as mdulUseCnt
+        from aidt_lcms.setsummary sam
+        inner join aidt_lcms.article va on va.id = sam.article_id
+        left join aidt_lms.module_use_cnt muc on muc.article_id = sam.article_id and muc.sub_id = sam.sub_id
+        where 1=1
+        and sam.set_id in (
+        <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+        )
+        order by sam.id
+    </select>
+
+    <select id="findLesnRscList_articleType" parameterType="map" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscList_articleType */
+        select
+            s.set_id as setsId,
+            n.meta_id,
+            (select val from aidt_lcms.meta where id = n.meta_id) as article_type,
+            count(n.meta_id) as article_type_cnt
+        from (
+                select set_id, article_id, min(sub_id) as sub_id from aidt_lcms.setsummary a
+                where set_id in (
+                    <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+                )
+            group by set_id, article_id, sub_id
+        ) s
+        inner join aidt_lcms.article_meta_map n on s.article_id = n.article_id and s.sub_id = n.sub_id and n.meta_name = 'articleType'
+        group by s.set_id, n.meta_id
+        order by s.set_id, n.meta_id
+    </select>
+
+    <select id="findLesnRscList_difficulty" parameterType="map" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscList_difficulty */
+        select
+            s.set_id as setsId,
+            n.meta_id,
+            (select val from aidt_lcms.meta where id = n.meta_id) as difficulty,
+            count(n.meta_id) as difficulty_cnt
+        from (
+            select set_id, article_id, min(sub_id) as sub_id from aidt_lcms.setsummary a
+            where set_id in (
+                <foreach item="item" collection="setsIdList" separator=",">#{item}</foreach>
+            )
+            group by set_id, article_id
+        ) s
+        inner join aidt_lcms.article_meta_map n on s.article_id = n.article_id and s.sub_id = n.sub_id and n.meta_name = 'difficulty'
+        group by s.set_id, n.meta_id
+        order by s.set_id, n.meta_id
+    </select>
+
+    <select id="findLesnRscInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscInfo */
+        select s.id
+        , s.name
+        , s.description
+        , s.hashTags
+        , if(s.creator_ty = 1 , '저작자', s.creator_name) as creator_name
+        , s.creator_id
+        , s.creator
+        , date_format(s.regdate,'%Y-%m-%d %H:%i:%s') as regdate
+        , date_format(s.updatedate, '%Y-%m-%d %H:%i:%s') as udpDate
+        , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = s.setCategory) as setCategoryCd
+        , case when s.setCategory is not null
+            then (select m.val from aidt_lcms.meta m where s.setCategory = m.id limit 1)
+            else (select m.val from aidt_lcms.meta m join aidt_lcms.sets_meta_map smm on smm.sets_id = s.id and smm.meta_name = 'setCategory' and smm.meta_id = m.id limit 1)
+          end as setCategoryNm
+        , (select count(*)
+            from aidt_lcms.setsummary sam
+            where sam.set_id = s.id
+          ) as mdulCnt
+        , (select json_object(
+                'difyHighMdulCnt', count(case when m.val = '상' then 1 end),
+                'difyMiddleMdulCnt',count(case when m.val = '중' then 1 end),
+                'difyLowMdulCnt',count(case when m.val = '하' then 1 end))
+            from aidt_lcms.setsummary sam
+            join aidt_lcms.article_meta_map amm on amm.article_id = sam.article_id and sam.sub_id = amm.sub_id and amm.meta_name = 'difficulty'
+            join aidt_lcms.meta m on m.id = amm.meta_id and m.name = 'difficulty'
+            where sam.set_id = s.id
+          ) as difyMdulCnt
+        , (select m.val from aidt_lcms.meta m where m.name = 'difficulty' and m.id = s.difficulty) as difyNm
+        , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = s.id and si.scrp_rgtr_id = #{userId} ) as scrapAt
+        , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = s.id) as scrapCnt
+        , ifnull((select sum(ss.points) from aidt_lcms.setsummary ss where ss.set_id = s.id),0) as setTotalScr
+        /* 출제범위 존재여부 */
+        , if((
+            select count(*)
+            from aidt_lcms.setsummary a
+                inner join aidt_lcms.article_meta_map b
+                    on a.article_id = b.article_id and a.sub_id = b.sub_id
+            where a.set_id = s.id
+                and b.meta_name like 'studyMap%'
+                and b.meta_name not in ('studyMap','studyMap_2')
+          ) > 0,'Y','N') as exam_scope_exist_yn
+        from aidt_lcms.sets s
+        where 1=1
+        and s.is_deleted = FALSE
+        and s.is_active = TRUE
+        and s.id = #{setsId}
+    </select>
+
+    <select id="findLesnRscInfo_coment" parameterType="map" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscInfo_coment */
+        select
+          sam.article_id
+        , sam.sub_id
+        , group_concat(case when la.part = 'hint' then la.data end order by la.sub_id separator '\n') as hint
+        , group_concat(case when la.part = 'explanation'  then la.data end order by la.sub_id separator '\n') as explanation
+        from aidt_lcms.setsummary sam
+        join aidt_lcms.article a on a.id = sam.article_id and a.is_active = TRUE
+        join aidt_lcms.log_articlepart la on la.article_id = sam.article_id and la.sub_id = sam.sub_id
+        where sam.set_id = #{setsId}
+          and la.part in ( 'hint','explanation')
+        group by sam.article_id, sam.sub_id
+        order by sam.id
+    </select>
+
+    <select id="findMdulList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findMdulList */
+        with temp as(
+        select distinct a.*
+        from aidt_lcms.textbook t
+        inner join aidt_lcms.article a on t.id = #{param.textbkId} /* 교과서 ID */
+        and t.curriBook = a.curriBook
+        inner join aidt_lcms.article_meta_map b on a.id = b.article_id and b.sub_id = 0
+        <if test="param.curriIdList != null and param.curriIdList.size() > 0 ">
+            and b.meta_id in (<foreach item="item" collection="param.curriIdList" separator=",">#{item}</foreach>) /* 학습맵 커리큘럼에서 선택된 값 (교과과정 -> 학습맵으로 변경됨) */
+        </if>
+        <if test="param.difyIdList != null and param.difyIdList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map c on b.article_id = c.article_id and b.sub_id = c.sub_id
+            and c.meta_name = 'difficulty' /* 난이도 */
+            inner join aidt_lcms.meta d on c.meta_id = d.id
+            and d.code in ( <foreach item="item" collection="param.difyIdList" separator=",">#{item}</foreach> )
+        </if>
+        <if test="param.subjectAbilityList != null and param.subjectAbilityList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map e on b.article_id = e.article_id and b.sub_id = e.sub_id
+            and e.meta_name = 'subjectAbility' /* 교과역량 */
+            inner join aidt_lcms.meta f on e.meta_id = f.id
+            and f.code in (<foreach item="item" collection="param.subjectAbilityList" separator=",">#{item}</foreach>)
+        </if>
+        <if test="param.evaluationAreaList != null and param.evaluationAreaList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map g on b.article_id = g.article_id and b.sub_id = g.sub_id
+            and g.meta_name = 'evaluationArea' /* 평가영역 */
+            inner join aidt_lcms.meta h on g.meta_id = h.id
+            and h.code in (<foreach item="item" collection="param.evaluationAreaList" separator=",">#{item}</foreach>)
+        </if>
+        <if test="param.questionTypeList != null and param.questionTypeList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map i on b.article_id = i.article_id and b.sub_id = i.sub_id
+            and i.meta_name = 'questionType' /* 컨텐츠 유형 */
+            inner join aidt_lcms.meta j on i.meta_id = j.id
+            and j.code in (<foreach item="item" collection="param.questionTypeList" separator=",">#{item}</foreach>)
+        </if>
+        where 1=1
+        and a.is_active = 1
+        and a.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+        and a.is_materialOpen = 1
+        and a.use_evaluation = 0 /* 자기/동료 평가 없음 */
+        <if test="param.articleType != null and param.articleType != '' ">
+            and a.articleType = (select id from aidt_lcms.meta where name = 'articleType' and code = #{param.articleType}) /* 구분 */
+        </if>
+        <if test="param.keyword != null and param.keyword != '' ">
+            and ( a.name like CONCAT('%',#{param.keyword},'%') or a.hashTags like CONCAT('%',#{param.keyword},'%'))
+        </if>
+        )
+        select
+        t.id
+        , t.name
+        , t.url
+        , t.image
+        , t.thumbnail /* sub_id가 0이라서 setsummary의 thumbnail로 처리할 필요 없을것 같음 */
+        , t.questionStr
+        , t.review
+        , t.hashTags
+        , t.is_active
+        , t.is_publicOpen
+        , t.is_editable
+        , t.articleCategory
+        , (select m.val from aidt_lcms.meta m where m.name = 'articleType' and m.id = t.articleType) as articleType
+        , t.questionType
+        , if(t.use_evaluation > 0,'Y','N') as slf_per_evl_yn /* 자기동료평가 유무 */
+        , (select m.val from aidt_lcms.article_meta_map amm, aidt_lcms.meta m
+        where amm.article_id = t.id
+        and amm.sub_id = 0
+        and amm.meta_id = m.id
+        and amm.meta_name='difficulty') as difficulty /* 난이도 */
+        , t.contentArea
+        , t.subjectAbility
+        , t.curriYear
+        , t.curriSchool
+        , t.curriSubject
+        , t.curriGrade
+        , t.curriSemester
+        , t.curriBook
+        , t.curriUnit1
+        , t.curriUnit2
+        , t.curriUnit3
+        , t.curriUnit4
+        , t.curriUnit5
+        , t.creator
+        /*, t.creator_name*/
+        , '저작자' as creator_name /* 비상에서 생성한 경우 저작자로 통일 */
+        , DATE_FORMAT(t.regdate , '%Y-%m-%d %H:%i:%s') as regdate
+        , if(exists(select 1 from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId}), 'Y', 'N') as scrapAt
+        , (select count(si.id) from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2) as scrapCnt
+        , ifnull((select ifnull(muc.use_cnt,0) from aidt_lms.module_use_cnt muc where muc.article_id = t.id and muc.sub_id = 0 limit 1),0) as mdulUseCnt
+        , ifnull(muuc.use_cnt, 0) as mdulTcUseCnt
+        /* 출제범위 존재여부 */
+        , if((
+        select count(*)
+        from aidt_lcms.article_meta_map
+        where article_id = t.id
+        and meta_name like 'studyMap%'
+        and meta_name not in ('studyMap','studyMap_2')
+        ) > 0,'Y','N') as exam_scope_exist_yn
+        , count(*) over () as full_count
+        from temp t
+        left join aidt_lms.module_tc_use_cnt muuc on t.id = muuc.article_id and muuc.sub_id = 0 ANd muuc.wrter_id = #{param.userId}
+        where 	1=1
+          and t.articleCategory is not null
+        <if test="param.excRecentDay != null and param.excRecentDay != ''">
+            and (muuc.id is null or muuc.mdfy_dt <![CDATA[<]]> DATE_SUB(NOW(), INTERVAL #{param.excRecentDay} DAY))
+        </if>
+        <if test="param.scrapAt != null and param.scrapAt != ''">
+            <choose>
+                <when test=" param.scrapAt == 'Y'.toString() ">
+                    and  exists(select 1 from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId})
+                </when>
+                <when test=" param.scrapAt == 'N'.toString() ">
+                    and  not exists(select 1 from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId})
+                </when>
+            </choose>
+        </if>
+        <!-- [공개자료실] 조회 - 해당값이 1인 것만 해당. [내 자료실] 조회 - is_publicOpen과 상관없이 creator 가 '나'인 것만 해당   -->
+        <if test="param.myuid != null and param.myuid != ''">
+            and t.creator = #{param.myuid}
+        </if>
+        <if test="param.sortGbCd != null and param.sortGbCd != ''">
+            order by
+            <choose>
+                <when test="param.sortGbCd == 1">
+                    (select count(muc.id) from aidt_lms.module_use_cnt muc where muc.article_id = t.id) desc, t.regdate desc
+                </when>
+                <when test="param.sortGbCd == 2">
+                    t.regdate desc
+                </when>
+                <when test="param.sortGbCd == 3">
+                    scrapCnt desc, t.regdate desc
+                </when>
+                <when test="param.sortGbCd == 4">
+                    -- 조건 1: t.name 오름차순 정렬
+                    CASE
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 48 AND 57 THEN 1  -- 숫자 (0-9)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 65 AND 90 THEN 2  -- 대문자 (A-Z)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 97 AND 122 THEN 3 -- 소문자 (a-z)
+                    ELSE 4
+                    END,
+                    BINARY t.name ASC,
+                    -- 조건 2: 동일한 이름인 경우 regdate 최신순 정렬
+                    regdate desc
+                </when>
+            </choose>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findElementTextbkIdsMdulList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findElementTextbkIdsMdulList */
+        with temp as(
+        select distinct a.*
+        from aidt_lcms.textbook t
+        inner join aidt_lcms.article a on t.id = #{param.textbkId} /* 교과서 ID */
+        and t.curriBook = a.curriBook
+        inner join aidt_lcms.article_meta_map b on a.id = b.article_id and b.sub_id = 0
+        <if test="param.curriIdList != null and param.curriIdList.size() > 0 ">
+            and b.meta_id in (<foreach item="item" collection="param.curriIdList" separator=",">#{item}</foreach>) /* 학습맵 커리큘럼에서 선택된 값 (교과과정 -> 학습맵으로 변경됨) */
+        </if>
+        <if test="param.difyIdList != null and param.difyIdList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map c on b.article_id = c.article_id and b.sub_id = c.sub_id
+            and c.meta_name = 'difficulty' /* 난이도 */
+            inner join aidt_lcms.meta d on c.meta_id = d.id
+            and (
+                d.code in ( <foreach item="item" collection="param.difyIdList" separator=",">#{item}</foreach> )
+                OR
+                d.code in (
+                    <foreach item="item" collection="param.difyIdList" separator=",">
+                        CASE
+                        WHEN #{item} = 'MD01' THEN 'MD01'
+                        WHEN #{item} = 'MD02' THEN 'MD02'
+                        WHEN #{item} = 'MD03' THEN 'MD04'
+                        WHEN #{item} = 'MD04' THEN 'MD03'
+                        WHEN #{item} = 'MD05' THEN NULL
+                        ELSE NULL
+                        END
+                    </foreach>
+                )
+            )
+        </if>
+        <if test="param.subjectAbilityList != null and param.subjectAbilityList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map e on b.article_id = e.article_id and b.sub_id = e.sub_id
+            and e.meta_name = 'subjectAbility' /* 교과역량 */
+            inner join aidt_lcms.meta f on e.meta_id = f.id
+            and f.code in (<foreach item="item" collection="param.subjectAbilityList" separator=",">#{item}</foreach>)
+        </if>
+        <if test="param.evaluationAreaList != null and param.evaluationAreaList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map g on b.article_id = g.article_id and b.sub_id = g.sub_id
+            and g.meta_name = 'evaluationArea' /* 평가영역 */
+            inner join aidt_lcms.meta h on g.meta_id = h.id
+            and h.code in (<foreach item="item" collection="param.evaluationAreaList" separator=",">#{item}</foreach>)
+        </if>
+        <if test="param.questionTypeList != null and param.questionTypeList.size() > 0  ">
+            inner join aidt_lcms.article_meta_map i on b.article_id = i.article_id and b.sub_id = i.sub_id
+            and i.meta_name = 'questionType' /* 컨텐츠 유형 */
+            inner join aidt_lcms.meta j on i.meta_id = j.id
+            and j.code in (<foreach item="item" collection="param.questionTypeList" separator=",">#{item}</foreach>)
+        </if>
+        where 1=1
+        and a.is_active = 1
+        and a.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+        and a.is_materialOpen = 1
+        <if test="param.myuid == null or param.myuid == ''">
+            /* and a.is_publicOpen = 1 */
+        </if>
+        <if test="param.articleType != null and param.articleType != '' ">
+            and a.articleType = (select id from aidt_lcms.meta where name = 'articleType' and code = #{param.articleType}) /* 구분 */
+        </if>
+        <if test="param.keyword != null and param.keyword != '' ">
+            and ( a.name like CONCAT('%',#{param.keyword},'%') or a.hashTags like CONCAT('%',#{param.keyword},'%'))
+        </if>
+        )
+        select
+        t.id
+        , t.name
+        , t.url
+        , t.image
+        , t.thumbnail /* sub_id가 0이라서 setsummary의 thumbnail로 처리할 필요 없을것 같음 */
+        , t.questionStr
+        , t.review
+        , t.hashTags
+        , t.is_active
+        , t.is_publicOpen
+        , t.is_editable
+        , t.articleCategory
+        , (select m.val from aidt_lcms.meta m where m.name = 'articleType' and m.id = t.articleType) as articleType
+        , t.questionType
+        , if(t.use_evaluation > 0,'Y','N') as slf_per_evl_yn /* 자기동료평가 유무 */
+        , (
+            select
+            CASE
+            WHEN m.val = '중하' THEN '중'
+            ELSE m.val
+            END
+            from aidt_lcms.article_meta_map amm, aidt_lcms.meta m
+            where amm.article_id = t.id
+            and amm.sub_id = 0
+            and amm.meta_id = m.id
+            and amm.meta_name='difficulty'
+        ) as difficulty /* 난이도 */
+        , t.contentArea
+        , t.subjectAbility
+        , t.curriYear
+        , t.curriSchool
+        , t.curriSubject
+        , t.curriGrade
+        , t.curriSemester
+        , t.curriBook
+        , t.curriUnit1
+        , t.curriUnit2
+        , t.curriUnit3
+        , t.curriUnit4
+        , t.curriUnit5
+        , t.creator
+        /*, t.creator_name*/
+        , '저작자' as creator_name /* 비상에서 생성한 경우 저작자로 통일 */
+        , DATE_FORMAT(t.regdate , '%Y-%m-%d %H:%i:%s') as regdate
+        , if(exists(select 1 from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId}), 'Y', 'N') as scrapAt
+        , (select count(si.id) from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2) as scrapCnt
+        , ifnull((select ifnull(muc.use_cnt,0) from aidt_lms.module_use_cnt muc where muc.article_id = t.id and muc.sub_id = 0 limit 1),0) as mdulUseCnt
+        , ifnull(muuc.use_cnt, 0) as mdulTcUseCnt
+        /* 출제범위 존재여부 */
+        , if((
+        select count(*)
+        from aidt_lcms.article_meta_map
+        where article_id = t.id
+        and meta_name like 'studyMap%'
+        and meta_name not in ('studyMap','studyMap_2')
+        ) > 0,'Y','N') as exam_scope_exist_yn
+        , count(*) over () as full_count
+        from temp t
+        left join aidt_lms.module_tc_use_cnt muuc on t.id = muuc.article_id and muuc.sub_id = 0 ANd muuc.wrter_id = #{param.userId}
+        where 	1=1
+        and t.articleCategory is not null
+        <if test="param.excRecentDay != null and param.excRecentDay != ''">
+            and (muuc.id is null or muuc.mdfy_dt <![CDATA[<]]> DATE_SUB(NOW(), INTERVAL #{param.excRecentDay} DAY))
+        </if>
+        <if test="param.scrapAt != null and param.scrapAt != ''">
+            <choose>
+                <when test=" param.scrapAt == 'Y'.toString() ">
+                    and  exists(select 1 from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId})
+                </when>
+                <when test=" param.scrapAt == 'N'.toString() ">
+                    and  not exists(select 1 from aidt_lms.scrap_info si where si.dta_id = t.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId})
+                </when>
+            </choose>
+        </if>
+        <!-- [공개자료실] 조회 - 해당값이 1인 것만 해당. [내 자료실] 조회 - is_publicOpen과 상관없이 creator 가 '나'인 것만 해당   -->
+        <if test="param.myuid != null and param.myuid != ''">
+            and t.creator = #{param.myuid}
+        </if>
+        <if test="param.sortGbCd != null and param.sortGbCd != ''">
+            order by
+            <choose>
+                <when test="param.sortGbCd == 1">
+                    (select count(muc.id) from aidt_lms.module_use_cnt muc where muc.article_id = t.id) desc, t.regdate desc
+                </when>
+                <when test="param.sortGbCd == 2">
+                    t.regdate desc
+                </when>
+                <when test="param.sortGbCd == 3">
+                    scrapCnt desc, t.regdate desc
+                </when>
+                <when test="param.sortGbCd == 4">
+                    -- 조건 1: t.name 오름차순 정렬
+                    CASE
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 48 AND 57 THEN 1  -- 숫자 (0-9)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 65 AND 90 THEN 2  -- 대문자 (A-Z)
+                    WHEN ASCII(LEFT(t.name, 1)) BETWEEN 97 AND 122 THEN 3 -- 소문자 (a-z)
+                    ELSE 4
+                    END,
+                    BINARY t.name ASC,
+                    -- 조건 2: 동일한 이름인 경우 regdate 최신순 정렬
+                    regdate desc
+                </when>
+            </choose>
+        </if>
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findMdulInfo" parameterType="map" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findMdulInfo */
+        select a.id /* 모듈id */
+             , a.name /* 모듈명 */
+             , a.thumbnail /* 썸네일 */
+             , if(a.use_evaluation > 0,'Y','N') as slf_per_evl_yn /* 자기동료평가 유무 */
+             , (select json_extract(a.questionStr, '$."evaluation"') from aidt_lcms.article where id = a.id) as slf_per_evl_info /* 자기동료평가 설정정보 */
+             , a.hashTags /* 헤시태그 */
+             , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = a.id and amm.sub_id = 0 and amm.meta_name = 'articleType') as articleType /* 모듈형식 */
+             , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = a.id and amm.sub_id = 0 and amm.meta_name = 'questionType') as questionType /* 문항형식 */
+             , (select m.val from aidt_lcms.article_meta_map amm join aidt_lcms.meta m on m.id = amm.meta_id where amm.article_id = a.id and amm.sub_id = 0 and amm.meta_name = 'difficulty') as difficulty /* 난이도 */
+             /* 출제범위 존재여부 */
+             , if((
+                select count(1)
+                from aidt_lcms.article_meta_map
+                where article_id = a.id
+                    and meta_name like 'studyMap%'
+                    and meta_name not in ('studyMap','studyMap_2')
+               ) > 0,'Y','N') as exam_scope_exist_yn
+             /*, a.creator_name*/
+             , '저작자' as creator_name /* 비상에서 생성한 경우 저작자로 통일 */
+             , a.creator
+             , DATE_FORMAT(a.regdate , '%Y-%m-%d %H:%i:%s') as regdate
+             , (select group_concat(la.data order by la.sub_id separator '\n')
+                from aidt_lcms.log_articlepart la
+                where la.article_id = a.id and la.part = 'hint') as hint
+             , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 2 and si.dta_id = a.id and si.scrp_rgtr_id = #{userId}) as scrapAt
+             , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 2 and si.dta_id = a.id) as scrapCnt
+             , ifnull((select ifnull(muc.use_cnt,0) from aidt_lms.module_use_cnt muc where muc.article_id = a.id and muc.sub_id = 0 limit 1),0) as mdulUseCnt
+             , (select group_concat(la2.data order by la2.sub_id separator '\n') from aidt_lcms.log_articlepart la2 where la2.article_id = a.id and la2.part = 'explanation' ) as explanation
+        from aidt_lcms.article a
+        where 1=1
+          and a.is_active = 1
+          and a.id = #{id}
+    </select>
+
+
+    <select id="findMdulList_meta" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findMdulList_meta */
+        select m.*
+                , amm.article_id
+        from aidt_lcms.article_meta_map amm
+        join aidt_lcms.meta m on m.id = amm.meta_id
+        and m.is_active = TRUE
+        where 1=1
+        and amm.article_id in (
+        <foreach item="item" collection="articleIdList" separator=",">#{item}</foreach>
+        ) and amm.sub_id = 0
+    </select>
+
+    <select id="findMdulList_library" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findMdulList_library */
+        select l.*
+        , lam.article_id
+        from aidt_lcms.library_article_map lam
+        join aidt_lcms.library l on l.id = lam.library_id
+        where 1=1
+        and lam.article_id in (
+        <foreach item="item" collection="articleIdList" separator=",">#{item}</foreach>
+        )
+    </select>
+
+    <select id="findMdulList_libtext" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findMdulList_libtext */
+        select lt.*
+        , lam.article_id
+        from aidt_lcms.libtext_article_map lam
+        join aidt_lcms.libtext lt on lt.id = lam.libtext_id
+        where 1=1
+        and lt.is_active = TRUE
+        and lam.article_id in (
+        <foreach item="item" collection="articleIdList" separator=",">#{item}</foreach>
+        )
+    </select>
+
+    <insert id="saveTchLesnrscScrp" parameterType="map">
+        INSERT INTO aidt_lms.scrap_info
+        VALUES (
+            null
+            ,#{userId}
+            ,#{dtaCd}
+            ,#{dtaId}
+            ,#{userId}
+            ,now()
+            ,#{userId}
+            ,now()
+        )
+    </insert>
+
+    <select id="selectScrapInfoList" parameterType="map" resultType="camelHashMap">
+        SELECT
+            id
+            ,scrp_rgtr_id
+            ,dta_cd
+            ,aidt_lms.F_CODE_NM('dta_cd', dta_cd)     as dta_nm
+            ,dta_id
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        FROM aidt_lms.scrap_info
+        WHERE scrp_rgtr_id = #{userId}
+    </select>
+
+    <update id="deleteTchLesnrscSet" parameterType="map">
+        UPDATE aidt_lcms.sets
+           SET is_active = 0
+             , is_publicOpen = 0
+         WHERE creator = #{userId}
+           AND id = #{setsId}
+    </update>
+
+    <update id="deleteTchLesnrscMdul" parameterType="map">
+        UPDATE aidt_lcms.article
+           SET is_active = 0
+             , is_publicOpen = 0
+         WHERE creator = #{userId}
+           AND id = #{articleId}
+    </update>
+
+    <delete id="deleteTchLesnrscScript" parameterType="map">
+        DELETE FROM aidt_lms.scrap_info
+         WHERE dta_cd = #{dtaCd}
+           AND dta_id = #{dtaId}
+    </delete>
+
+    <select id="findTchLesnrscExamscopeList" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscExamscopeList */
+        /* 출제 범위 조회 (셋트지) */
+        with recursive
+            curriculum as (
+                -- 초기 계층 (루트)
+                select
+                    distinct t.id as textbk_id,
+                    t.textbookIndex_id as textbk_idx_id,
+                    t.curriBook as curriBook,
+                    m3.id as id,
+                    m3.parent_id as parent_id,
+                    m3.code as code,
+                    m3.name as name,
+                    m3.val as val,
+                    cast(m3.id   as char(1000) charset utf8mb4) as pk_path,
+                    cast(m3.code as char(1000) charset utf8mb4) as id_path,
+                    cast(m3.val  as char(1000) charset utf8mb4) as id_path_nm,
+                    (m3.depth - 1) as depth
+                from aidt_lcms.textbook t
+                inner join aidt_lcms.meta m1 on m1.id = t.textbookCategory and m1.code = 'regular'
+                inner join aidt_lcms.meta m2 on t.curriBook = m2.parent_id
+                inner join aidt_lcms.meta m3 on m2.code = m3.description and m3.is_active = 1 and m3.name = 'studyMap1'
+                inner join aidt_lcms.meta m4 on m4.id = m3.parent_id and m4.is_active = 1
+                where t.is_active = 1
+                    and t.textbookIndex_id is not null
+                    and t.textbookCategory is not null
+                    and m2.is_active = 1
+                    and t.id = #{textbkId}
+
+                union all
+
+                -- 재귀 확장 (자식 노드 탐색)
+                select
+                    c.textbk_id,
+                    c.textbk_idx_id,
+                    c.curriBook,
+                    m.id,
+                    m.parent_id,
+                    m.code,
+                    m.name,
+                    m.val,
+                    concat(c.pk_path, ',', m.id) as pk_path,
+                    concat(convert(c.id_path using utf8mb4), ' > ', m.code) as id_path,
+                    concat(convert(c.id_path_nm using utf8mb4), ' > ', m.val) as id_path_nm,
+                    (c.depth + 1) as depth
+                from aidt_lcms.meta m
+                inner join curriculum c on c.id = m.parent_id and m.is_active = 1
+                where m.name <![CDATA[<>]]> 'studyMap_2'
+            ),
+
+            curriculum_map as (
+                select
+                    c.textbk_id,
+                    c.textbk_idx_id,
+                    c.curriBook,
+                    c.id,
+                    c.parent_id,
+                    c.code,
+                    row_number() over (
+                        partition by c.textbk_id,c.textbk_idx_id,c.curriBook
+                        order by c.textbk_id,c.textbk_idx_id,c.curriBook,c.id_path
+                    ) as seq_order,
+                    c.name,
+                    c.val,
+                    SUBSTRING_INDEX(c.pk_path, ',', 1) as meta_id,
+                    c.pk_path,
+                    c.id_path,
+                    c.id_path_nm,
+                    c.depth
+                from curriculum c
+                order by
+                    c.textbk_id,
+                    c.textbk_idx_id,
+                    c.curriBook,
+                    c.id_path
+            ),
+
+            cte as (
+                select
+                    distinct cm.id,
+                    cm.parent_id,
+                    cm.val,
+                    cm.id_path_nm,
+                    cm.id_path,
+                    cm.depth
+                from curriculum_map cm
+                where cm.textbk_id = #{textbkId}
+                    and cm.id in (
+                                    select
+                                        distinct amm_sub.meta_id
+                                    from aidt_lcms.setsummary s_sub
+                                    inner join aidt_lcms.article_meta_map amm_sub
+                                            on s_sub.article_id = amm_sub.article_id
+                                            and s_sub.sub_id = amm_sub.sub_id
+                                            and amm_sub.meta_name like 'studyMap%' /* 학습맵 */
+                                                <choose>
+                                                    <when test="brandId == 3"> /* 영어 */
+                                                        and amm_sub.meta_name not in ('studyMap_1','studyMap_2') /* 지식요인, 유형 제외 */
+                                                    </when>
+                                                    <otherwise>
+                                                        and amm_sub.meta_name not in ('studyMap_2') /* 유형 제외 */
+                                                    </otherwise>
+                                                </choose>
+                                    where s_sub.set_id = #{setsId}
+                    )
+
+                union all
+
+                select
+                    cm.id,
+                    cm.parent_id,
+                    cm.val,
+                    cm.id_path_nm,
+                    cm.id_path,
+                    cm.depth
+                from curriculum_map cm
+                inner join CTE cte on cm.textbk_id = #{textbkId} and cm.id = cte.parent_id
+            )
+
+        select
+            distinct cte.id,
+            cte.parent_id,
+            cte.val,
+            cte.id_path_nm,
+            cte.id_path,
+            cte.depth,
+            (
+                case
+                    when A.meta_name = 'studyMap1' then 0
+                    else ifnull(A.cnt, 0)
+                end
+            ) as mdul_cnt
+        from cte
+        left join (
+            select
+                meta_id
+                , meta_name
+                , count(meta_id) as cnt
+            from (
+                select
+                    row_number() over(
+                            partition by amm.article_id, amm.sub_id
+                            order by amm.article_id, amm.sub_id, amm.meta_name desc
+                    ) as rnum,
+                    amm.article_id,
+                    amm.sub_id,
+                    amm.meta_id,
+                    amm.meta_name
+                from
+                	aidt_lcms.setsummary s
+                    inner join aidt_lcms.article_meta_map amm on s.article_id = amm.article_id and s.sub_id = amm.sub_id
+                where s.set_id = #{setsId}
+                    and amm.meta_name like 'studyMap%' /* 학습맵 */
+                    <choose>
+                        <when test="brandId == 3"> /* 영어 */
+                        and amm.meta_name not in ('studyMap_1','studyMap_2') /* 지식요인, 유형 제외 */
+                        </when>
+                        <otherwise>
+                        and amm.meta_name not in ('studyMap_2') /* 유형 제외 */
+                        </otherwise>
+                    </choose>
+            ) a
+            where rnum = 1
+            group by meta_id
+        ) A
+        on cte.id = A.meta_id
+        order by cte.id_path
+    </select>
+
+    <select id="findTchLesnrscMdulExamscopeList" parameterType="map" resultType="camelHashMap">
+        /* 출제 범위 조회 (아티클) */
+        with recursive CTE as (
+            select
+                id,
+                parent_id,
+                val,
+                id_path_nm,
+                id_path,
+                depth
+            from aidt_lcms.v_curri_tree
+            where
+                1=1
+              and textbk_id = #{textbkId}
+              and id in (
+                select meta_id
+                from
+                    aidt_lcms.article_meta_map
+                where
+                    1=1
+                    and article_id = #{articleId}
+                    and sub_id = 0
+                    and meta_name like 'studyMap%'
+                    <choose>
+                        <when test="brandId == 3"> /* 영어 */
+                            and meta_name not in ('studyMap_1','studyMap_2')
+                        </when>
+                        <otherwise>
+                            and meta_name not in ('studyMap_2')
+                        </otherwise>
+                    </choose>
+            )
+            union all
+            select
+                a.id,
+                a.parent_id,
+                a.val,
+                a.id_path_nm,
+                a.id_path,
+                a.depth
+            from aidt_lcms.v_curri_tree a
+                     inner join CTE b on a.textbk_id = #{textbkId} and a.id = b.parent_id
+        )
+        select
+            distinct
+            id,
+            parent_id,
+            val,
+            id_path_nm,
+            id_path,
+            depth
+        from CTE
+        order by id_path
+    </select>
+
+    <select id="findTchLesnrscMdulSearchFilterInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscMdulSearchFilterInfo */
+        select
+            b.code,
+            b.val
+        from
+            aidt_lcms.textbook a
+                inner join aidt_lcms.meta b
+                           on a.brand_id = b.brand_id
+                               and b.name = #{name}
+        <if test="name == 'difficulty' ">
+            <if test="kind != 'mdul'" >
+                and b.val in ('상','중','하') /* 난이도는 상중하 만 검색하도록 요청 20240521 - brand 마다 code가 달라서 val 값으로 처리함 */
+            </if>
+            <if test="kind == 'mdul'" >
+                and b.val in ('상', '중상', '중', '중하', '하') /* 콘텐츠 난이도는 중상,중하 도 추가하도록 요청 20240712 */
+            </if>
+        </if>
+        where
+            1=1
+          and a.id = #{textbkId}
+        order by
+            b.`code`
+    </select>
+
+    <select id="findTchLesnrscMdulSearchFilterInfoForElementMath" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscMdulSearchFilterInfoForElementMath */
+        select
+        b.code,
+        b.val
+        from
+        aidt_lcms.textbook a
+        inner join aidt_lcms.meta b
+        on a.brand_id = b.brand_id
+        and b.name = #{name}
+        <if test="name == 'difficulty' ">
+            <if test="kind != 'mdul'" >
+                and b.val in ('상','중','하') /* 난이도는 상중하 만 검색하도록 요청 20240521 - brand 마다 code가 달라서 val 값으로 처리함 */
+            </if>
+            <if test="kind == 'mdul'" >
+                and b.val in ('상','중','하') /* 콘텐츠 난이도는 중상,중하 도 추가하도록 요청 20240712 */
+            </if>
+        </if>
+        where
+        1=1
+        and a.id = #{textbkId}
+        order by
+        b.`code`
+    </select>
+
+    <select id="findTchLesnrscMdulSearchQuestionTypeFilterInfo" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscMdulSearchQuestionTypeFilterInfo */
+        select 	 distinct   b.code, b.val
+        from 	 aidt_lcms.meta b
+        where 	    b.name = 'questionType'
+          and       b.code <![CDATA[<>]]> 'ptqz'
+          and       b.code <![CDATA[<>]]> 'mcvs'
+        order by    b.val
+    </select>
+
+    <select id="findTchLesnrscMdulSearchQuestionTypeFilterInfoForMath" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscMdulSearchQuestionTypeFilterInfoForMath */
+        select 	 distinct   b.code, b.val
+        from 	 aidt_lcms.meta b
+        where 	    b.name = 'questionType'
+          and       b.code <![CDATA[<>]]> 'ptqz'
+          and       b.code <![CDATA[<>]]> 'awqz'
+          and       b.code <![CDATA[<>]]> 'wcom' /* 콤포넌트형 */
+          and       b.code <![CDATA[<>]]> 'wsqz' /* Word Scramble */
+        order by    b.val
+    </select>
+
+    <select id="findTchLesnrscSearchFilterInfoCreator" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscSearchFilterInfoCreator */
+        select
+            A.creator,
+            A.creator_name,
+            if(B.creatr_id is not null, 'Y', 'N') as bmkYn /* 북마크 여부 */
+        from (
+                /* AIDT에서 선택된 교과서로 수업하는 교사가 생성한 콘텐츠 출처 목록 조회 */
+                select distinct curriBook, creator, creator_name
+                from aidt_lcms.sets
+                where 1=1
+                  and is_active = 1
+                  and creator_ty = 1000 /* AIDT에서 생성한 복사된 셋트지 */
+                  and curriBook = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                  and creator in (
+                        select distinct y.wrter_id
+                        from (
+                            select b.id
+                            from aidt_lcms.textbook a
+                            inner join aidt_lcms.textbook b on a.id = #{textbkId} and a.curriBook = b.curriBook
+                        ) x
+                        inner join aidt_lms.tc_curriculum y on x.id = y.textbk_id
+                        inner join aidt_lms.tc_reg_info m on m.user_id = y.wrter_id
+                        inner join (
+                            select schl_cd from aidt_lms.tc_reg_info where user_id = #{wrterId}
+                        ) n
+                            on m.schl_cd = n.schl_cd /* 로그인 한 교사와 같은 학교만 */
+                    )
+                order by creator_name
+            ) A
+            left outer join aidt_lms.creatr_bkmk_info B
+                on A.curriBook = B.curriBook
+                and A.creator = B.creatr_id
+                and B.wrter_id = #{wrterId} /* 교사 ID */
+        order by bmkYn desc, A.creator
+    </select>
+
+    <select id="findTchLesnrscMdulSearchFilterInfoCreator" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscMdulSearchFilterInfoCreator */
+        select
+            A.creator,
+            A.creator_name,
+            if(B.creatr_id is not null, 'Y', 'N') as bmkYn /* 북마크 여부 */
+        from
+            (   /* AIDT에서 선택된 교과서로 수업하는 교사가 생성한 콘텐츠 출처 목록 조회 */
+                select distinct curriBook, creator, creator_name
+                from aidt_lcms.article
+                where 1=1
+                  and is_active = 1
+                  and creator_ty > 1 /* AIDT에서 생성한 콘텐츠 */
+                  and curriBook = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+                  and creator in (
+                    select distinct y.wrter_id
+                    from (
+                        select b.id
+                        from aidt_lcms.textbook a
+                        inner join aidt_lcms.textbook b on a.id = #{textbkId} and a.curriBook = b.curriBook
+                    ) x
+                    inner join aidt_lms.tc_curriculum y on x.id = y.textbk_id
+                    inner join aidt_lms.tc_reg_info m on m.user_id = y.wrter_id
+                    inner join (
+                        select schl_cd from aidt_lms.tc_reg_info where user_id = #{wrterId}
+                    ) n
+                    on m.schl_cd = n.schl_cd /* 로그인 한 교사와 같은 학교만 */
+                )
+                order by creator_name
+            ) A
+            left outer join aidt_lms.creatr_bkmk_info B
+                            on A.curriBook = B.curriBook
+                                and A.creator = B.creatr_id
+                                and B.wrter_id = #{wrterId} /* 교사 ID */
+        order by bmkYn desc, A.creator
+    </select>
+
+    <insert id="createTchLesnrscMdulSearchFilterBookmark" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchLesnRscMapper.createTchLesnrscMdulSearchFilterBookmark */
+        INSERT INTO aidt_lms.creatr_bkmk_info
+            (curriBook, creatr_id, wrter_id, rgtr, mdfr)
+        select 	curriBook
+             , #{creatorId}
+             , #{wrterId}
+             , #{wrterId}
+             , #{wrterId}
+        from	aidt_lcms.textbook t
+        where 	t.id = #{textbkId}
+          and 	not exists (select 1
+                             from aidt_lms.creatr_bkmk_info cbi
+                             where 	cbi.curriBook = t.curriBook
+                               and 	cbi.creatr_id = #{creatorId}
+                               and 	cbi.wrter_id = #{wrterId}
+        )
+    </insert>
+
+    <delete id="deleteTchLesnrscMdulSearchFilterBookmark" parameterType="map">
+        /* TchLesnRscMapper.deleteTchLesnrscMdulSearchFilterBookmark */
+        DELETE FROM aidt_lms.creatr_bkmk_info cbi
+        WHERE cbi.curriBook = (select curriBook from aidt_lcms.textbook where id = #{textbkId})
+          and 	cbi.creatr_id = #{creatorId}
+          and 	cbi.wrter_id = #{wrterId}
+    </delete>
+
+    <delete id="deleteTchLesnRscScrp" parameterType="map">
+        /* TchLesnRscMapper.deleteTchLesnRscScrp */
+        DELETE FROM aidt_lms.scrap_info
+        WHERE scrp_rgtr_id = #{userId}
+        AND dta_cd = #{dtaCd}
+        AND dta_id = #{dtaId}
+    </delete>
+
+    <select id="findTchLesnrscUnitRcmdList" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findTchLesnrscUnitRcmdList */
+        with unit_rcmd as (
+            select
+                row_number() over(partition by t.meta_id order by t.meta_id, t.scrapCnt desc, t.regdate desc) as rnum
+            , t.*
+            from (
+                     select
+                         x.*
+                          , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = x.setCategory) as setCategoryCd
+                          , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = x.setCategory) as setCategoryNm
+                          , (select m.val from aidt_lcms.meta m where m.id = x.difficulty) as difyNm
+                          , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = x.id) as mdulCnt
+                          , (select if(count(*) > 0,'Y','N') from aidt_lms.slf_per_evl_set_info spesi where sets_id = x.id) as slfPerEvlAt
+                          , (select if(count(*) > 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = x.id and si.scrp_rgtr_id = 'xx') as scrapAt
+                          , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = x.id) as scrapCnt
+                          , date_format(x.rdate,'%Y-%m-%d') as regdate
+                          , date_format(x.udate, '%Y-%m-%d') as updDate
+                          , count(*) over () as full_count
+                     from
+                         (
+                             select
+                                 distinct
+                                 c.meta_id, /* 학습맵 단원(대분류) ID */
+                                 /* c.meta_name, */
+                                 s.id, /* 셋트지 ID */
+                                 /* 셋트지의 첫번째 아티클의 thumbnail */
+                                 (select thumbnail from aidt_lcms.setsummary where set_id = s.id order by id limit 1) as thumbnail,
+                                 s.brand_id,
+                                 s.name,
+                                 s.hashTags,
+                                 s.creator_id,
+                                 s.creator_name,
+                                 s.creator_ty,
+                                 s.setCategory,
+                                 s.regdate as rdate,
+                                 s.updatedate as udate,
+                                 s.difficulty
+                         from aidt_lcms.textbook t
+                         inner join aidt_lcms.sets s on s.curriBook = t.curriBook  /* 교과서 ID */
+                         /* 학습맵 커리큘럼에서 선택된 값 (교과과정 -> 학습맵으로 변경됨) */
+                         inner join aidt_lcms.setsummary b on b.set_id = s.id
+                         inner join aidt_lcms.article_meta_map c on c.article_id = b.article_id and c.sub_id = b.sub_id
+                         and c.meta_id in (select id from aidt_lcms.v_curri_tree where textbk_id = #{textbkId} and depth = 1) /* 단원(대분류) 기준 */
+                     where
+                         1=1
+                       and t.id = #{textbkId} /* 교과서 id */
+                       and s.is_active = 1
+                       and s.is_publicOpen = 1 /* 공유 자료실 */
+                       and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+                       and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+                         /* 구분 */
+                       and s.setCategory = (select id from aidt_lcms.meta where name = 'setCategory' and code = #{category})
+                 ) x
+            order by
+                x.meta_id, scrapCnt desc, regdate desc /* 단원별 추천순 */
+        ) t
+            )
+        select
+            dense_rank() over(order by a.meta_id) as unit_num, /* 단원 번호 */
+                a.id,/* 세트지 id */
+            a.name,	/* 세트지 명 */
+            #{category} as category,
+            a.setCategoryCd,
+            a.setCategoryNm,
+            a.hashTags,
+            a.mdulCnt,
+            a.difyNm,
+            a.thumbnail,
+            a.creator_name,
+            a.creator_id,
+            (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = a.id and si.scrp_rgtr_id = #{userId} ) as scrapAt,
+            (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = a.id) as scrapCnt,
+            a.regdate
+        from
+            unit_rcmd a
+        where 1=1
+          and a.rnum <![CDATA[ <= ]]>  10 /* 단원별 최대 10개 */
+        order by
+            a.meta_id, a.rnum
+    </select>
+
+    <select id="findArticleListBySetId" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findArticleListBySetId */
+        select
+            s.id,
+            s.article_id,
+            s.sub_id,
+            s.points as evl_iem_scr,
+            (select b.`code`
+                from aidt_lcms.article_meta_map a inner join aidt_lcms.meta b
+                    on a.article_id = s.article_id and a.sub_id = s.sub_id and a.meta_id = b.id
+                where a.meta_name = 'articleType'
+            ) as articleType,
+            (select b.val
+                from aidt_lcms.article_meta_map a inner join aidt_lcms.meta b
+                    on a.article_id = s.article_id and a.sub_id = s.sub_id and a.meta_id = b.id
+                where a.meta_name = 'articleType'
+            ) as articleTypeNm,
+            (select b.`code`
+                from aidt_lcms.article_meta_map a inner join aidt_lcms.meta b
+                    on a.article_id = s.article_id and a.sub_id = s.sub_id and a.meta_id = b.id
+                where a.meta_name = 'questionType'
+            ) as questionType,
+            (select b.val
+                from aidt_lcms.article_meta_map a inner join aidt_lcms.meta b
+                    on a.article_id = s.article_id and a.sub_id = s.sub_id and a.meta_id = b.id
+                where a.meta_name = 'questionType'
+            ) as questionTypeNm,
+            (select b.`code`
+                from aidt_lcms.article_meta_map a inner join aidt_lcms.meta b
+                    on a.article_id = s.article_id and a.sub_id = s.sub_id and a.meta_id = b.id
+                where a.meta_name = 'difficulty'
+            ) as difficulty,
+            (select b.val
+                from aidt_lcms.article_meta_map a inner join aidt_lcms.meta b
+                    on a.article_id = s.article_id and a.sub_id = s.sub_id and a.meta_id = b.id
+                where a.meta_name = 'difficulty'
+            ) as difficultyNm
+        from aidt_lcms.setsummary s
+        where s.set_id = #{setsId}
+        order by s.id
+    </select>
+
+    <select id="findLesnRscRecListForMath" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscRecListForMath */
+        /* 추천 목록 조회 */
+        select t.*
+             , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+             , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+             , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+             , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+             /* 출제범위 존재여부 */
+             , if((
+                      select count(*)
+                      from aidt_lcms.setsummary a
+                               inner join aidt_lcms.article_meta_map b
+                                          on a.article_id = b.article_id and a.sub_id = b.sub_id
+                      where a.set_id = t.id
+                        and b.meta_name like 'studyMap%'
+                        and b.meta_name not in ('studyMap','studyMap_2')
+                  ) <![CDATA[>]]> 0,'Y','N') as exam_scope_exist_yn
+             , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId}) as scrapAt
+             , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+             , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+             , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+             , count(*) over () as full_count
+             , (select thumbnail from aidt_lcms.article a where a.id = (
+                select min(sam.article_id) over (order by id)
+                from aidt_lcms.sets_article_map sam
+                where sam.sets_id = t.id limit 1
+                )) as thumbnail
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                s.id,
+                s.brand_id,
+                s.name,
+                s.hashTags,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty,
+                c.meta_id
+            from aidt_lcms.textbook t
+            inner join aidt_lcms.sets s on s.curriBook = t.curriBook  /* 교과서 ID */
+            inner join aidt_lcms.setsummary b on b.set_id = s.id
+            inner join aidt_lcms.article_meta_map c on c.article_id = b.article_id and c.sub_id = b.sub_id
+            where 1=1
+                and t.id = #{param.textbkId}
+                and s.is_active  = 1
+                and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+                and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+                and s.setCategory in (select id from aidt_lcms.meta where name = 'setCategory' and code in ('textbook','game')) /* 교과자료,게임 */
+                /* 선택된 차시에 대한 학습맵(대/중/소분류) 조회 */
+                and c.meta_id in (
+                    select
+                        meta_id
+                    from aidt_lcms.textbookcurriculum_meta_map
+                    where 1=1
+                    and textbookIndex_id = (select textbookIndex_id from aidt_lcms.textbook where id = #{param.textbkId})
+                    and `key` = #{param.crculId} /* 커리큘럼 ID */
+                    and meta_name = 'studyMap_1' /* 지식요인 */ /* 20205-02-04 AIDTISS-463 이슈 대응 */
+                    /* and meta_name in ('studyMap1','studyMap2','studyMap2') */ /* 대/중/소분류 */
+
+                )
+
+                <if test="param.keyword != null and param.keyword != '' ">
+                    and s.name like concat('%',#{param.keyword},'%')
+                </if>
+        ) t
+        group by t.id
+        order by
+            CASE
+            WHEN ASCII(LEFT(t.name, 1)) BETWEEN 48 AND 57 THEN 1  -- 숫자 (0-9)
+            WHEN ASCII(LEFT(t.name, 1)) BETWEEN 65 AND 90 THEN 2  -- 대문자 (A-Z)
+            WHEN ASCII(LEFT(t.name, 1)) BETWEEN 97 AND 122 THEN 3 -- 소문자 (a-z)
+            ELSE 4
+            END,
+            BINARY t.name ASC,
+            regdate desc /* 이름순, 최신일순 */
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findLesnRscRecListForEng" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscRecListForEng */
+        /* 추천 목록 조회 */
+        select t.*
+             , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+             , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+             , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+             , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+            /* 출제범위 존재여부 */
+             , if((
+                      select count(*)
+                      from aidt_lcms.setsummary a
+                               inner join aidt_lcms.article_meta_map b
+                                          on a.article_id = b.article_id and a.sub_id = b.sub_id
+                      where a.set_id = t.id
+                        and b.meta_name like 'studyMap%'
+                        and b.meta_name not in ('studyMap','studyMap_2')
+                  ) <![CDATA[>]]> 0,'Y','N') as exam_scope_exist_yn
+             , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId}) as scrapAt
+             , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+             , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+             , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+             , count(*) over () as full_count
+             , (select thumbnail from aidt_lcms.article a where a.id = (
+                select min(sam.article_id) over (order by id)
+                from aidt_lcms.sets_article_map sam
+                where sam.sets_id = t.id limit 1
+                )) as thumbnail
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                s.id,
+                s.brand_id,
+                s.name,
+                s.hashTags,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty,
+                c.meta_id
+            from aidt_lcms.textbook t
+            inner join aidt_lcms.sets s on s.curriBook = t.curriBook  /* 교과서 ID */
+            inner join aidt_lcms.setsummary b on b.set_id = s.id
+            inner join aidt_lcms.article_meta_map c on c.article_id = b.article_id and c.sub_id = b.sub_id
+            where 1=1
+            and t.id = #{param.textbkId}
+            and s.is_active  = 1
+            and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+            and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+            and s.setCategory in (select id from aidt_lcms.meta where name = 'setCategory' and code in ('textbook','game')) /* 교과자료,게임 */
+            /* 선택된 차시에 대한 학습맵(대/중/소분류) 조회 */
+            and c.meta_id in (
+            select
+            meta_id
+            from aidt_lcms.textbookcurriculum_meta_map
+            where 1=1
+            and textbookIndex_id = (select textbookIndex_id from aidt_lcms.textbook where id = #{param.textbkId})
+            and `key` = #{param.crculId} /* 커리큘럼 ID */
+            <if test="param.keyword != null and param.keyword != '' ">
+                and s.name like concat('%',#{param.keyword},'%')
+            </if>
+            /* and meta_name in ('studyMap1','studyMap2','studyMap2') */ /* 대/중/소분류 */
+            /* and meta_name = 'studyMap_1' */ /* 지식요인 */ /* 20204-12-12 기획자 요청 */
+            and meta_name = 'studyMap2' /* 2025-05-16 김새미cp 요청 */
+            )
+            ) t
+        group by t.id
+        order by
+            CASE
+            WHEN ASCII(LEFT(t.name, 1)) BETWEEN 48 AND 57 THEN 1  -- 숫자 (0-9)
+            WHEN ASCII(LEFT(t.name, 1)) BETWEEN 65 AND 90 THEN 2  -- 대문자 (A-Z)
+            WHEN ASCII(LEFT(t.name, 1)) BETWEEN 97 AND 122 THEN 3 -- 소문자 (a-z)
+            ELSE 4
+            END,
+            BINARY t.name ASC,
+            regdate desc /*  이름순, 최신일순 */
+            limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findLesnRscMyScrapList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscMyScrapList */
+        /* 내 스크랩 */
+        select t.*
+             , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+             , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+             , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+             , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+             /* 출제범위 존재여부 */
+             , if((
+                      select count(*)
+                      from aidt_lcms.setsummary a
+                               inner join aidt_lcms.article_meta_map b
+                                          on a.article_id = b.article_id and a.sub_id = b.sub_id
+                      where a.set_id = t.id
+                        and b.meta_name like 'studyMap%'
+                        and b.meta_name not in ('studyMap','studyMap_2')
+                  ) <![CDATA[>]]> 0,'Y','N') as exam_scope_exist_yn
+             , (select if(count(*) <![CDATA[>]]> 0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId}) as scrapAt
+             , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+             , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+             , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+             , count(*) over () as full_count
+             , (select thumbnail from aidt_lcms.article a where a.id = (
+                select min(sam.article_id) over (order by id)
+                from aidt_lcms.sets_article_map sam
+                where sam.sets_id = t.id limit 1
+                )) as thumbnail
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                s.id,
+                s.brand_id,
+                s.name,
+                s.hashTags,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty
+            from aidt_lcms.textbook t
+            inner join aidt_lcms.sets s on s.curriBook = t.curriBook  /* 교과서 ID */
+            where 1=1
+                and t.id = #{param.textbkId}
+                and s.is_active  = 1
+                and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+                and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+                and s.setCategory in (select id from aidt_lcms.meta where name = 'setCategory' and code in ('textbook','game')) /* 교과자료,게임 */
+                <if test="param.keyword != null and param.keyword != '' ">
+                    and s.name like concat('%',#{param.keyword},'%')
+                </if>
+        ) t
+        where 1=1
+          and  exists (select 1 from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{param.userId})
+        order by
+            scrapCnt desc, regdate desc /* 스크랩순, 최신일순 */
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findMyLesnRscList" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findMyLesnRscList */
+        /* 내 자료 조회 */
+        select t.*
+             , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+             , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+             , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+             , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.sets_id) as mdulCnt
+             /* 출제범위 존재여부 */
+             , if((
+                      select count(*)
+                      from aidt_lcms.setsummary a
+                               inner join aidt_lcms.article_meta_map b
+                                          on a.article_id = b.article_id and a.sub_id = b.sub_id
+                      where a.set_id = t.sets_id
+                        and b.meta_name like 'studyMap%'
+                        and b.meta_name not in ('studyMap','studyMap_2')
+                  ) > 0,'Y','N') as exam_scope_exist_yn
+             /* 교사가 추가한 셋트지는 비상에서 제작한 셋트지가 아니라서 스크랩할 수 없어서 스크랩 정보는 구하지 않음. */
+             , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+             , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+             , count(*) over () as full_count
+             , (select thumbnail from aidt_lcms.article a where a.id = (
+                    select min(sam.article_id) over (order by id)
+                    from aidt_lcms.sets_article_map sam
+                    where sam.sets_id = t.sets_id limit 1
+                )) as thumbnail
+        from (
+            select
+                sdi.id as std_id,
+                sdi.sets_id,
+                ifnull(sdi.textbk_tab_nm,s.name) as sets_nm,
+                ifnull(sdi.textbk_tab_nm,s.name) as textbk_tab_nm,
+                sdi.tmpr_strg_at,
+                sdi.eam_mth,
+                s.setCategory,
+                s.hashTags,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty
+                ,sdi.reg_dt
+               ,null as extLearnCntsId
+               ,null as cntsType
+               ,null as cntsNm
+               ,null as cntsExt
+               ,null as url
+            from aidt_lms.std_dta_info sdi
+            inner join aidt_lcms.sets s on s.id = sdi.sets_id
+            where 1=1
+                and sdi.cla_id = #{param.claId}
+                and sdi.textbk_id = #{param.textbkId}
+                and sdi.eam_mth in (2,3,6) /* 2(AI 출제) / 3(직접출제) / 6(자료 불러오기) */
+                and s.setCategory in (select id from aidt_lcms.meta where name = 'setCategory' and code in ('textbook','game')) /* 교과자료/게임 */
+                <if test="param.keyword != null and param.keyword != '' ">
+                    and ifnull(sdi.textbk_tab_nm,s.name) like concat('%',#{param.keyword},'%')
+                </if>
+        union ALL
+
+            SELECT
+                null,null,null,null,null
+                 ,null,null,null,null,null
+                 ,null
+                 ,elc.reg_dt
+                ,id as extLearnCntsId
+            , elc.cnts_type
+            , elc.cnts_nm
+            , elc.cnts_ext
+            , elc.url
+            FROM aidt_lms.ext_learn_cnts elc
+            where 1=1
+            and elc.cla_id = #{param.claId}
+            and elc.textbk_id = #{param.textbkId}
+            and elc.use_at ='Y'
+            <if test="param.keyword != null and param.keyword != '' ">
+                and elc.cnts_nm like concat('%',#{param.keyword},'%')
+            </if>
+
+        ) t
+        order by
+                t.reg_dt desc
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+    <select id="findLesnRscMdulRecList" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchLesnRscMapper.findLesnRscMdulRecList */
+        select  a_recomend_list.*,
+                count(*) over () as full_count
+        from (
+                select a_list.article_id as id,
+                        a_list.name,
+                        a_list.thumbnail,
+                        a_list.hashTags,
+                        a_list.slf_per_evl_yn,
+                        a_list.scrapAt,
+                        a_list.scrapCnt,
+                        a_list.mdulUseCnt,
+                        (select m.val from aidt_lcms.meta m where m.name = 'articleType' and m.id = i.meta_id) as articleType,
+                        (select m.val from aidt_lcms.meta m where m.name = 'questionType' and m.id = a_list.questionType) as questionType,
+                        (select m.val from aidt_lcms.meta m where m.name = 'difficulty' and m.id = c.meta_id) as difficulty,
+                        a_list.exam_scope_exist_yn,
+                        (
+                            select sum(cnt)
+                            from (
+                                /* 학습 자료 모듈(아티클) 정보 조회 */
+                                /* 평가 */
+                                select count(*) as cnt
+                                from aidt_lms.evl_info x
+                                inner join aidt_lms.evl_iem_info y on x.id = y.evl_id and y.evl_iem_id = a_list.id and y.sub_id = 0
+                                where x.textbook_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+
+                                union all
+
+                                /* 과제 */
+                                select count(distinct z.task_iem_id, z.sub_id) as cnt
+                                from aidt_lms.task_info x
+                                inner join aidt_lms.task_result_info y on x.id = y.task_id
+                                inner join aidt_lms.task_result_detail z on y.id = z.task_result_id and z.task_iem_id = a_list.id and z.sub_id = 0
+                                where x.textbk_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+
+                                union all
+
+                                /* 학습자료 */
+                                select count(distinct z.dta_iem_id, z.sub_id) as cnt
+                                from aidt_lms.tab_info x
+                                inner join aidt_lms.std_dta_result_info y on x.id = y.textbk_tab_id
+                                inner join aidt_lms.std_dta_result_detail z on y.id = z.dta_result_id and z.dta_iem_id = a_list.id and z.sub_id = 0
+                                where x.textbk_id = #{param.textbkId}
+                                and x.cla_id = #{param.claId}
+                            ) s
+                        ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+                from (
+                        select  distinct g.id,
+                                b.article_id,
+                                b.sub_id,
+                                a.difficulty,
+                                g.questionType,
+                                g.name,
+                                g.thumbnail,
+                                g.hashTags,
+                                if(g.use_evaluation > 0,'Y','N') as slf_per_evl_yn, /* 자기동료평가 유무 */
+                                if(exists(select 1 from aidt_lms.scrap_info si where si.dta_id = g.id and si.dta_cd = 2 and si.scrp_rgtr_id = #{param.userId}), 'Y', 'N') as scrapAt,
+                                (select count(si.id) from aidt_lms.scrap_info si where si.dta_id = g.id and si.dta_cd = 2) as scrapCnt,
+                                ifnull((select ifnull(muc.use_cnt,0) from aidt_lms.module_use_cnt muc where muc.article_id = g.id and muc.sub_id = 0 limit 1),0) as mdulUseCnt,
+                                /* 출제범위 존재여부 */
+                                if((
+                                        select count(*)
+                                        from aidt_lcms.article_meta_map
+                                        where article_id = g.id
+                                        and meta_name like 'studyMap%'
+                                        and meta_name not in ('studyMap','studyMap_2')
+                                ) > 0,'Y','N') as exam_scope_exist_yn
+                        from (
+                                select  a.id,
+                                        b.meta_id, /* 지식요인 */
+                                        c.meta_id as difficulty /* 난이도 */
+                                from aidt_lcms.article a
+                                inner join aidt_lcms.article_meta_map b on a.id = b.article_id and b.sub_id = 0 and b.meta_name = 'studyMap_1' /* 학습맵(지식요인) */
+                                inner join aidt_lcms.article_meta_map c on b.article_id = c.article_id and b.sub_id = c.sub_id and c.meta_name = 'difficulty' /* 난이도 */
+                                where 1=1
+                                <if test="param.articleIdList != null and param.articleIdList.size() > 0 ">
+                                    and a.id in (<foreach item="item" collection="param.articleIdList" separator=",">#{item}</foreach>)
+                                </if>
+                        ) a
+                        inner join aidt_lcms.article_meta_map b on b.meta_name = 'studyMap_1' /* 학습맵(지식요인) */ and b.meta_id = a.meta_id and b.sub_id = 0
+                        inner join aidt_lcms.article g on b.article_id = g.id and g.is_publicOpen = 1 and g.is_active = 1
+                        where g.id <![CDATA[<>]]>  a.id /* 대상 아티클은 제외 */
+                        and g.creator_ty = 1 /* 비상에서 생성한 콘텐츠 */
+                ) a_list
+                inner join aidt_lcms.article_meta_map c on a_list.article_id = c.article_id and a_list.sub_id = c.sub_id and c.meta_name = 'difficulty' /* 난이도 */ and c.meta_id = a_list.difficulty
+                inner join aidt_lcms.article_meta_map f on a_list.article_id = f.article_id and a_list.sub_id = f.sub_id and f.meta_name = 'questionType' and f.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz') /* 연쇄형은 제외 */
+                inner join aidt_lcms.article_meta_map h on a_list.article_id = h.article_id and a_list.sub_id = h.sub_id and h.meta_name = 'articleCategory' and h.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj') /* 비교과 */
+                inner join aidt_lcms.article_meta_map i on a_list.article_id = i.article_id and a_list.sub_id = i.sub_id and i.meta_name = 'articleType' and i.meta_id = (select id from aidt_lcms.meta where name = 'articleType' and code = 'question') /* 문항 */
+                order by frequency, a_list.id
+        ) a_recomend_list
+        where 1=1
+        <if test="param.keyword != null and param.keyword != '' ">
+            and a_recomend_list.name like concat('%',#{param.keyword},'%')
+        </if>
+
+        limit #{pageable.pageSize} offset #{pageable.offset}
+    </select>
+
+
+
+    <select id="findLesnRscMdulRecListForEng" parameterType="pagingParam" resultType="camelHashMap" >
+        /* TchLesnRscMapper.findLesnRscMdulRecListForEng */
+        with articleInfo as (select amm.*,
+                            m.code,
+                            m.name,
+                            case
+                                when amm.meta_name in ('evaluationArea'
+                                                      ,'contentsItem'
+                                                      ,'evaluationArea3') then 'evaluation'
+                                when amm.meta_name = 'difficulty'         then 'difficulty'
+                                when amm.meta_name = 'studyMap2'          then 'studyMap'
+                                end as meta_category
+                     from aidt_lcms.article_meta_map amm
+                              inner join aidt_lcms.meta m
+                                      on amm.meta_id = m.id
+                      where amm.article_id = #{param.articleId}
+                       and amm.sub_id = 0
+                       and amm.meta_name in
+                           ('evaluationArea', 'contentsItem', 'evaluationArea3', 'difficulty', 'studyMap2'))
+        select
+                x.priority
+               ,x.matchCnt
+               ,y.id
+               ,y.name
+               ,y.thumbnail
+               ,y.hashTags
+               ,if(y.use_evaluation > 0,'Y','N')                                                                    as slf_per_evl_yn /* 자기동료평가 유무 */
+               ,(select m.val from aidt_lcms.meta m where m.name = 'articleType' and m.id = x.meta_article_type)    as articleType
+               ,(select m.val from aidt_lcms.meta m where m.name = 'questionType' and m.id = y.questionType)        as questionType
+               ,(select m.val from aidt_lcms.meta m where m.name = 'difficulty' and m.id = x.meta_id_diff)          as difficulty
+               ,if(exists(select 1 from aidt_lms.scrap_info si where si.dta_id = y.id and si.scrp_rgtr_id = #{param.userId} and si.dta_cd = 2), 'Y', 'N') as scrapAt
+               ,(select count(si.id) from aidt_lms.scrap_info si where si.dta_id = y.id and si.dta_cd = 2)                                                as scrapCnt
+               ,ifnull((select ifnull(muc.use_cnt,0) from aidt_lms.module_use_cnt muc where muc.article_id = y.id and muc.sub_id = 0 limit 1),0)          as mdulUseCnt
+                /* 출제범위 존재여부 */
+               ,if((
+                   select count(*)
+                   from aidt_lcms.article_meta_map
+                   where article_id = y.id
+                        and meta_name like 'studyMap%'
+                        and meta_name not in ('studyMap','studyMap_2')
+                   ) > 0,'Y','N')                                       as exam_scope_exist_yn
+               ,count(*) over ()                                        as full_count
+               ,(
+                    select sum(cnt)
+                    from (
+                         /* 학습 자료 모듈(아티클) 정보 조회 */
+                         /* 평가 */
+                         select count(*) as cnt
+                         from aidt_lms.evl_info xx
+                              inner join aidt_lms.evl_iem_info yy
+                                     on xx.id = yy.evl_id and yy.evl_iem_id = y.id and yy.sub_id = 0
+                         where
+                            1=1
+                            and xx.textbook_id = #{param.textbkId}
+                            and xx.cla_id = #{param.claId}
+                         union all
+                         /* 과제 */
+                         select count(distinct zz.task_iem_id, zz.sub_id) as cnt
+                         from aidt_lms.task_info xx
+                              inner join aidt_lms.task_result_info yy
+                                     on xx.id = yy.task_id
+                              inner join aidt_lms.task_result_detail zz
+                                     on yy.id = zz.task_result_id
+                                         and zz.task_iem_id = y.id and zz.sub_id = 0
+                         where
+                            1=1
+                            and xx.textbk_id = #{param.textbkId}
+                            and xx.cla_id = #{param.claId}
+                         union all
+                         /* 학습자료 */
+                         select count(distinct zz.dta_iem_id, zz.sub_id) as cnt
+                         from aidt_lms.tab_info xx
+                              inner join aidt_lms.std_dta_result_info yy
+                                     on xx.id = yy.textbk_tab_id
+                              inner join aidt_lms.std_dta_result_detail zz
+                                     on y.id = zz.dta_result_id
+                                         and zz.dta_iem_id = y.id and zz.sub_id = 0
+                         where
+                            1=1
+                            and xx.textbk_id = #{param.textbkId}
+                            and xx.cla_id = #{param.claId}
+                    ) s
+                ) as frequency /* 자동출제문항 빈도수, 0 ~ (0인 경우 한번도 출제되지 않은 문제) */
+               ,x.meta_id_diff
+               ,x.meta_diff
+               ,x.meta_id_std
+               ,x.meta_std
+        from (
+
+                select 1                  as priority
+                       ,matchCnt
+                       ,ammEvl.article_id as article_id
+                       ,ammDiff.meta_id   as meta_id_diff
+                       ,ammDiff.meta_name as meta_diff
+                       ,ammStd.meta_id    as meta_id_std
+                       ,ammStd.meta_name  as meta_std
+                       ,ammArticle.meta_id as meta_article_type
+                from (select subEval.article_id, count(subEval.meta_name) as matchCnt
+                      from aidt_lcms.article_meta_map subEval
+                      where subEval.meta_id in (select meta_id from articleInfo where meta_category = 'evaluation')
+                        and subEval.sub_id = 0
+                      group by subEval.article_id
+                      having count(subEval.meta_name) =
+                             (select count(*) from articleInfo where meta_category = 'evaluation')) ammEvl                  /*  동일평가영역 */
+                         inner join aidt_lcms.article_meta_map ammStd
+                                 on ammStd.article_id = ammEvl.article_id
+                                and ammStd.sub_id = 0
+                                and ammStd.meta_id = (select meta_id from articleInfo where meta_category = 'studyMap')     /*  동일차시 */
+                         inner join aidt_lcms.article_meta_map ammDiff
+                                 on ammDiff.article_id = ammEvl.article_id
+                                and ammDiff.sub_id= 0
+                                and ammDiff.meta_id = (select meta_id from articleInfo where meta_category = 'difficulty')  /*  난이도 */
+                         inner join aidt_lcms.article_meta_map ammCategory
+                                 on ammCategory.article_id = ammEvl.article_id
+                                and ammCategory.sub_id = 0
+                                and ammCategory.meta_name = 'articleCategory'
+                                and ammCategory.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj')  /* 비교과 */
+                         inner join aidt_lcms.article_meta_map ammQstion
+                                 on ammQstion.article_id = ammEvl.article_id
+                                and ammQstion.sub_id = 0
+                                and ammQstion.meta_name = 'questionType'
+                                and ammQstion.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz')      /* 연쇄형은 제외 */
+                         inner join aidt_lcms.article_meta_map ammArticle
+                                 on ammArticle.article_id = ammEvl.article_id
+                                and ammArticle.sub_id = 0
+                                and ammArticle.meta_name = 'articleType'
+                                and ammArticle.meta_id in (select id from aidt_lcms.meta where name = 'articleType' and code = 'question')      /* 문항 */
+
+                union all
+                select 2                  as priority
+                       ,matchCnt
+                       ,ammEvl.article_id as article_id
+                       ,ammDiff.meta_id   as meta_id_diff
+                       ,ammDiff.meta_name as meta_diff
+                       ,ammStd.meta_id    as meta_id_std
+                       ,ammStd.meta_name  as meta_std
+                      ,ammArticle.meta_id as meta_article_type
+                from (select subEval.article_id, count(subEval.meta_name) as matchCnt
+                      from aidt_lcms.article_meta_map subEval
+                      where subEval.meta_id in (select meta_id from articleInfo where meta_category = 'evaluation')
+                        and subEval.sub_id = 0
+                      group by subEval.article_id
+                      having count(subEval.meta_name) <![CDATA[<>]]>  (select count(*) from articleInfo where meta_category = 'evaluation')) ammEvl /* 동일평가영역 */
+                         inner join aidt_lcms.article_meta_map ammStd
+                                 on ammStd.article_id = ammEvl.article_id
+                                and ammStd.sub_id = 0
+                                and ammStd.meta_id = (select meta_id from articleInfo where meta_category = 'studyMap')                             /* 동일차시 */
+                         inner join aidt_lcms.article_meta_map ammDiff
+                                 on ammDiff.article_id = ammEvl.article_id
+                                and ammDiff.sub_id = 0
+                                and ammDiff.meta_id = (select meta_id from articleInfo where meta_category = 'difficulty')                          /* 난이도 */
+                         inner join aidt_lcms.article_meta_map ammCategory
+                                 on ammCategory.article_id = ammEvl.article_id
+                                and ammCategory.sub_id = 0
+                                and ammCategory.meta_name = 'articleCategory'
+                                and ammCategory.meta_id in (select id from aidt_lcms.meta where name = 'articleCategory' and code = 'nonsubj')      /* 비교과 */
+                         inner join aidt_lcms.article_meta_map ammQstion
+                                 on ammQstion.article_id = ammEvl.article_id
+                                and ammQstion.sub_id = 0
+                                and ammQstion.meta_name = 'questionType'
+                                and ammQstion.meta_id not in (select id from aidt_lcms.meta where name = 'questionType' and code = 'chqz')          /* 연쇄형은 제외 */
+                         inner join aidt_lcms.article_meta_map ammArticle
+                                 on ammArticle.article_id = ammEvl.article_id
+                                and ammArticle.sub_id = 0
+                                and ammArticle.meta_name = 'articleType'
+                                and ammArticle.meta_id in (select id from aidt_lcms.meta where name = 'articleType' and code = 'question')          /* 문항 */
+
+            ) x inner join aidt_lcms.article y on x.article_id = y.id and y.is_publicOpen =1 and y.is_active = 1
+        <if test="param.keyword != null and param.keyword != '' ">
+            and y.name like concat('%',#{param.keyword},'%')
+        </if>
+        order by priority , matchCnt desc
+    </select>
+
+    <select id="findLesnRscRcmdList" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findLesnRscRcmdList */
+        select t.*
+        , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+        , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+        , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+        , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+        /* 출제범위 존재여부 */
+        , if((
+            select count(*)
+            from aidt_lcms.setsummary a
+                inner join aidt_lcms.article_meta_map b
+                    on a.article_id = b.article_id and a.sub_id = b.sub_id
+            where a.set_id = t.id
+                and b.meta_name like 'studyMap%'
+                and b.meta_name not in ('studyMap','studyMap_2')
+          ) > 0,'Y','N') as exam_scope_exist_yn
+        , (select if(count(*)  >  0,'Y','N') from aidt_lms.slf_per_sets_mapng spsm where spsm.sets_id = t.id) as slfPerEvlAt
+        , (select if(count(*)  >  0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = #{userId} ) as scrapAt
+        , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+        , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+        , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+        , count(*) over () as full_count
+       /* , (select thumbnail from aidt_lcms.article a where a.id = (
+            select min(sam.article_id) over (order by id)
+            from aidt_lcms.sets_article_map sam
+            where sam.sets_id = t.id limit 1
+          )) as thumbnail */
+        , setCategory
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                s.id,
+                s.brand_id,
+                s.name,
+                s.hashTags,
+                s.thumbnail,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty,
+                crsm.order
+            from aidt_lms.tc_lastlesson tl
+            inner join aidt_lms.curriculum_rec_sets_mapng crsm on tl.textbk_id = crsm.textbk_id
+                                                               and tl.crcul_id = crsm.crcul_id
+            inner join aidt_lcms.sets s on s.id = crsm.set_id
+            where 1=1
+            and tl.textbk_id = #{textbkId}
+            and tl.wrter_id = #{userId}
+            and s.is_active = 1
+            and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+            and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+            and s.is_publicOpen = 1 /* 공유 자료실 */
+            and not exists (
+                    select 1
+                    from aidt_lcms.sets_hide sh
+                    where sh.sets_id = s.id
+            )
+        ) t
+        where 1=1
+        and     setCategory not in (select m.id from aidt_lcms.meta m where name = 'setCategory' and code in ('aiStudy') ) /* AI 자료는 제외 2024.5.20 요청 */
+        order by t.order asc, t.creator_ty, scrapCnt desc, regdate desc
+    </select>
+
+    <select id="findLesnRscRcmdListCrculId1" parameterType="map" resultType="camelHashMap">
+        /* TchLesnRscMapper.findLesnRscRcmdListCrculId1 */
+        select t.*
+        , (select m.code from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryCd
+        , (select m.val from aidt_lcms.meta m where m.name = 'setCategory' and m.id = t.setCategory) as setCategoryNm
+        , (select m.val from aidt_lcms.meta m where m.id = t.difficulty) as difyNm
+        , (select count(*) from aidt_lcms.setsummary sam where sam.set_id = t.id) as mdulCnt
+        /* 출제범위 존재여부 */
+        , if((
+            select count(*)
+            from aidt_lcms.setsummary a
+                inner join aidt_lcms.article_meta_map b
+                    on a.article_id = b.article_id and a.sub_id = b.sub_id
+            where a.set_id = t.id
+                and b.meta_name like 'studyMap%'
+                and b.meta_name not in ('studyMap','studyMap_2')
+          ) > 0,'Y','N') as exam_scope_exist_yn
+        , (select if(count(*)  >  0,'Y','N') from aidt_lms.slf_per_sets_mapng spsm where spsm.sets_id = t.id) as slfPerEvlAt
+        , (select if(count(*)  >  0,'Y','N') from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id and si.scrp_rgtr_id = NULL ) as scrapAt
+        , (select count(*) from aidt_lms.scrap_info si where si.dta_cd = 1 and si.dta_id = t.id) as scrapCnt
+        , date_format(t.rdate,'%Y-%m-%d %H:%i:%s') as regdate
+        , date_format(t.udate, '%Y-%m-%d %H:%i:%s') as updDate
+        , count(*) over () as full_count
+        , (select thumbnail from aidt_lcms.article a where a.id = (
+            select min(sam.article_id) over (order by id)
+            from aidt_lcms.sets_article_map sam
+            where sam.sets_id = t.id limit 1
+          )) as thumbnail
+        , setCategory
+        from (
+            /* 선택된 교과서 - 비상에서 생성한 셋트지 목록조회 */
+            select distinct
+                s.id,
+                s.brand_id,
+                s.name,
+                s.hashTags,
+                s.creator_id,
+                s.creator,
+                '저작자' as creator_name, /* 비상에서 생성한 경우 저작자로 통일 */
+                s.creator_ty,
+                s.setCategory,
+                s.regdate as rdate,
+                s.updatedate as udate,
+                s.difficulty
+            from aidt_lms.curriculum_rec_sets_mapng crsm
+            inner join aidt_lcms.sets s on s.id = crsm.set_id
+            where 1=1
+            and crsm.textbk_id = #{textbkId}
+            and crsm.crcul_id = 1
+            and s.is_active = 1
+            and s.creator_ty = 1 /* 비상에서 생성한 셋트지 */
+            and s.is_materialOpen = 1 /* AIDT 수업 자료실 공개여부 */
+            and s.is_publicOpen = 1 /* 공유 자료실 */
+        ) t
+        where 1=1
+        and     setCategory not in (select m.id from aidt_lcms.meta m where name = 'setCategory' and code in ('aiStudy') ) /* AI 자료는 제외 2024.5.20 요청 */
+        order by t.creator_ty, scrapCnt desc, regdate desc
+    </select>
+
+</mapper>

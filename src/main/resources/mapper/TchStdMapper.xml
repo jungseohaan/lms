@@ -1,0 +1,871 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchStdMapper">
+
+    <select id="findTchStdList" parameterType="pagingParam" resultType="camelHashMap">
+        /* TchStdMapper.findTchStdList */
+        select (count(*) over () + 1) - (row_number() over (
+        														ORDER BY
+        												            CASE WHEN sdi.tmpr_strg_at = 'Y' THEN sdi.reg_dt END DESC,
+        												            CASE WHEN sdi.tmpr_strg_at = 'N' THEN sdi.mdfy_dt END desc
+        										            )) as no
+        , count(*) over () as fullCount
+        ,sdi.id
+        ,(select code_nm from aidt_lms.se_code a where a.code_cd = sdi.eam_mth and a.code_gb_cd = 'eam_mth') as eamMth
+        ,sdi.sets_id
+        ,sdi.textbk_nm
+        ,sdi.tmpr_strg_at
+        ,sdi.std_dat_nm
+        ,sdi.crcul_id
+        ,sdi.textbk_tab_id
+        ,s.setCategory as std_category_cd
+        ,m.val as std_category_nm
+        ,sdi.reg_dt
+        ,(select count(1) from aidt_lms.std_dta_result_info sdri where sdri.dta_id = sdi.id) as targetCnt
+        ,(select count(1) from aidt_lms.std_dta_result_info sdri where sdri.dta_id = sdi.id and sdri.subm_at = 'Y') as submitCnt
+        ,(select count(1) from aidt_lms.std_dta_result_info sdri where sdri.dta_id = sdi.id and sdri.eak_at = 'Y') as eakCnt
+        ,(select count(1) from aidt_lms.std_dta_result_info sdri
+        	inner join aidt_lms.std_dta_result_detail sdrd
+         		on sdri.dta_id = sdi.id and sdri.id = sdrd.dta_result_id and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)) as studyCnt /* 학습한 이력 개수 */
+        from aidt_lms.std_dta_info sdi
+        left outer join aidt_lcms.sets s on s.id = sdi.sets_id
+        left outer join aidt_lcms.meta m on m.id = s.setCategory and m.name = 'setCategory'
+        left join aidt_lms.tab_info ti on sdi.textbk_tab_id = ti.id
+        where s.setCategory in (select id from aidt_lcms.meta a
+        									where 1=1
+        									and a.code in ('game','textbook')
+        									and a.name = 'setCategory')
+        AND sdi.cla_id = #{param.claId}
+        AND sdi.textbk_id = #{param.textbkId}
+        AND sdi.tmpr_strg_at = #{param.tmprStrgAt}
+        and ifnull(ti.ai_cstmzd_std_crt_at,'N') <![CDATA[<>]]> 'Y'
+        ORDER BY
+            CASE WHEN sdi.tmpr_strg_at = 'Y' THEN sdi.reg_dt END DESC,
+            CASE WHEN sdi.tmpr_strg_at = 'N' THEN sdi.mdfy_dt END DESC
+        LIMIT #{pageable.pageSize} OFFSET #{pageable.offset}
+    </select>
+
+
+    <delete id="removeTchStdDel_stdDtaResultDetail" parameterType="map" >
+        /* TchStdMapper.removeTchStdDel_stdDtaResultDetail */
+        delete
+        from aidt_lms.std_dta_result_detail sdrd
+        where sdrd.dta_result_id in (
+            select id
+            from aidt_lms.std_dta_result_info sdri
+            where sdri.dta_id = #{stdId}
+        )
+    </delete>
+
+    <delete id="removeTchStdDel_stdDtaResultInfo" parameterType="map" >
+        /* TchStdMapper.removeTchStdDel_stdDtaResultInfo */
+        delete
+        from aidt_lms.std_dta_result_info sdri
+        where sdri.dta_id = #{stdId}
+    </delete>
+
+    <delete id="removeTchStdDel_stdDtaInfo" parameterType   ="map" >
+        /* TchStdMapper.removeTchStdDel_stdDtaInfo */
+        delete
+        from aidt_lms.std_dta_info sdi
+        where sdi.id = #{stdId}
+    </delete>
+
+    <insert id="createTchStd" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createTchStd */
+        INSERT INTO aidt_lms.std_dta_info (wrter_id, cla_id, textbk_id
+                                     , std_dat_nm
+                                     , eam_mth
+                                    <choose>
+                                        <when test=' eamMth == 2 '>
+                                         , eam_exm_num, eam_gd_exm_mun, eam_av_up_exm_mun, eam_av_exm_mun, eam_av_lw_exm_mun, eam_bd_exm_mun
+                                        </when>
+                                        <otherwise>
+                                         , eam_exm_num
+                                        </otherwise>
+                                    </choose>
+                                     , eam_scp, sets_id, rgtr, mdfr, tmpr_strg_at )
+        VALUES (#{wrterId}, #{claId}, #{textbkId}
+              , #{stdDatNm}
+              , #{eamMth}
+              <choose>
+                <when test=' eamMth == "2" '>
+                , #{eamExmNum}, #{eamGdExmMun}, #{eamAvUpExmMun}, #{eamAvExmMun}, #{eamAvLwExmMun}, #{eamBdExmMun}
+                </when>
+                <otherwise>
+                ,0
+                </otherwise>
+              </choose>
+              , #{eamScp}, #{setsId}, 'system', 'system', 'Y' )
+    </insert>
+
+    <select id="findTchStdReadInfo" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findTchStdReadInfo */
+        select
+        id as std_id
+        ,wrter_id
+        ,cla_id
+        ,textbk_id
+        ,sets_id
+        ,std_dat_nm
+        ,textbk_tab_nm
+        ,crcul_id
+        ,bbs_sv_at
+        ,bbs_nm
+        ,tag
+        ,cocnr_at
+        ,eam_scp
+        , eam_mth
+        , aidt_lms.F_CODE_NM('eam_mth', eam_mth) AS eamMthNm
+        from
+        aidt_lms.std_dta_info
+        where id = #{stdId}
+    </select>
+
+    <select id="findStdDtaInfoById" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findStdDtaInfoById */
+        select *
+          from aidt_lms.std_dta_info
+         where id = #{stdId}
+    </select>
+
+    <select id="findstdDtaResultDetailByStdId" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findstdDtaResultDetailByStdId */
+       select sdi.id, sdrd.sub_mit_anw, sdrd.sub_mit_anw_url, m.val
+         from aidt_lms.std_dta_info sdi
+         join aidt_lms.std_dta_result_info sdri on sdi.id = sdri.dta_id
+         join aidt_lms.std_dta_result_detail sdrd on sdri.id = sdrd.dta_result_id
+         left outer join aidt_lcms.sets s on s.id = sdi.sets_id
+	     left outer join aidt_lcms.meta m on m.id = s.setCategory and m.name = 'setCategory' and m.code in ('game','textbook')
+        where sdi.id = #{stdId}
+          and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+        limit 1
+    </select>
+
+    <select id="findstdDtaResultDetailByTabId" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findstdDtaResultDetailByTabId */
+        select
+            sdri.id, sdrd.sub_mit_anw, sdrd.sub_mit_anw_url, m.val
+        from aidt_lms.tab_info ti
+            inner join aidt_lms.std_dta_result_info sdri on ti.id = sdri.textbk_tab_id
+            inner join aidt_lms.std_dta_result_detail sdrd
+                    on sdri.id = sdrd.dta_result_id and (sdrd.sub_mit_anw is not null or sdrd.sub_mit_anw_url is not null)
+            left outer join aidt_lcms.sets s on s.id = ti.sets_id
+            left outer join aidt_lcms.meta m on m.id = s.setCategory and m.name = 'setCategory' and m.code in ('game','textbook')
+        where ti.id = #{tabId}
+        limit 1
+    </select>
+
+    <update id="modifyTchStdSave_stdDtaInfo" parameterType="map" >
+        /* TchStdMapper.modifyTchStdSave_stdDtaInfo */
+        UPDATE aidt_lms.std_dta_info
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="wrterId != null and wrterId != '' ">wrter_id=#{wrterId},</if>
+            <if test="claId != null and claId != '' ">cla_id=#{claId},</if>
+            <if test="textbkId != null and textbkId != '' ">textbk_id=#{textbkId},</if>
+            <if test="setsId != null and setsId != '' ">sets_id=#{setsId},</if>
+            <if test="textbkTabNm != null and textbkTabNm != '' ">std_dat_nm=#{textbkTabNm},</if>
+            <if test="bbsSvAt != null and bbsSvAt != '' ">bbs_sv_at=#{bbsSvAt},</if>
+            <if test="cocnrAt != null and cocnrAt != '' ">cocnr_at=#{cocnrAt},</if>
+            <if test="eamScp != null and eamScp != '' ">eam_scp=#{eamScp},</if>
+        </trim>
+          , tmpr_strg_at = 'N'
+          , textbk_tab_nm=#{textbkTabNm}
+          , crcul_id=#{crculId}
+          , bbs_nm=#{bbsNm}
+          , tag=#{tag}
+          , mdfr = 'system'
+          , mdfy_dt = NOW()
+        WHERE id = #{stdId}
+    </update>
+
+    <update id="modifyTchStdSave_stdDtaInfo_tabId" parameterType="map" >
+        /* TchStdMapper.modifyTchStdSave_stdDtaInfo_tabId */
+        UPDATE aidt_lms.std_dta_info
+           set textbk_tab_id = #{id}
+        WHERE id = #{stdId}
+    </update>
+
+    <insert id="createTchStdSave_tabInfo" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createTchStdSave_tabInfo */
+        INSERT INTO aidt_lms.tab_info (
+        wrter_id
+        ,cla_id
+        ,textbk_id
+        ,crcul_id
+        ,tab_nm
+        ,tab_seq
+        ,sets_id
+        ,tab_add_at
+        ,setCategory
+        ,rgtr
+        ,mdfr )
+        VALUES (
+        #{wrterId}
+        ,#{claId}
+        ,#{textbkId}
+        ,#{crculId}
+        ,#{textbkTabNm}
+        <choose>
+            <when test="selTabId != null and selTabId != '' ">
+                , (select  tab_seq + 1 as tab_seq
+                    from aidt_lms.tab_info a
+                    where 1=1
+                    and id = #{selTabId})
+            </when>
+            <otherwise>
+                , (select  ifnull(max(tab_seq),0) + 1 as tab_seq
+                    from aidt_lms.tab_info a
+                    where 1=1
+                    and wrter_id = #{wrterId}
+                    and cla_id = #{claId}
+                    and textbk_id = #{textbkId}
+                    and crcul_id = #{crculId})
+            </otherwise>
+        </choose>
+        ,#{setsId}
+        ,'Y'
+        ,(select setCategory from aidt_lcms.sets where id = #{setsId})
+        ,'system'
+        ,'system'
+        )
+    </insert>
+
+    <insert id="createTchStdSaveSets" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createTchStdSaveSets */
+        <selectKey keyProperty="newSetsid" resultType="String" order="BEFORE">
+            <choose>
+                <when test=' createdByBbsSetsId != null and createdByBbsSetsId == "Y" '>
+                    select #{bbsSetsId} as newSetsid
+                </when>
+                <otherwise>
+                    select F_NUMBER_CRT('ST') as newSetsid
+                </otherwise>
+            </choose>
+        </selectKey>
+
+        INSERT INTO aidt_lcms.sets (id, brand_id, name, description, thumbnail, hashTags, points_type, points, limit_time_type, limit_time, is_active, is_publicOpen, is_editable, is_deleted, version, tempStr, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate, setCategory, curriBook, curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5, difficulty)
+        SELECT #{newSetsid}
+             , s.brand_id
+             , sdi.bbs_nm
+             , s.description
+             , s.thumbnail
+             , sdi.tag
+             , s.points_type
+             , s.points
+             , s.limit_time_type
+             , s.limit_time
+             , 1 as isActive
+             , if(sdi.cocnr_at = 'N', 0, 1)
+             , s.is_editable
+             , s.is_deleted
+             , s.version
+             , s.tempStr
+             , s.creator_id
+             , s.creator
+             , s.creator_name
+             , s.regdate
+             , s.updater_id
+             , s.updater
+             , s.updater_name
+             , s.updatedate
+             , s.setCategory
+             , s.curriBook
+             , s.curriUnit1
+             , s.curriUnit2
+             , s.curriUnit3
+             , s.curriUnit4
+             , s.curriUnit5
+             , s.difficulty
+          FROM aidt_lms.std_dta_info sdi
+          JOIN aidt_lcms.sets s ON sdi.sets_id = s.id
+         WHERE sdi.id = #{stdId}
+    </insert>
+
+    <update id="modifyTchStdSaveBbsSetId" parameterType="map" >
+        /* TchStdMapper.modifyTchStdSaveBbsSetId */
+        UPDATE aidt_lms.std_dta_info
+           SET bbs_sets_id = #{newSetsid}
+             , mdfr = 'system'
+             , mdfy_dt = NOW()
+         WHERE id = #{stdId}
+    </update>
+
+    <delete id="removeTchStdSaveSDRD" parameterType="map">
+        /* TchStdMapper.removeTchStdSaveSDRD */
+        DELETE FROM aidt_lms.std_dta_result_detail sdrd
+        WHERE EXISTS (
+            SELECT 1
+            FROM aidt_lms.std_dta_result_info sdri
+            WHERE sdri.id = sdrd.dta_result_id
+              AND sdri.dta_id = #{stdId}
+        )
+    </delete>
+
+    <delete id="removeTchStdSaveSDRI" parameterType="map">
+        /* TchStdMapper.removeTchStdSaveSDRI */
+        DELETE FROM aidt_lms.std_dta_result_info
+        WHERE dta_id = #{stdId}
+    </delete>
+
+    <insert id="createTchStdSaveSDRI" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createTchStdSaveSDRI */
+        INSERT INTO aidt_lms.std_dta_result_info (mamoym_id, dta_id, sets_id, rgtr, mdfr, textbk_tab_id)
+        SELECT tcmi.stdt_id
+             , sdi.id
+             , sdi.sets_id
+             , sdi.wrter_id
+             , sdi.wrter_id
+             , #{id}
+          FROM aidt_lms.std_dta_info sdi
+          JOIN aidt_lms.tc_cla_mb_info tcmi ON sdi.cla_id = tcmi.cla_id
+              AND tcmi.actvtn_at = 'Y' /* 활성화된 학생만 대상 */
+         WHERE sdi.id = #{stdId}
+    </insert>
+
+    <insert id="createTchStdSaveSDRD" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createTchStdSaveSDRD */
+        INSERT INTO aidt_lms.std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at, src_detail_id)
+      SELECT sdri.id
+           , s.article_id
+           , s.sub_id
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 3
+             else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+             end as mrk_ty
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 5
+             else 1
+             end as eak_stts_cd
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 4
+             else null
+             end as errata
+           , 'system'
+           , 'system'
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end as eakAt
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end
+           , 0
+        FROM aidt_lms.std_dta_info sdi
+        JOIN aidt_lms.std_dta_result_info sdri ON sdi.id = sdri.dta_id
+        JOIN aidt_lcms.setsummary s ON sdi.sets_id  = s.set_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id  and meta_name = 'articleType')
+        left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+        WHERE sdi.id = #{stdId}
+        ORDER BY sdri.id, s.id
+    </insert>
+
+    <update id="modifyTchStdSaveEEN" parameterType="map" >
+        /* TchStdMapper.modifyTchStdSaveEEN */
+        UPDATE aidt_lms.std_dta_info
+           SET eam_exm_num = (
+                                select count(distinct sdrd.dta_iem_id) as x
+                                          from aidt_lms.std_dta_result_info sri
+                                               join aidt_lms.std_dta_result_detail sdrd on sri.id = sdrd.dta_result_id
+                                 where sri.dta_id = #{stdId}
+                             )
+            , mdfr = 'system'
+            , mdfy_dt = NOW()
+         WHERE id = #{stdId}
+          /* and ifnull(eam_exm_num, 0) = 0 */
+    </update>
+
+
+    <select id="findTchStdLastPagYN" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findTchStdLastPagYN */
+        select wrter_id
+         from aidt_lms.last_scrn_mv_info
+        where 1=1
+          AND cla_id = #{claId}
+          AND textbk_id = #{textbkId}
+          and scrn_se_cd = #{scrnSeCd}
+        limit 1
+    </select>
+
+    <insert id="createTchStdLastPageSave" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createTchStdLastPageSave */
+        insert into aidt_lms.last_scrn_mv_info (
+            wrter_id,             /* 작성자ID */
+            cla_id,                 /* 학급ID */
+            textbk_id,             /* 교과서ID */
+            sets_id,
+            article_id,
+            page_num,
+            scrn_page_se_cd,
+            scrn_se_cd              /* 페이지 타입 */
+        )
+        values (
+                 #{wrterId}
+               ,#{claId}
+               ,#{textbkId}
+               ,#{setsId}
+               ,#{articleId}
+               ,#{pageNum}
+               ,#{scrnPageSeCd}
+               ,#{scrnSeCd}
+               )
+    </insert>
+
+    <update id="modifyTchStdLastPageSave" parameterType="map">
+        /* TchStdMapper.modifyTchStdLastPageSave */
+        update aidt_lms.last_scrn_mv_info set sets_id = #{setsId}, article_id = #{articleId}, page_num = #{pageNum}, scrn_page_se_cd = #{scrnPageSeCd}, mdfy_dt = NOW()
+        where wrter_id = #{wrterId}
+          and cla_id = #{claId}
+          and textbk_id = #{textbkId}
+          and scrn_se_cd = #{scrnSeCd}
+    </update>
+
+    <select id="findTchStdLastPageCall" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findTchStdLastPageCall */
+        select wrter_id,             /* 작성자ID */
+               cla_id,                 /* 학급ID */
+               textbk_id,             /* 교과서ID */
+                <if test="scrnSeCd == 1 ">
+                sets_id,
+                article_id,
+               </if>
+               <if test="scrnSeCd == 2 ">
+               sets_id,
+               article_id,
+               page_num,
+               scrn_page_se_cd,
+               </if>
+               scrn_se_cd              /* 페이지 타입 */
+        from aidt_lms.last_scrn_mv_info
+        where wrter_id = #{wrterId}
+          AND cla_id = #{claId}
+          AND textbk_id = #{textbkId}
+          AND scrn_se_cd = #{scrnSeCd}
+    </select>
+
+    <update id="modifyTchStdSaveCrcul" parameterType="map">
+        /* TchStdMapper.modifyTchStdSaveCrcul */
+        update aidt_lms.tc_curriculum
+        set addcon_at = 'Y'
+        , mdfr = #{wrterId}
+        , mdfy_dt = now()
+        where 1=1
+        and wrter_id = #{wrterId}
+        and cla_id = #{claId}
+        and textbk_id = #{textbkId}
+        and textbk_idx_id = (select a.textbookIndex_id from aidt_lcms.textbook a where id = #{textbkId} limit 1)
+        and `key` = #{crculId}
+    </update>
+
+    <select id="findEakAtCnt" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findEakAtCnt */
+        select
+        count(1) cnt
+        from aidt_lms.std_dta_result_info sdri
+        join aidt_lms.std_dta_result_detail sdrd on sdrd.dta_result_id = sdri.id
+        where sdri.dta_id = #{stdId}
+          and sdrd.eak_at = 'Y'
+          and (sdrd.sub_mit_anw is not null
+             or sdrd.sub_mit_anw_url is not null)
+    </select>
+
+    <delete id="removeTchStdDel_tabInfo" parameterType="map" >
+        /* TchStdMapper.removeTchStdDel_tabInfo */
+        delete
+        from aidt_lms.tab_info ti
+        where ti.id = #{textbkTabId}
+    </delete>
+
+    <select id="findTabInfo" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findTabInfo */
+        select a.* from aidt_lms.tab_info a
+        where 1=1
+        and a.cla_id = #{claId}
+        and a.textbk_id = #{textbkId}
+        and a.crcul_id = #{crculId}
+        and a.id <![CDATA[<>]]> #{textbkTabId}
+    </select>
+
+    <update id="modifyTcCurriculum" parameterType="map" >
+        /* TchStdMapper.modifyTcCurriculum */
+        update aidt_lms.tc_curriculum
+        set addcon_at = 'N'
+        , mdfr = #{wrterId}
+        , mdfy_dt = now()
+        where 1=1
+        and cla_id = #{claId}
+        and textbk_id = #{textbkId}
+        and textbk_idx_id = (select a.textbookIndex_id from aidt_lcms.textbook a where id = #{textbkId} limit 1)
+        and `key` = #{crculId}
+    </update>
+
+    <select id="findSubMitCnt" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findSubMitCnt */
+        select count(1) cnt
+        from aidt_lms.std_dta_result_info dri
+        join aidt_lms.std_dta_result_detail drd on dri.id = drd.dta_result_id
+        where dta_id = #{stdId}
+        and (drd.sub_mit_anw is not null
+        	or drd.sub_mit_anw_url is not null
+        )
+    </select>
+
+    <update id="modifyStdDtaInfoSetsId" parameterType="map" >
+        /* TchStdMapper.modifyStdDtaInfoSetsId */
+        update aidt_lms.std_dta_info
+        set    sets_id = #{setsId}
+             , mdfr = 'system'
+             , mdfy_dt = now()
+        where  id = #{stdId}
+    </update>
+
+    <update id="modifyTabInfoSetsId" parameterType="map" >
+        /* TchStdMapper.modifyTabInfoSetsId */
+        update aidt_lms.tab_info
+        set    sets_id = #{setsId}
+             , mdfr = 'system'
+             , mdfy_dt = now()
+        where  id = #{textbkTabId}
+    </update>
+
+    <select id="findSlfPerEvlSetInfo" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findSlfPerEvlSetInfo */
+        select *
+        from aidt_lms.slf_per_evl_set_info
+        where gb_cd = 1
+        and textbk_id = #{textbkId}
+        and tab_id = #{textbkTabId}
+        and sets_id = #{setsId}
+    </select>
+
+    <select id="findTabInfoById" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findTabInfoById */
+        select *
+          from aidt_lms.tab_info
+         where id = #{tabId}
+    </select>
+
+    <delete id="removeTchTabStdSaveSDRD" parameterType="map">
+        /* TchStdMapper.removeTchTabStdSaveSDRD */
+        DELETE FROM aidt_lms.std_dta_result_detail
+         WHERE dta_result_id in (SELECT id
+                                   FROM aidt_lms.std_dta_result_info
+                                  WHERE textbk_tab_id = #{tabId}
+                                )
+    </delete>
+
+    <delete id="removeTchTabStdSaveSDRI" parameterType="map">
+        /* TchStdMapper.removeTchTabStdSaveSDRI */
+        DELETE FROM aidt_lms.std_dta_result_info
+        WHERE textbk_tab_id = #{tabId}
+    </delete>
+
+    <insert id="createTchTabStdSaveSDRI" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createTchTabStdSaveSDRI */
+        INSERT INTO aidt_lms.std_dta_result_info (mamoym_id, sets_id, rgtr, mdfr, textbk_tab_id)
+        SELECT tcmi.stdt_id
+             , ti.sets_id
+             , ti.wrter_id
+             , ti.wrter_id
+             , #{tabId}
+          FROM aidt_lms.tab_info ti
+          JOIN aidt_lms.tc_cla_mb_info tcmi ON ti.cla_id = tcmi.cla_id and tcmi.actvtn_at = 'Y'
+         WHERE ti.id = #{tabId}
+    </insert>
+
+    <insert id="createTchTabStdSaveSDRD" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createTchTabStdSaveSDRD */
+        INSERT INTO aidt_lms.std_dta_result_detail (dta_result_id, dta_iem_id, sub_id, mrk_ty, eak_stts_cd, errata, rgtr, mdfr, eak_at, mrk_cp_at, src_detail_id)
+      SELECT sdri.id
+           , s.article_id
+           , s.sub_id
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 3
+             else CASE m.code when 'auto' then 1 when 'manual' then 2 when 'none' then 3 end
+             end as mrk_ty
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 5
+             else 1
+             end as eak_stts_cd
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 4
+             else null
+             end as errata
+           , 'system'
+           , 'system'
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end as eakAt
+           , CASE COALESCE(m2.code, m1.code)
+             when 'concept' then 'Y'
+             else 'N'
+             end
+           , 0
+        FROM aidt_lms.tab_info ti
+        JOIN aidt_lms.std_dta_result_info sdri ON ti.id = sdri.textbk_tab_id
+        JOIN aidt_lcms.setsummary s ON ti.sets_id  = s.set_id
+        LEFT OUTER JOIN aidt_lcms.meta m1 on m1.name = 'articleType' and m1.id = (select articleType from aidt_lcms.article where id = s.article_id)
+        LEFT OUTER JOIN aidt_lcms.meta m2 on m2.name = 'articleType' and m2.id = (select meta_id from aidt_lcms.article_meta_map where article_id = s.article_id and sub_id = s.sub_id  and meta_name = 'articleType')
+        left outer join aidt_lcms.meta m on m.id = s.gradingMethod and m.name = 'gradingMethod'
+        WHERE ti.id = #{tabId}
+        ORDER BY sdri.id, s.id
+    </insert>
+
+
+    <update id="modifyTchStdSave_tabInfo" parameterType="map" >
+        /* TchStdMapper.modifyTchStdSave_tabInfo */
+        UPDATE aidt_lms.tab_info ti2
+        JOIN (
+            SELECT ti.wrter_id, ti.cla_id, ti.textbk_id, ti.crcul_id, ti.tab_seq
+            FROM aidt_lms.tab_info ti
+            WHERE ti.id = #{selTabId}
+        ) ti1 ON ti2.cla_id = ti1.cla_id
+                   AND ti2.textbk_id = ti1.textbk_id
+                   AND ti2.crcul_id = ti1.crcul_id
+                   AND ti2.tab_seq > ti1.tab_seq
+        SET ti2.tab_seq = ti2.tab_seq + 1
+    </update>
+
+    <select id="findStdDtaInfo" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findStdDtaInfo */
+        SELECT
+            wrter_id
+            , cla_id
+            , textbk_id
+            , std_dat_nm
+            , textbk_tab_nm
+            , eam_scp
+            , sets_id
+            , eam_exm_num
+            , eam_gd_exm_mun
+            , eam_av_up_exm_mun
+            , eam_av_exm_mun
+            , eam_av_lw_exm_mun
+            , eam_bd_exm_mun
+        FROM aidt_lms.std_dta_info
+        WHERE id = #{selStdId}
+    </select>
+
+    <select id="findSetsName" parameterType="map" resultType="camelHashMap">
+        /* TchStdMapper.findSetsName */
+        SELECT
+            name
+        FROM aidt_lcms.sets
+        WHERE id = #{setsId}
+    </select>
+
+    <insert id="createTchStdSaveSets2" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createTchStdSaveSets2 */
+        <selectKey keyProperty="newSetsid" resultType="String" order="BEFORE">
+            <choose>
+                <when test=' createdByBbsSetsId != null and createdByBbsSetsId == "Y" '>
+                    select #{bbsSetsId} as newSetsid
+                </when>
+                <otherwise>
+                    select F_NUMBER_CRT('ST') as newSetsid
+                </otherwise>
+            </choose>
+        </selectKey>
+
+        INSERT INTO aidt_lcms.sets (id, brand_id, name, description, thumbnail, hashTags, points_type, points, limit_time_type, limit_time, is_active, is_publicOpen, is_editable, is_deleted, version, tempStr, creator_id, creator, creator_name, regdate, updater_id, updater, updater_name, updatedate, setCategory, curriBook, curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5, difficulty)
+        SELECT #{newSetsid}
+             , s.brand_id
+             , s.name
+             , s.description
+             , s.thumbnail
+             , s.hashTags
+             , s.points_type
+             , s.points
+             , s.limit_time_type
+             , s.limit_time
+             , s.is_active
+             , s.is_publicOpen
+             , s.is_editable
+             , s.is_deleted
+             , s.version
+             , s.tempStr
+             , (SELECT id FROM aidt_lcms.user WHERE uid = #{wrterId})
+             , #{wrterId}
+             , (SELECT name FROM aidt_lcms.user WHERE uid = #{wrterId})
+             , s.regdate
+             , (SELECT id FROM aidt_lcms.user WHERE uid = #{wrterId})
+             , #{wrterId}
+             , (SELECT name FROM aidt_lcms.user WHERE uid = #{wrterId})
+             , s.updatedate
+             , s.setCategory
+             , s.curriBook
+             , s.curriUnit1
+             , s.curriUnit2
+             , s.curriUnit3
+             , s.curriUnit4
+             , s.curriUnit5
+             , s.difficulty
+          FROM aidt_lcms.sets s
+        where s.id = #{setsId}
+        ON DUPLICATE KEY UPDATE
+            updater_id = VALUES(updater_id),
+            updater = VALUES(updater),
+            updater_name = VALUES(updater_name),
+            updatedate = NOW()
+    </insert>
+
+    <delete id="deleteNoDataStdRecodeInfo" parameterType="map" >
+        /* TchStdMapper.deleteNoDataStdRecodeInfo */
+        delete
+          from aidt_lms.std_recode_info
+         where 1=1
+           and cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and crcul_id = #{crculId}
+           and std_ed_dt is null
+    </delete>
+
+
+    <insert id="createStdRecodeInfo" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createStdRecodeInfo */
+        insert into aidt_lms.std_recode_info ( wrter_id
+                                     , cla_id
+                                     , textbk_id
+                                     , crcul_id
+                                     , std_st_dt
+                                     , std_ed_dt
+                                     , rgtr
+                                     , reg_dt
+                                     , mdfr
+                                     , mdfy_dt)
+        values (
+                 #{userId}
+               , #{claId}
+               , #{textbkId}
+               , #{crculId}
+               , now()
+               , null
+               , #{userId}
+               , now()
+               , #{userId}
+               , now()
+               )
+    </insert>
+
+
+    <update id="modifyStdRecodeInfoForEndDt" parameterType="map" >
+        /* TchStdMapper.modifyStdRecodeInfoForEndDt */
+        update aidt_lms.std_recode_info
+           set std_ed_dt = now()
+         where 1=1
+           and cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and crcul_id = #{crculId}
+           and std_ed_dt is null
+    </update>
+
+
+    <delete id="deleteStdEnrollment" parameterType="map" >
+        /* TchStdMapper.deleteNoDataStdRecodeInfo */
+       delete from aidt_lms.tc_cls_enrollment
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbkId}
+    </delete>
+
+     <insert id="createStdEnrollment" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createStdEnrollment */
+        insert into aidt_lms.tc_cls_enrollment
+            (wrter_id, cla_id, textbk_id, stnt_id)
+        select user_id, cla_id, #{textbkId}, stdt_id
+          from aidt_lms.tc_cla_mb_info
+         where cla_id = #{claId}
+           and actvtn_at = 'Y'
+    </insert>
+
+    <update id="modifyTabSeqExposAt" parameterType="map" >
+        /* TchStdMapper.modifyTabSeqExposAt */
+        UPDATE aidt_lms.tab_info
+           SET expos_at = #{exposAt}
+              , tab_seq = #{tabSeq}
+              , mdfr = #{wrterId}
+              , mdfy_dt = now()
+         WHERE id = #{tabId}
+    </update>
+
+    <insert id="createExtLearnCnts" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createExtLearnCnts */
+        INSERT INTO aidt_lms.ext_learn_cnts (wrter_id, cnts_type, cnts_nm, cnts_ext, url, use_at, rgtr, reg_dt, mdfr, mdfy_dt, textbk_id, cla_id)
+        VALUES (#{wrterId}, #{cntsType}, #{cntsNm}, #{cntsExt}, #{url}, 'Y', #{wrterId}, NOW(), #{wrterId}, NOW(), #{textbkId}, #{claId})
+    </insert>
+
+    <update id="removeTchExtLearnCnts" parameterType="map">
+        /* TchStdMapper.removeTchExtLearnCnts */
+        UPDATE aidt_lms.ext_learn_cnts SET use_at = 'N' WHERE id = #{extLearnCntsId}
+    </update>
+
+    <insert id="createTchStdCntsMap" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        /* TchStdMapper.createTchStdCntsMap */
+        INSERT INTO aidt_lms.std_cnts_map (wrter_id, tab_id, cnts_id, cnts_type, cnts_nm, cnts_ext, url, rgtr, reg_dt, mdfr, mdfy_dt)
+        select #{wrterId}, #{tabId}, id, cnts_type, cnts_nm, cnts_ext, url, #{wrterId}, NOW(), #{wrterId}, NOW()
+        from aidt_lms.ext_learn_cnts
+        where id = #{extLearnCntsId}
+    </insert>
+
+    <delete id="removeTchStdCntsMap" parameterType="map">
+        /* TchStdMapper.removeTchStdCntsMap */
+        DELETE FROM aidt_lms.std_cnts_map
+        WHERE tab_id = #{tabId}
+    </delete>
+
+    <update id="modifyTchStdTabNm" parameterType="map" >
+        /* TchStdMapper.modifyTchStdTabNm */
+        UPDATE aidt_lms.tab_info
+           SET tab_nm = (select cnts_nm from aidt_lms.std_cnts_map where id = #{stdCntsMapId})
+             , mdfr = #{wrterId}
+             , mdfy_dt = NOW()
+         WHERE id = #{tabId}
+    </update>
+
+    <insert id="createStdRecodeInfo_end" parameterType="map" useGeneratedKeys="true">
+        /* TchStdMapper.createStdRecodeInfo_end */
+        insert into aidt_lms.std_recode_info ( wrter_id
+                                     , cla_id
+                                     , textbk_id
+                                     , crcul_id
+                                     , std_st_dt
+                                     , std_ed_dt
+                                     , rgtr
+                                     , reg_dt
+                                     , mdfr
+                                     , mdfy_dt)
+
+        SELECT #{userId}
+           , #{claId}
+           , #{textbkId}
+           , #{crculId}
+            , std_st_dt
+            , NULL
+            , #{userId}
+            , NOW()
+            , #{userId}
+            , NOW()
+            FROM aidt_lms.std_recode_info
+            WHERE 1=1
+              AND cla_id = #{claId}
+              AND textbk_id = #{textbkId}
+              AND std_ed_dt IS NULL
+            LIMIT 1
+    </insert>
+
+    <update id="modifyStdRecodeInfoForEndDt_end" parameterType="map" >
+        /* TchStdMapper.modifyStdRecodeInfoForEndDt_end */
+        update aidt_lms.std_recode_info
+           set std_ed_dt = now()
+         where 1=1
+           and cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and std_ed_dt is null
+    </update>
+
+</mapper>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.lecture.mapper.TchCrcuBoardMapper">
+    <select id="findTcOpnnBrd" parameterType="map" resultType="camelHashMap">
+       /* TchCrcuBoardMapper.findTcOpnnBrd */
+       select *
+       from aidt_lms.tc_opnn_brd
+       where 1=1
+       and cla_id = #{claId}
+       and textbk_id = #{textbkId}
+    </select>
+
+    <select id="findTcWhtBrd" parameterType="map" resultType="camelHashMap">
+       /* TchCrcuBoardMapper.findTcWhtBrd */
+       select *
+       from aidt_lms.tc_wht_brd
+       where cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and brd_seq = #{brdSeq}
+    </select>
+
+    <update id="modifyTchToolBoardSave" parameterType="map" >
+        /* TchCrcuBoardMapper.modifyTchToolBoardSave */
+        update aidt_lms.tc_opnn_brd
+           set brd_cd = #{brdCd}
+           /*, mdfr*/
+             , mdfy_dt = now()
+         where 1=1
+           and cla_id = #{claId}
+           and textbk_id = #{textbkId}
+    </update>
+
+    <insert id="createTchToolBoardSave" parameterType="map" >
+        /* TchCrcuBoardMapper.createTchToolBoardSave */
+        insert into aidt_lms.tc_opnn_brd
+            (wrter_id, cla_id, textbk_id, brd_cd, rgtr, reg_dt, mdfr, mdfy_dt)
+        values (
+            #{userId}, #{claId}, #{textbkId}, #{brdCd}, 'system', now(), 'system', now()
+        )
+    </insert>
+
+    <update id="modifyTchToolWhiteboardSave" parameterType="map" >
+        /* TchCrcuBoardMapper.modifyTchToolWhiteboardSave */
+        update aidt_lms.tc_wht_brd
+           set wrter_id = #{userId}
+             , brd_cn = #{brdCn}
+           /*, mdfr*/
+             , mdfy_dt = now()
+         where cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and brd_seq = #{brdSeq}
+    </update>
+
+    <insert id="createTchToolWhiteboardSave" parameterType="map" >
+        /* TchCrcuBoardMapper.createTchToolWhiteboardSave */
+        insert into aidt_lms.tc_wht_brd
+            (wrter_id, cla_id, textbk_id, brd_seq, brd_cn, rgtr, reg_dt, mdfr, mdfy_dt)
+        values (
+            #{userId}, #{claId}, #{textbkId}, #{brdSeq}, #{brdCn}, 'system', now(), 'system', now()
+        )
+    </insert>
+
+    <select id="findTchToolWhiteboardList" parameterType="map" resultType="camelHashMap">
+        /* TchCrcuBoardMapper.findTchToolWhiteboardList */
+        select *
+        from aidt_lms.tc_wht_brd
+        where 1=1
+            and cla_id = #{claId}
+            and textbk_id = #{textbkId}
+        order by brd_seq
+    </select>
+
+    <update id="modifyTchToolWhiteboardModify" parameterType="map" >
+        /* TchCrcuBoardMapper.modifyTchToolWhiteboardModify */
+        update aidt_lms.tc_wht_brd
+           set brd_cn = #{brdCn}
+             , mdfy_dt = now()
+         where 1=1
+           and cla_id = #{claId}
+           and textbk_id = #{textbkId}
+           and brd_seq = #{brdSeq}
+    </update>
+
+    <delete id="removeTchToolWhiteboardDel" parameterType="map" >
+        /* TchCrcuQuizMapper.removeTchToolWhiteboardDel */
+        delete
+        from aidt_lms.tc_wht_brd
+        where 1=1
+          and cla_id = #{claId}
+          and textbk_id = #{textbkId}
+    </delete>
+
+
+</mapper>

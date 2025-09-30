@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.visang.aidt.lms.api.stress.mapper.StressPortalPzMapper">
+
+    <select id="getClassInfo" parameterType="map" resultType="camelHashMap">
+        SELECT tci.cla_id, tci.id AS cla_idx
+        FROM tc_cla_info tci
+        WHERE tci.user_id = #{userId}
+          AND tci.estbl_sbjct_cd = #{openCourseCode}
+          AND tci.course_rm_cd = #{lectureRoomCode}
+    </select>
+
+    <select id="getClassInfoByClassCode" parameterType="map" resultType="camelHashMap">
+        SELECT tci.cla_id, tci.id AS cla_idx
+        FROM tc_cla_info tci
+        WHERE tci.user_id = #{userId}
+          AND tci.cla_id = #{classCode}
+    </select>
+
+    <select id="getClassInfoByLectureCode" parameterType="map" resultType="camelHashMap">
+        SELECT tci.cla_id
+               , tci.id AS cla_idx
+               , (select count(*) from tc_cla_mb_info tcmi where tcmi.cla_id = tci.cla_id) AS stdt_cnt
+        FROM tc_cla_info tci
+        WHERE tci.user_id = #{userId}
+          AND tci.cla_id = #{lectureCode}
+    </select>
+
+    <select id="getPtnInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ptn_id AS ptnId
+             , curri_school AS curriSchool
+             , curri_grade AS curriGrade
+             , curri_subject AS curriSubject
+             , curri_semester AS curriSemester
+        FROM aidt_ptn_info
+        WHERE ptn_id = #{partnerId}
+    </select>
+
+    <select id="getTcTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ut.textbk_id AS textbk_id
+        , ut.textbk_idx_id AS textbk_idx_id
+        , tb.name AS textbk_nm
+        FROM tc_textbook ut
+        LEFT JOIN aidt_lcms.textbook tb ON ut.textbk_id = tb.id
+        WHERE ut.wrter_id = #{wrterId}
+        AND ut.cla_id = #{claId}
+        <!-- AND ut.smte_cd = #{curriSemester} -->
+        LIMIT 1
+    </select>
+
+    <select id="findLcmsTextbookList" parameterType="map" resultType="camelHashMap">
+        SELECT tb.id AS textbk_id
+             , tb.textbookIndex_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+             , m1.code AS curriYear
+             , m2.code AS curriSchool
+             , m3.code AS curriSubject
+             , m4.code AS curriGrade
+             , m5.code AS curriSemester
+             , tb.id AS textbk_crltn_id
+             , tb.brand_id AS brandId
+        FROM aidt_lcms.deploy_textbook tb
+        LEFT JOIN (
+            SELECT t.id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+            FROM aidt_lcms.textbook t
+             LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+          ) t2 on tb.id = t2.id
+         LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+         LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+         LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+         LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+         LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        WHERE 1=1
+          AND tb.deployServer_code = #{deployServerCode}
+          AND m2.code = #{curriSchool}
+          AND m3.code = #{curriSubject}
+          AND m4.code = #{curriGrade}
+          AND m5.code = #{curriSemester}
+    </select>
+
+    <select id="getLcmsTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT tb.id AS textbk_id
+             , tb.textbookIndex_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+             , m1.code AS curriYear
+             , m2.code AS curriSchool
+             , m3.code AS curriSubject
+             , m4.code AS curriGrade
+             , m5.code AS curriSemester
+             , tb.id AS textbk_crltn_id
+             , tb.brand_id AS brandId
+        FROM aidt_lcms.deploy_textbook tb
+        LEFT JOIN (
+            SELECT t.id
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriYear' THEN tmp.meta_id_b END) AS curriYear
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSchool' THEN tmp.meta_id_b END) AS curriSchool
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSubject' THEN tmp.meta_id_b END) AS curriSubject
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriGrade' THEN tmp.meta_id_b END) AS curriGrade
+                 , MAX(CASE WHEN tmp.meta_name_b = 'curriSemester' THEN tmp.meta_id_b END) AS curriSemester
+            FROM aidt_lcms.textbook t
+             LEFT JOIN (
+                SELECT m.id, m.name, mmm.meta_id_a, mmm.meta_id_b, mmm.meta_name_b
+                FROM aidt_lcms.meta_meta_map mmm
+                INNER JOIN aidt_lcms.meta m ON mmm.meta_id_a = m.id
+            ) tmp on t.curriBook  = tmp.meta_id_a
+            group by t.id
+        ) t2 on tb.id = t2.id
+         LEFT JOIN aidt_lcms.meta m1 ON t2.curriYear = m1.id
+         LEFT JOIN aidt_lcms.meta m2 ON t2.curriSchool = m2.id
+         LEFT JOIN aidt_lcms.meta m3 ON t2.curriSubject = m3.id
+         LEFT JOIN aidt_lcms.meta m4 ON t2.curriGrade = m4.id
+         LEFT JOIN aidt_lcms.meta m5 ON t2.curriSemester = m5.id
+        WHERE 1=1
+          AND tb.deployServer_code = #{deployServerCode}
+          AND tb.id = #{textbkCrltnId}
+    </select>
+
+    <insert id="insertTcTextbook" parameterType="map">
+        INSERT INTO stress_tc_textbook (
+            wrter_id, cla_id, smte_cd, textbk_id, textbk_idx_id, rgtr
+        ) VALUES (
+            #{wrterId}, #{claId}, #{curriSemester}, #{textbkId}, #{textbkIdxId}, #{wrterId}
+        )
+    </insert>
+
+
+    <insert id="insertTcCurriculum" parameterType="map">
+        INSERT INTO stress_tc_curriculum (
+            wrter_id, cla_id, smte_cd, textbk_id, textbk_idx_id, textbk_idx_nm,  brand_id, `key`, `order`, parent
+          , droppable, child_depth, tabIndex, `depth`, `text`, startPage, endPage, use_at
+          , del_at, addcon_at, rgtr, reg_dt
+          , curriUnit1, curriUnit2, curriUnit3, curriUnit4, curriUnit5
+        )
+        SELECT
+            #{wrterId}, #{claId}, #{curriSemester}, #{textbkId}, #{textbkIdxId},
+            indexName, #{brandId}, `key`, `order`, parent,
+            droppable, child_depth, tabIndex, `depth`, `text`, startPage, endPage, IF(is_active=1, 'Y','N'),
+            IF(is_delete=1, 'Y','N'), IF(is_addContents=1, 'Y','N'), #{wrterId}, NOW(),
+            CASE
+                WHEN LOCATE(',', tbc.curriUnitList) > 0 THEN
+                    TRIM(BOTH '"' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', ''), ',', 1), ',', -1))
+                WHEN LENGTH(REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', '')) > 0 THEN
+                    TRIM(BOTH '"' FROM REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', ''))
+                ELSE NULL
+                END AS curriUnit1,
+            CASE
+                WHEN LENGTH(tbc.curriUnitList) - LENGTH(REPLACE(tbc.curriUnitList, ',', '')) >= 1 THEN
+                    TRIM(BOTH '"' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', ''), ',', 2), ',', -1))
+                ELSE NULL
+                END AS curriUnit2,
+            CASE
+                WHEN LENGTH(tbc.curriUnitList) - LENGTH(REPLACE(tbc.curriUnitList, ',', '')) >= 2 THEN
+                    TRIM(BOTH '"' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', ''), ',', 3), ',', -1))
+                ELSE NULL
+                END AS curriUnit3,
+            CASE
+                WHEN LENGTH(tbc.curriUnitList) - LENGTH(REPLACE(tbc.curriUnitList, ',', '')) >= 3 THEN
+                    TRIM(BOTH '"' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', ''), ',', 4), ',', -1))
+                ELSE NULL
+                END AS curriUnit4,
+            CASE
+                WHEN LENGTH(tbc.curriUnitList) - LENGTH(REPLACE(tbc.curriUnitList, ',', '')) >= 4 THEN
+                    TRIM(BOTH '"' FROM SUBSTRING_INDEX(SUBSTRING_INDEX(REPLACE(REPLACE(tbc.curriUnitList, '[', ''), ']', ''), ',', 5), ',', -1))
+                ELSE NULL
+                END AS curriUnit5
+            FROM aidt_lcms.deploy_textbookCurriculum tbc
+            WHERE tbc.textbookIndex_id = #{textbkIdxId}
+              AND tbc.deployServer_code = #{deployServerCode}
+            ORDER BY id
+    </insert>
+
+    <insert id="insertTabInfo" parameterType="map">
+        insert into stress_tab_info (
+           wrter_id, cla_id, smte_cd, textbk_id, crcul_id, tab_nm, tab_seq, thm_cd, thm_path
+         , sets_id, use_at
+         , expos_at
+         , setCategory, rgtr, reg_dt
+         , ebk_id, ebk_use_at, startPage, endPage, thm_desc
+        )
+        SELECT
+            #{wrterId}, #{claId}, #{curriSemester}, #{textbkId},
+            textbookCurriculum_key, name, ROW_NUMBER() OVER (PARTITION BY textbookCurriculum_id ORDER BY id) AS tabSeq, theme_code, theme_path,
+            set_id, IF(is_active=1, 'Y','N'),
+            CASE
+               WHEN accessLevel = 12 THEN 'Y'
+               WHEN accessLevel = 1 THEN 'N'
+               WHEN is_publicOpen = 1 THEN 'Y'
+               ELSE 'N'
+            END AS expos_at,
+            setCategory, #{wrterId}, NOW(),
+            ebook_id, IF(is_ebook_active=1, 'Y','N'), startPage, endPage, theme_desc
+        FROM aidt_lcms.deploy_textbooktab
+        WHERE textbookIndex_id = #{textbkIdxId}
+          AND deployServer_code = #{deployServerCode}
+        ORDER BY textbookCurriculum_id, id
+    </insert>
+
+    <select id="getStdtRegInfo" parameterType="map" resultType="camelHashMap">
+        SELECT sri.user_id AS stdt_id
+             , tcmi.cla_id AS cla_id
+             , tcmi.user_id AS tc_id
+             , IFNULL(tci.id, -1) AS cla_idx
+        FROM stdt_reg_info sri
+        LEFT JOIN tc_cla_mb_info tcmi ON sri.user_id = tcmi.stdt_id
+        LEFT JOIN tc_cla_info tci ON tci.cla_id = tcmi.cla_id
+        WHERE sri.user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <select id="getStTextbookInfo" parameterType="map" resultType="camelHashMap">
+        SELECT ut.textbk_id AS textbk_id
+             , ut.textbk_idx_id AS textbk_idx_id
+             , tb.name AS textbk_nm
+        FROM tc_textbook ut
+         LEFT JOIN aidt_lcms.textbook tb ON ut.textbk_id = tb.id
+        WHERE ut.wrter_id = #{tcId}
+          AND ut.cla_id = #{claId}
+    </select>
+
+    <select id="findTcTextbookListByGroupKey" parameterType="map" resultType="map">
+        SELECT ut.wrter_id as `wrterId`
+            , ut.cla_id as `claId`
+            , ut.textbk_id as `textbkId`
+        FROM tc_textbook ut
+        WHERE ut.wrter_id like concat(#{groupKey}, '%')
+    </select>
+</mapper>

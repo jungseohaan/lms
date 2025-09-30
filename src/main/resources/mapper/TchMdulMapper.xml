@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- mapper DTD 선언 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.visang.aidt.lms.api.materials.mapper.TchMdulMapper">
+    <select id="selectTcNoteInfo" parameterType="map" resultType="camelHashMap">
+        /* TchMdulMapper.selectTcNoteInfo */
+        SELECT
+            id
+        FROM aidt_lms.tc_note_info
+        WHERE 1=1
+        AND cla_id = #{claId}
+        AND textbk_id = #{textbkId}
+        AND tab_id = #{tabId}
+        <if test="textbkNm != null and textbkNm != '' ">
+            AND textbk_nm = #{textbkNm}
+        </if>
+        AND module_id = #{moduleId}
+        <if test="subId != null and subId != '' ">
+            AND sub_id = #{subId}
+        </if>
+    </select>
+
+    <insert id="insertTcNoteInfo" parameterType="map">
+        /* TchMdulMapper.insertTcNoteInfo */
+        INSERT INTO aidt_lms.tc_note_info
+        (
+            id
+            ,wrter_id
+            ,cla_id
+            ,textbk_id
+            ,tab_id
+            ,textbk_nm
+            ,module_id
+            ,sub_id
+            ,note_stts_cd
+            ,hdwrt_cn
+            ,rgtr
+            ,reg_dt
+            ,mdfr
+            ,mdfy_dt
+        ) VALUES (
+            null
+            ,#{userId}
+            ,#{claId}
+            ,#{textbkId}
+            ,#{tabId}
+            ,#{textbkNm}
+            ,#{moduleId}
+            ,#{subId}
+            ,'2'
+            ,#{hdwrtCn}
+            ,#{userId}
+            ,NOW()
+            ,#{userId}
+            ,NOW()
+        )
+
+    </insert>
+
+    <update id="updateTcNoteInfo" parameterType="map">
+        /* TchMdulMapper.updateTcNoteInfo */
+        UPDATE aidt_lms.tc_note_info
+        SET hdwrt_cn = #{hdwrtCn}
+            , note_stts_cd = '2'
+            , mdfr = #{userId}
+            , mdfy_dt = NOW()
+        WHERE
+            id = #{id}
+            AND cla_id = #{claId}
+            AND textbk_id = #{textbkId}
+            AND tab_id = #{tabId}
+            AND module_id = #{moduleId}
+        <if test="subId != null and subId != '' ">
+            AND sub_id = #{subId}
+        </if>
+    </update>
+
+    <select id="findTchModulCheck" parameterType="map" resultType="camelHashMap">
+        /* TchMdulMapper.findTchModulCheck */
+        SELECT
+            *
+        FROM aidt_lms.tc_note_conts
+        WHERE
+        note_id = #{noteId}
+    </select>
+
+    <select id="selectTchNoteInfoById" parameterType="map" resultType="camelHashMap">
+            /* TchMdulMapper.selectTchNoteInfoById */
+            SELECT
+                *
+            FROM aidt_lms.tc_note_info
+            WHERE
+            id = #{noteId}
+        </select>
+
+
+    <insert id="insertTcNoteConts" parameterType="map">
+        /* TchMdulMapper.insertTcNoteConts */
+        <selectKey keyProperty="sltNoteSeq" resultType="integer" order="BEFORE">
+            <choose><when test=" check == N ">
+                SELECT ifnull(MAX(note_seq) , 0) + 1
+                FROM aidt_lms.tc_note_conts
+                WHERE
+                note_id = #{noteId}
+                AND module_id  = #{moduleId}
+                GROUP BY note_id, module_id
+                </when>
+                <otherwise>
+                    SELECT 1
+                </otherwise>
+            </choose>
+        </selectKey>
+        INSERT INTO aidt_lms.tc_note_conts
+        SELECT
+            null
+            ,#{noteId}
+            ,module_id
+            ,sub_id
+            ,#{sltNoteSeq}
+            ,#{noteImgUrl}
+            ,wrter_id
+            ,now()
+            ,wrter_id
+            ,now()
+        FROM aidt_lms.tc_note_info
+        WHERE id = #{noteId}
+    </insert>
+
+    <select id="selectTchMdulHdwrntCn" parameterType="map" resultType="camelHashMap">
+        /* TchMdulMapper.selectTchMdulHdwrntCn */
+        SELECT
+            id          as note_id
+            , hdwrt_cn
+        FROM aidt_lms.tc_note_info
+        WHERE 1=1
+        AND cla_id = #{claId}
+        AND textbk_id = #{textbkId}
+        AND module_id = #{moduleId}
+        <if test="subId != null and subId != '' ">
+            AND sub_id = #{subId}
+        </if>
+        ORDER BY reg_dt DESC
+        LIMIT 1
+    </select>
+
+
+</mapper>
