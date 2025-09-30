@@ -1,4 +1,4 @@
-# 비상교육 AIDT LMS API 프로젝트
+# LMS
 
 
 ***
